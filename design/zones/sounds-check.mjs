@@ -1,4 +1,5 @@
-// СТРАНИЦА «ЗВУКИ ДВИЖЕНИЙ»: список дорожек с волной и воспроизведением на любой скорости; выбор дорожки на движение сохраняется в пресете.   (нужны :9588 и :9590)   node design/zones/sounds-check.mjs [host]
+// СТРАНИЦА «ЗВУКИ»: галерея всех скачанных звуков (плитка — звук, нажал — играет, ручек нет) и список звуков на каждое действие (любые звуки из галереи, у каждого свои начало, длительность, скорость, тон, громкость, динамика).
+//   (нужны :9588 и :9590)   node design/zones/sounds-check.mjs [host]
 import { createRequire } from "module";
 const require = createRequire(new URL("../../server/scripts/x.mjs", import.meta.url));
 const { chromium } = require("playwright");
@@ -11,79 +12,60 @@ const check = (name, ok, got) => checks.push({ name, ok, got });
 await p.goto(`http://${host}:9588/sounds.html`);
 await p.waitForTimeout(3000);
 const f = p.frames().find((x) => x.url().includes("sounds-page"));
-await f.waitForFunction(() => window.__ready, null, { timeout: 60000 });
-await p.waitForTimeout(500);
-const tracks = await f.evaluate(() => [...document.querySelectorAll(".track")].map((t) => t.dataset.track));
-check("в списке все 9 дорожек стола", tracks.length === 9 && tracks.includes("drop-1") && tracks.includes("gather-3"), tracks);
-// Страница открылась сразу, дорожки не загружены; ▶ загружает именно эту дорожку (с полоской загрузки) и затем играет её на выбранной скорости.
-const before = await f.evaluate(() => ({ loaded: window.__sound.health.loaded, drop: !!window.__sound.buffer("drop-1") }));
-check("до нажатия дорожки не загружены (страница открылась сразу)", before.loaded === 0 && !before.drop, before);
-await f.evaluate(() => { const s = document.querySelector('.track[data-track="drop-1"] input[type=range]'); s.value = 0.5; s.dispatchEvent(new Event("input")); });
+await f.waitForFunction(() => window.__ready && window.__sound.tracks.every((n) => window.__sound.buffer(n)), null, { timeout: 60000 });
+await p.waitForTimeout(300);
 await f.evaluate(() => { window.__sound.voice = ((orig) => (spec) => { (window.__spec ??= []).push(spec); return orig(spec); })(window.__sound.voice); });
-const during = await f.evaluate(() => { document.querySelector('.track[data-track="drop-1"] button').click(); const t = document.querySelector('.track[data-track="drop-1"]'); return { loading: t.classList.contains("loading"), btn: t.querySelector("button").textContent }; });
-check("после нажатия ▶ показана загрузка (полоска и «…»)", during.loading && during.btn === "…", during);
-await f.waitForFunction(() => !!window.__sound.buffer("drop-1") && window.__spec?.length, null, { timeout: 15000 });
-const spec = await f.evaluate(() => window.__spec?.at(-1));
-check("после загрузки играет именно эту дорожку на выбранной скорости", spec && spec.track === "drop-1" && Math.abs(spec.rate - 0.5) < 0.01, spec);
-// Ползунок «начало» двигает черту начала на волне в реальном времени (и притемняет левее неё).
-const mk = () => f.evaluate(() => { const t = document.querySelector('.track[data-track="drop-1"]'), w = t.querySelector(".wavebox").getBoundingClientRect().width, sm = t.querySelector(".sm"), dim = t.querySelector(".dim"); return { left: parseFloat(sm.style.left), dim: parseFloat(dim.style.width), px: sm.getBoundingClientRect().left - t.querySelector(".wavebox").getBoundingClientRect().left, w }; });
-const m0 = await mk();
-await f.evaluate(() => { const r = [...document.querySelectorAll('.track[data-track="drop-1"] input[type=range]')].at(-1); r.value = 300; r.dispatchEvent(new Event("input")); });
-const m1 = await mk();
-await f.evaluate(() => { const r = [...document.querySelectorAll('.track[data-track="drop-1"] input[type=range]')].at(-1); r.value = 111; r.dispatchEvent(new Event("input")); });
-check("«начало» двигает черту начала на волне сразу: 111 мс → 300 мс сдвигает вправо, левее притемнено", m1.left > m0.left + 10 && Math.abs(m1.dim - m1.left) < 0.5, { m0, m1 });
-const ph1 = await f.evaluate(() => { const e = document.querySelector('.track[data-track="drop-1"] .ph'); return { shown: e.style.display, left: parseFloat(e.style.left) }; });
-await p.waitForTimeout(250);
-const ph2 = await f.evaluate(() => { const e = document.querySelector('.track[data-track="drop-1"] .ph'); return { shown: e.style.display, left: parseFloat(e.style.left) }; });
-check("бегунок бежит по волне вместе со звуком (виден и сдвигается вправо)", ph1.shown === "block" && ph2.left > ph1.left, { ph1, ph2 });
-await p.waitForTimeout(1600);
-check("после конца звука бегунок исчезает", (await f.evaluate(() => document.querySelector('.track[data-track="drop-1"] .ph').style.display)) === "none");
-const after = await f.evaluate(() => ({ loaded: window.__sound.health.loaded, other: !!window.__sound.buffer("gather-2"), meta: document.querySelector('.track[data-track="drop-1"] .meta').textContent }));
-check("загрузилась только нажатая дорожка, и написано, за сколько", after.loaded === 1 && !after.other && /загружено за \d+ мс/.test(after.meta), after);
-// Выбор дорожки на движение сохраняется в пресете и в хранилище.
-await f.evaluate(() => { const sel = document.querySelector('.ev[data-kind="slam"] select'); sel.value = "track:gather-2"; sel.dispatchEvent(new Event("change")); });
-await f.waitForFunction(() => !!window.__sound.buffer("gather-2"), null, { timeout: 15000 });
-const saved = await f.evaluate(() => ({ preset: window.__feel.preset.slam.track, store: JSON.parse(localStorage.getItem("crossade.feel.v2")).preset.slam.track }));
-check("выбрал дорожку на «Удар об стол» — она в пресете и сохранена", saved.preset === "gather-2" && saved.store === "gather-2", saved);
-// Скорость без смены высоты: «скорость меняет тон» выключен — запись растягивается (считается один раз), в голос уходит tie=false и свой тон.
-await f.evaluate(() => { document.getElementById("tie").checked = false; const t = document.querySelector('.track[data-track="drop-1"]'); const sp = t.querySelector("input[type=range]"); sp.value = 0.5; sp.dispatchEvent(new Event("input")); });
-await f.evaluate(() => { window.__spec.length = 0; document.querySelector('.track[data-track="drop-1"] button').click(); });
-await p.waitForTimeout(600);
-const untied = await f.evaluate(() => ({ spec: window.__spec.at(-1), stretches: window.__sound.health.stretches }));
-check("«скорость меняет тон» выключен: голос с tie=false, скорость 0,5, запись растянута", untied.spec && untied.spec.tie === false && Math.abs(untied.spec.rate - 0.5) < 0.01 && untied.stretches >= 1, untied);
-await f.evaluate(() => { document.getElementById("tie").checked = true; });
-// Ручка тона: +12 пт — спека несёт pitch.
-await f.evaluate(() => { const t = document.querySelector('.track[data-track="drop-1"]'); const r = [...t.querySelectorAll("input[type=range]")][1]; r.value = 12; r.dispatchEvent(new Event("input")); window.__spec.length = 0; t.querySelector("button").click(); });
-await p.waitForTimeout(500);
-check("ручка «тон» +12 полутонов уходит в голос", (await f.evaluate(() => window.__spec.at(-1)?.pitch)) === 12);
-// Никаких «групп»: в списке выбора только конкретные дорожки; ▶ у звука играет именно его (без синтеза); набор собирается кнопкой «+ ещё звук».
-{
-  const opts = await f.evaluate(() => [...document.querySelectorAll('.ev[data-kind="lay"] select option')].map((o) => o.textContent));
-  check("в выборе звука нет групп: 9 дорожек и «без записи»", opts.length === 10 && !opts.some((t) => /групп/.test(t)), opts);
-  await f.evaluate(() => { window.__spec.length = 0; });
-  await f.evaluate(() => document.querySelector('.ev[data-kind="lay"] .variant[data-variant="0"] button').click());
-  await p.waitForTimeout(400);
-  const one = await f.evaluate(() => window.__spec.at(-1));
-  check("▶ у звука играет только его: дорожка hand-1, без слоёв синтеза", one && one.track === "hand-1" && (one.layers ?? []).length === 0, one);
-  await f.evaluate(() => [...document.querySelectorAll('.ev[data-kind="lay"] > button')].find((b) => /ещё звук/.test(b.textContent)).click());
-  const made = await f.evaluate(() => ({ variants: document.querySelectorAll('.ev[data-kind="lay"] .variant').length, extra: window.__feel.preset.lay.extra?.length }));
-  check("«+ ещё звук в набор» добавляет второй звук со своими настройками", made.variants === 2 && made.extra === 1, made);
-  await f.evaluate(() => { const sel = document.querySelectorAll('.ev[data-kind="lay"] .variant')[1].querySelector("select"); sel.value = "track:turn-1"; sel.dispatchEvent(new Event("change")); });
-  await f.waitForFunction(() => window.__feel.preset.lay.extra?.[0]?.track === "turn-1", null, { timeout: 5000 });
-  await f.evaluate(() => { window.__spec.length = 0; });
-  await f.evaluate(() => document.querySelectorAll('.ev[data-kind="lay"] .variant')[1].querySelector("button").click());
-  await p.waitForTimeout(400);
-  const two = await f.evaluate(() => window.__spec.at(-1));
-  check("▶ у второго звука играет его дорожку turn-1", two && two.track === "turn-1", two);
-  await f.evaluate(() => { document.querySelectorAll('.ev[data-kind="lay"] .variant')[1].querySelectorAll("button")[1].click(); });
-  await p.waitForTimeout(300);
-  check("× убирает звук из набора", await f.evaluate(() => !window.__feel.preset.lay.extra && document.querySelectorAll('.ev[data-kind="lay"] .variant').length === 1));
+const spec = () => f.evaluate(() => window.__spec?.at(-1));
+const clear = () => f.evaluate(() => { window.__spec = []; });
+
+// 1. Галерея: все 9 звуков загружены при открытии, у каждого плитка с волной, никаких ручек.
+const gal = await f.evaluate(() => ({ tiles: [...document.querySelectorAll("#gal .tile")].map((t) => t.dataset.track), ranges: document.querySelectorAll("#gal input").length, selects: document.querySelectorAll("#gal select").length, waves: [...document.querySelectorAll("#gal canvas")].every((c) => c.getContext("2d").getImageData(0, 0, c.width, c.height).data.some((v, i) => i % 4 === 3 && v > 0)) }));
+check("галерея: 9 плиток-звуков, у каждой волна", gal.tiles.length === 9 && gal.waves, gal);
+check("в галерее нет ни ползунков, ни выбора — только слушать", gal.ranges === 0 && gal.selects === 0, gal);
+await clear();
+await f.evaluate(() => document.querySelector('#gal .tile[data-track="gather-2"]').click());
+await p.waitForTimeout(300);
+const one = await spec();
+check("один клик по плитке — играет именно этот звук целиком (с начала файла)", one && one.track === "gather-2" && one.raw === true, one);
+check("при воспроизведении плитка подсвечена и по ней бежит бегунок", await f.evaluate(() => { const t = document.querySelector('#gal .tile[data-track="gather-2"]'); return t.classList.contains("playing") && t.querySelector(".tph").style.display === "block"; }));
+
+// 2. Звуки действий: у каждого действия список; добавить звук из любых; свои настройки у каждого; ▶ играет ровно его.
+const ev = (kind) => `.ev[data-kind="${kind}"]`;
+const sounds = (kind) => f.evaluate((k) => document.querySelectorAll(`.ev[data-kind="${k}"] .snd`).length, kind);
+check("у действия «Положил» один звук по умолчанию", (await sounds("lay")) === 1);
+for (const t of ["turn-1", "merge-1", "shuffle-1"]) {
+  const had = await sounds("lay");
+  await f.evaluate(([k, tr]) => { const a = document.querySelector(`.ev[data-kind="${k}"] select.add`); a.value = tr; a.dispatchEvent(new Event("change")); }, ["lay", t]);
+  await f.waitForFunction((n) => document.querySelectorAll('.ev[data-kind="lay"] .snd').length === n, had + 1, { timeout: 8000 });
 }
-// «Загрузить все»: после неё загружены все 9 дорожек и у каждой нарисована волна.
-await f.evaluate(() => document.getElementById("all").click());
-await f.waitForFunction(() => window.__sound.tracks.every((n) => window.__sound.buffer(n)), null, { timeout: 30000 });
-check("«Загрузить все» грузит все 9 дорожек и рисует волны", await f.evaluate(() => [...document.querySelectorAll("canvas.wave")].every((c) => c.width > 10 && c.getContext("2d").getImageData(0, 0, c.width, c.height).data.some((v, i) => i % 4 === 3 && v > 0))));
-console.log("загрузка дорожек, мс:", JSON.stringify(await f.evaluate(() => window.__sound.health.loadMs)));
+check("к действию добавлены ещё три звука из разных мест (всего 4)", (await sounds("lay")) === 4);
+// У третьего свои настройки: начало 0,3 с, длится 0,2 с, скорость 1,5, тон +3, громкость 0,5.
+await f.evaluate(() => {
+  const box = document.querySelectorAll('.ev[data-kind="lay"] .snd')[2];
+  const set = (label, val) => { const r = [...box.querySelectorAll(".sl")].find((l) => l.querySelector("span").textContent === label).querySelector("input"); r.value = val; r.dispatchEvent(new Event("input")); };
+  set("начало", 300); set("длится", 200); set("скорость", 1.5); set("тон", 3); set("громкость", 0.5);
+});
+await clear();
+await f.evaluate(() => document.querySelectorAll('.ev[data-kind="lay"] .snd')[2].querySelectorAll("button")[0].click());
+await p.waitForTimeout(300);
+const third = await spec();
+check("▶ у третьего звука играет только его с его настройками: начало 0,3 с, длится 0,2 с, ×1,5, +3 пт, громкость 0,5", third && third.track === "merge-1" && Math.abs(third.from - 0.3) < 0.011 && third.cutMs === 200 && Math.abs(third.rate - 1.5) < 0.01 && third.pitch === 3 && Math.abs(third.gain - 0.8 * 0.5) < 0.05 && (third.layers ?? []).length === 0, third);
+check("настройки сохранены у этого звука, у других остались свои", await f.evaluate(() => { const l = window.__feel.preset.lay; const all = [l, ...(l.extra ?? [])]; return all.length === 4 && all[2].track === "merge-1" && all[2].len === 200 && all[0].len !== 200 && all[1].len !== 200; }));
+// Динамика: у звука свой ползунок; при слабом действии громкость падает по ней.
+await f.evaluate(() => { const box = document.querySelectorAll('.ev[data-kind="lay"] .snd')[0]; const r = [...box.querySelectorAll(".sl")].find((l) => l.querySelector("span").textContent === "динамика").querySelector("input"); r.value = 0; r.dispatchEvent(new Event("input")); });
+await clear();
+await f.evaluate(() => { window.__feel.preset.lay.extra = []; delete window.__feel.preset.lay.extra; window.__feel.play({ kind: "lay", energy: 0.1 }); });
+const dyn0 = await spec();
+check("динамика 0: слабое действие играет в полную громкость звука (не тише)", dyn0 && Math.abs(dyn0.gain - 0.8) < 0.05, dyn0);
+// × убирает звук; без звуков — «звуков нет».
+await f.evaluate(() => window.__feel.reset("lay"));
+await f.evaluate(() => document.getElementById("reset").click());
+await p.waitForTimeout(200);
+check("«Сбросить всё» возвращает заводские звуки (у «Положил» один)", (await sounds("lay")) === 1);
+await f.evaluate(() => document.querySelectorAll('.ev[data-kind="lay"] .snd')[0].querySelectorAll("button")[1].click());
+await p.waitForTimeout(200);
+check("× убирает последний звук: «звуков нет»", (await sounds("lay")) === 0 && await f.evaluate(() => /звуков нет/.test(document.querySelector('.ev[data-kind="lay"]').textContent)));
+await f.evaluate(() => document.getElementById("reset").click());
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const k of checks) console.log(k.ok ? "ok  " : "FAIL", k.name, k.ok ? "" : JSON.stringify(k.got));

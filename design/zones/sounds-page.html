@@ -46,19 +46,32 @@
   .loading .loadbar { display: block; }
   button[disabled] { opacity: .55; cursor: default; }
   .chk { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .gal { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tile { position: relative; background: #130c07; box-shadow: 0 0 0 2px var(--black), inset 0 0 0 2px #3a2a1d; padding: 8px; cursor: pointer; min-height: 92px; overflow: hidden; }
+  .tile.playing { box-shadow: 0 0 0 2px var(--black), inset 0 0 0 3px var(--gold); }
+  .tile.loading { opacity: .6; }
+  .tile .tn { font-size: 13px; line-height: 1.15; margin: 0 0 2px; }
+  .tile .tf { font-size: 10px; color: var(--dim); margin: 0 0 6px; }
+  .tile canvas { display: block; width: 100%; height: 34px; }
+  .tile .tph { position: absolute; top: 0; bottom: 0; width: 2px; background: #fff; box-shadow: 0 0 6px #fff; display: none; pointer-events: none; }
+  .tile .tbar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: #4a3a28; display: none; overflow: hidden; }
+  .tile.loading .tbar { display: block; }
+  .tile .tbar::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 33%; background: var(--gold); animation: run .9s linear infinite; }
+  .snd { margin: 0 0 12px; padding: 8px; background: rgba(11,7,4,.35); box-shadow: inset 0 0 0 2px rgba(11,7,4,.6); }
+  .snd .row select { flex: 1; }
+  .none { font-size: 12px; color: var(--dim); margin: 0 0 8px; }
 </style>
 </head>
 <body>
 <div class="page">
-  <h1>ЗВУКИ ДВИЖЕНИЙ</h1>
+  <h1>ЗВУКИ</h1>
   <div id="diag"></div><div id="errors"></div>
-  <div class="plate"><div class="head"><div class="n">1</div><div class="t">ДОРОЖКИ</div></div>
-    <div class="hint">Все записи, что играет стол. Нажми на волну или ▶ — играет с начала. «Скорость» меняет и скорость, и высоту (как пластинку). Жёлтая черта — где звук на самом деле начинается: тишина до неё в игре срезается.</div>
-    <div class="tools"><label class="chk"><input type="checkbox" id="raw"> без среза тишины</label><label class="chk"><input type="checkbox" id="loop"> по кругу</label><label class="chk"><input type="checkbox" id="tie" checked> скорость меняет тон</label><button id="stop">■ стоп</button><button id="all">Загрузить все</button><span id="count" class="meta" style="color:var(--dim)"></span></div>
-    <div id="tracks"></div></div>
-  <div class="plate"><div class="head"><div class="n">2</div><div class="t">КАКОЙ ЗВУК НА КАКОЕ ДВИЖЕНИЕ</div></div>
-    <div class="hint">Выбери конкретную дорожку для движения и подстрой ЕЁ начало, скорость и тон. ▶ у звука играет только его. «+ ещё звук в набор» собирает свой набор: у каждого звука свои настройки, при движении играет случайный. Сохраняется сразу; «Карта — база» подхватывает.</div>
-    <div class="tools"><button id="copy">Копировать пресет</button><button id="reset">Сбросить всё</button></div>
+  <div class="plate"><div class="head"><div class="n">1</div><div class="t">ГАЛЕРЕЯ ЗВУКОВ</div></div>
+    <div class="hint">Все звуки, что скачаны. Один звук — одно нажатие: слушай. Ничего настраивать тут не нужно. <span id="count"></span></div>
+    <div class="gal" id="gal"></div></div>
+  <div class="plate"><div class="head"><div class="n">2</div><div class="t">ЗВУКИ ДЕЙСТВИЙ</div></div>
+    <div class="hint">На каждое действие — столько звуков, сколько хочешь, из любых. У каждого звука свои: с какой секунды начинается, сколько длится, скорость, тон, громкость и «динамика» (насколько сила действия меняет его громкость). При действии играют все звуки списка. Сохраняется сразу; «Карта — база» подхватывает.</div>
+    <div class="tools"><button id="copy">Копировать настройки</button><button id="reset">Сбросить всё</button></div>
     <div id="events"></div></div>
 </div>
 <script type="module">
@@ -76,186 +89,153 @@ const sound = tableSound({ lazy: true }), feel = tableFeel(sound, tableHaptic())
 window.__sound = sound; window.__feel = feel;
 window.__ready = true;
 {
-  // Что здесь на самом деле: звуковой сервер, аудио, касания.
   const diag = $("diag"), host = globalThis.__TABLE_HOST__, t0 = performance.now();
   const line = (t) => { diag.textContent += t + "\n"; };
   line(`звуки берутся с ${host}`);
   fetch(`${host}/table/sounds/drop-1.m4a`, { method: "HEAD" }).then((r) => line(`сервер звуков ответил ${r.status} за ${Math.round(performance.now() - t0)} мс`)).catch((e) => line(`сервер звуков НЕ ответил: ${e?.message ?? e}`));
-  line(`AudioContext: ${typeof (globalThis.AudioContext ?? globalThis.webkitAudioContext)}`);
-  addEventListener("pointerdown", (e) => { diag.dataset.last = `касание ${e.target?.tagName ?? "?"}`; }, true);
 }
-
 const TRACK_NAMES = { "drop-1": "Стук карты о стол", "hand-1": "Скольжение карты", "turn-1": "Переворот", "merge-1": "Веер / слияние", "shuffle-1": "Тасовка", "sort-1": "Перестановка", "gather-1": "Сбор (1)", "gather-2": "Сбор (2)", "gather-3": "Сбор (3)" };
-const play = { raw: false, loop: false, timer: 0 };
-$("raw").onchange = (e) => { play.raw = e.target.checked; };
-$("loop").onchange = (e) => { play.loop = e.target.checked; };
-$("stop").onclick = () => { play.loop = false; $("loop").checked = false; clearTimeout(play.timer); cancelAnimationFrame(phTimer); for (const c of cards.values()) c.ph.style.display = "none"; };
+const nameOf = (t) => TRACK_NAMES[t] ?? t;
 
-function wave(canvas, audio, onset) {
+// ——— 1. ГАЛЕРЕЯ: плитка на звук, нажал — играет целиком с самого начала файла ———
+const tiles = new Map();
+let phTimer = 0;
+const refreshCount = () => { $("count").textContent = `Загружено ${sound.tracks.filter((n) => sound.buffer(n)).length} из ${sound.tracks.length}.`; };
+function wave(canvas, audio) {
   const dpr = devicePixelRatio || 1, w = canvas.clientWidth, h = canvas.clientHeight;
-  canvas.width = w * dpr; canvas.height = h * dpr;
-  const g = canvas.getContext("2d"), d = audio.getChannelData(0), per = Math.max(1, Math.floor(d.length / (w * dpr)));
+  canvas.width = Math.max(10, w * dpr); canvas.height = Math.max(10, h * dpr);
+  const g = canvas.getContext("2d"), d = audio.getChannelData(0), per = Math.max(1, Math.floor(d.length / canvas.width));
   g.fillStyle = "#f2c14e";
-  for (let x = 0; x < w * dpr; x++) {
+  for (let x = 0; x < canvas.width; x++) {
     let m = 0;
     for (let i = x * per; i < Math.min(d.length, (x + 1) * per); i++) m = Math.max(m, Math.abs(d[i]));
-    const hh = Math.max(1, m * h * dpr * 0.46);
-    g.fillRect(x, (h * dpr) / 2 - hh, 1, hh * 2);
+    const hh = Math.max(1, m * canvas.height * 0.48);
+    g.fillRect(x, canvas.height / 2 - hh, 1, hh * 2);
   }
 }
-/** Бегунок по волне: от места, с которого играет, до конца — за столько же времени, сколько звучит (с учётом скорости). */
-let phTimer = 0;
-function runPlayhead(name, startSec, rate) {
-  cancelAnimationFrame(phTimer);
-  for (const c of cards.values()) c.ph.style.display = "none";
-  const b = sound.buffer(name), c = cards.get(name);
-  if (!b || !c) return;
-  const dur = b.audio.duration, ms = Math.max(50, ((dur - startSec) / rate) * 1000), t0 = performance.now(), f0 = startSec / dur;
-  c.ph.style.display = "block";
-  const step = () => {
-    const t = (performance.now() - t0) / ms;
-    if (t >= 1) { c.ph.style.display = "none"; return; }
-    c.ph.style.left = (f0 + (1 - f0) * t) * 100 + "%";
-    phTimer = requestAnimationFrame(step);
-  };
-  step();
-  return ms;
-}
-function playTrack(name, rate, gain, fromMs, pitch = 0) {
-  clearTimeout(play.timer);
-  const once = () => {
-    const b = sound.buffer(name), start = play.raw ? 0 : fromMs !== undefined ? fromMs / 1000 : b?.onset ?? 0;
-    sound.voice({ track: name, file: null, rate, gain, pitch, tie: $("tie").checked, raw: play.raw, ...(fromMs !== undefined && !play.raw ? { from: fromMs / 1000 } : {}), layers: [] });
-    const ms = runPlayhead(name, start, rate);
-    if (play.loop && ms) play.timer = setTimeout(once, ms + 150);
-  };
-  once();
-}
-
-// 1. Дорожки: грузятся по нажатию на ▶ (или кнопкой «Загрузить все»), с полоской загрузки; страница открывается сразу.
-const cards = new Map();
-const refreshCount = () => { $("count").textContent = `загружено ${sound.tracks.filter((n) => sound.buffer(n)).length} из ${sound.tracks.length}`; };
-refreshCount();
-const trackMeta = (name) => { const b = sound.buffer(name); return b ? `${name} · ${b.audio.duration.toFixed(2)} с · тишина в начале ${Math.round(b.onset * 1000)} мс · загружено за ${sound.health.loadMs[name] ?? "?"} мс` : `${name} · не загружена (нажми ▶)`; };
 async function loadTrack(name) {
-  const card = cards.get(name);
   if (sound.buffer(name)) return true;
-  card.box.classList.add("loading"); card.play.disabled = true; card.play.textContent = "…"; card.meta.textContent = `${name} · загрузка…`;
-  const t0 = performance.now();
-  const tick = setInterval(() => { card.meta.textContent = `${name} · загрузка… ${((performance.now() - t0) / 1000).toFixed(1)} с (аудио: ${window.__sound.health.state})`; }, 250);
+  const tile = tiles.get(name);
+  tile?.el.classList.add("loading");
   const ok = await Promise.race([sound.ensure(name), new Promise((r) => setTimeout(() => r("timeout"), 15000))]);
-  clearInterval(tick);
-  card.box.classList.remove("loading"); card.play.disabled = false; card.play.textContent = "▶";
-  card.meta.textContent = ok === true ? trackMeta(name) : ok === "timeout" ? `${name} · не загрузилась за 15 с (аудио: ${window.__sound.health.state}); смотри строку «сервер звуков» вверху` : `${name} · не загрузилась (сервер звуков :2591 недоступен или не отдаёт файл)`;
+  tile?.el.classList.remove("loading");
   const b = sound.buffer(name);
-  if (b) { wave(card.cv, b.audio, b.onset); card.start.set(Math.round(b.onset * 1000)); card.moveStart(); }
+  if (b && tile) { wave(tile.cv, b.audio); tile.info.textContent = `${name} · ${b.audio.duration.toFixed(2)} с`; }
+  if (ok !== true) showError(`${name}: не загрузилась (${ok === "timeout" ? "15 с без ответа" : "сервер звуков недоступен"})`);
   refreshCount();
   return ok === true;
 }
-for (const name of sound.tracks) {
-  const box = document.createElement("div"); box.className = "track"; box.dataset.track = name;
-  const row = document.createElement("div"); row.className = "row";
-  const nm = document.createElement("div"); nm.className = "nm"; nm.innerHTML = `${TRACK_NAMES[name] ?? name}<br><span class="meta"></span>`;
-  const meta = nm.querySelector(".meta"); meta.textContent = trackMeta(name);
-  const play1 = document.createElement("button"); play1.textContent = "▶";
-  row.append(nm, play1);
-  const bar = document.createElement("div"); bar.className = "loadbar";
-  const cv = document.createElement("canvas"); cv.className = "wave";
-  const slider = (label, min, max, step, init, fmt) => { const l = document.createElement("div"); l.className = "sl"; l.innerHTML = `<span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}"><b></b>`; const r = l.querySelector("input"), v = l.querySelector("b"); r.value = init; v.textContent = fmt(init); r.oninput = () => { v.textContent = fmt(+r.value); }; l.get = () => +r.value; l.set = (x) => { r.value = x; v.textContent = fmt(x); }; return l; };
-  const sp = slider("скорость", 0.25, 2.5, 0.01, 1, (v) => v.toFixed(2) + "×"), gn = slider("громкость", 0, 2, 0.05, 1, (v) => v.toFixed(2)), st = slider("начало", 0, 400, 1, 0, (v) => v + " мс"), pt = slider("тон", -12, 12, 0.1, 0, (v) => (v > 0 ? "+" : "") + v.toFixed(1) + " пт");
-  const wrap = document.createElement("div"); wrap.className = "wavebox";
-  const ph = document.createElement("div"); ph.className = "ph";
-  const dim = document.createElement("div"); dim.className = "dim";
-  const sm = document.createElement("div"); sm.className = "sm";
-  wrap.append(cv, dim, sm, ph);
-  box.append(row, bar, wrap, sp, pt, gn, st);
-  $("tracks").append(box);
-  cards.set(name, { box, play: play1, meta, cv, start: st, ph });
-  // Черта начала двигается за ползунком «начало» в реальном времени; всё левее неё притемнено — это не играет.
-  const moveStart = () => { const b = sound.buffer(name); if (!b) return; const f = Math.min(1, st.get() / 1000 / b.audio.duration) * 100; sm.style.left = f + "%"; dim.style.width = f + "%"; };
-  st.querySelector("input").addEventListener("input", moveStart);
-  cards.get(name).moveStart = moveStart;
-  let busy = false, last = 0;
-  const go = async () => {
-    // Касание даёт и `pointerup`, и `click` — второй в пределах 400 мс гасим, иначе звук сыграет дважды.
-    if (busy || performance.now() - last < 400) return;
-    last = performance.now();
-    busy = true;
-    try { if (await loadTrack(name)) playTrack(name, sp.get(), gn.get(), st.get(), pt.get()); }
-    catch (e) { meta.textContent = `${name} · ошибка: ${e?.message ?? e}`; showError(`${name}: ${e?.message ?? e}`); play1.disabled = false; play1.textContent = "▶"; box.classList.remove("loading"); }
-    finally { busy = false; }
-  };
-  // `pointerup` надёжнее `click` на айфоне внутри рамки; оба ведут в одно и то же (повтор гасит `busy`).
-  for (const el of [play1, cv]) { el.addEventListener("pointerup", (e) => { if (e.pointerType !== "mouse") go(); }); el.addEventListener("click", go); }
-  requestAnimationFrame(() => { const b = sound.buffer(name); if (b) wave(cv, b.audio, b.onset); else { const g = cv.getContext("2d"); cv.width = cv.clientWidth; cv.height = cv.clientHeight; g.fillStyle = "#4a3a28"; g.font = "12px Tiny5, monospace"; g.fillText("волна появится после загрузки", 10, 32); } });
+function runPlayhead(name, ms) {
+  cancelAnimationFrame(phTimer);
+  for (const t of tiles.values()) { t.ph.style.display = "none"; t.el.classList.remove("playing"); }
+  const t = tiles.get(name);
+  if (!t) return;
+  t.el.classList.add("playing"); t.ph.style.display = "block";
+  const t0 = performance.now();
+  const step = () => { const f = (performance.now() - t0) / ms; if (f >= 1) { t.ph.style.display = "none"; t.el.classList.remove("playing"); return; } t.ph.style.left = f * 100 + "%"; phTimer = requestAnimationFrame(step); };
+  step();
 }
-$("all").onclick = async () => { $("all").disabled = true; await Promise.all(sound.tracks.map((n) => loadTrack(n))); $("all").disabled = false; };
+for (const name of sound.tracks) {
+  const el = document.createElement("div"); el.className = "tile"; el.dataset.track = name;
+  const tn = document.createElement("div"); tn.className = "tn"; tn.textContent = nameOf(name);
+  const info = document.createElement("div"); info.className = "tf"; info.textContent = name;
+  const cv = document.createElement("canvas");
+  const ph = document.createElement("div"); ph.className = "tph";
+  const bar = document.createElement("div"); bar.className = "tbar";
+  el.append(tn, info, cv, ph, bar);
+  $("gal").append(el);
+  tiles.set(name, { el, cv, ph, info });
+  let last = 0;
+  const go = async () => {
+    if (performance.now() - last < 400) return;
+    last = performance.now();
+    if (!(await loadTrack(name))) return;
+    sound.voice({ track: name, file: null, raw: true, rate: 1, gain: 1, layers: [] });
+    runPlayhead(name, sound.buffer(name).audio.duration * 1000);
+  };
+  el.addEventListener("pointerup", (e) => { if (e.pointerType !== "mouse") go(); });
+  el.addEventListener("click", go);
+}
+refreshCount();
+// Всё скачивается сразу при открытии страницы (файлы маленькие): к нажатию звук обычно уже готов.
+await Promise.all(sound.tracks.map((n) => loadTrack(n)));
 
-// 2. События: у каждого свой звук (конкретная дорожка) со своими началом, скоростью и тоном; при желании — набор из нескольких звуков (играет случайный).
-const OPTIONS = [["none", "— без записи (только синтез) —"], ...sound.tracks.map((n) => [`track:${n}`, `${TRACK_NAMES[n] ?? n} (${n})`])];
-/** Дорожка, которую играет этот звук события: для показа начала по умолчанию. */
-const onsetOfTrack = (track) => Math.round(((track ? sound.buffer(track)?.onset : 0) ?? 0) * 1000);
-const sliderOf = (label, min, max, step, get, set, fmt) => { const l = document.createElement("div"); l.className = "sl"; l.innerHTML = `<span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}"><b></b>`; const r = l.querySelector("input"), v = l.querySelector("b"); r.value = get(); v.textContent = fmt(get()); r.oninput = () => { set(+r.value); v.textContent = fmt(+r.value); feel.save(); }; return l; };
-const fmtSpeed = (v) => v.toFixed(2) + "×", fmtPitch = (v) => (v > 0 ? "+" : "") + v.toFixed(1) + " пт", fmtMs = (v) => v + " мс";
+// ——— 2. ЗВУКИ ДЕЙСТВИЙ: на каждое действие — список звуков из галереи, у каждого свои настройки ———
+const OPTIONS = sound.tracks.map((n) => [n, `${nameOf(n)} (${n})`]);
+const secs = (ms) => (ms / 1000).toFixed(2) + " с";
+const fmtSpeed = (v) => v.toFixed(2) + "×", fmtPitch = (v) => (v > 0 ? "+" : "") + v.toFixed(1) + " пт", fmtPct = (v) => Math.round(v * 100) + "%";
+const onsetMs = (track) => Math.round(((track ? sound.buffer(track)?.onset : 0) ?? 0) * 1000);
+const lenOf = (track) => Math.round((sound.buffer(track)?.audio.duration ?? 1) * 1000);
+/** Звуки действия списком: основной (поля самого действия) и ещё из набора. */
+const listOf = (spec) => (spec.track ? [spec, ...(spec.extra ?? [])] : (spec.extra ?? []));
+function commit(spec, list) {
+  const first = list[0];
+  for (const k of ["track", "from", "rate", "pitch", "tie", "len", "vol", "dyn"]) delete spec[k];
+  if (first) Object.assign(spec, first); else { spec.track = null; spec.file = null; }
+  if (first?.track) spec.file = first.track.replace(/-\d+$/, "");
+  if (list.length > 1) spec.extra = list.slice(1); else delete spec.extra;
+  feel.save();
+}
+const plain = (v) => ({ track: v.track ?? null, from: v.from ?? null, rate: v.rate ?? 1, pitch: v.pitch ?? 0, tie: v.tie !== false, len: v.len ?? 0, vol: v.vol ?? 1, ...(v.dyn !== undefined ? { dyn: v.dyn } : {}) });
+const slider = (label, min, max, step, get, set, fmt) => { const l = document.createElement("div"); l.className = "sl"; l.innerHTML = `<span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}"><b></b>`; const r = l.querySelector("input"), v = l.querySelector("b"); r.value = get(); v.textContent = fmt(get()); r.oninput = () => { set(+r.value); v.textContent = fmt(+r.value); }; return l; };
 function renderEvents() {
   $("events").replaceChildren();
   for (const kind of FEEL_KINDS) {
     const spec = feel.preset[kind], ev = document.createElement("div"); ev.className = "ev"; ev.dataset.kind = kind;
+    const list = listOf(spec).map(plain);
     const row = document.createElement("div"); row.className = "row";
     const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = FEEL_NAMES[kind];
-    const strong = document.createElement("button"), weak = document.createElement("button");
-    strong.textContent = "▶ всё движение"; weak.textContent = "▷ слабо";
-    const hear = (energy, btn, label) => async () => { btn.disabled = true; btn.textContent = "загрузка…"; await ensureFor(spec); btn.disabled = false; btn.textContent = label; feel.play({ kind, energy }); };
-    strong.onclick = hear(1, strong, "▶ всё движение"); weak.onclick = hear(0.2, weak, "▷ слабо");
-    row.append(nm, strong, weak);
+    const strong = document.createElement("button"), weak = document.createElement("button"), synth = document.createElement("button");
+    strong.textContent = "▶ всё действие"; weak.textContent = "▷ слабо";
+    const hear = (energy) => () => feel.play({ kind, energy });
+    strong.onclick = hear(1); weak.onclick = hear(0.2);
+    const paintSynth = () => { synth.textContent = "тик/бум: " + (spec.synth === false ? "НЕТ" : "ДА"); synth.classList.toggle("on", spec.synth !== false); };
+    synth.onclick = () => { spec.synth = spec.synth === false; feel.save(); paintSynth(); }; paintSynth();
+    synth.title = "синтезированные тик и «бум» поверх записей";
+    row.append(nm, strong, weak, synth);
     ev.append(row);
-    const hint = document.createElement("div"); hint.className = "hint"; hint.style.margin = "0 0 8px";
-    hint.textContent = "▶ у звука играет только его (без тика и «бума»). «Всё движение» играет звук (случайный из набора, если их несколько) вместе с синтезом.";
-    ev.append(hint);
-    const variants = [spec, ...(spec.extra ?? [])];
-    variants.forEach((v, i) => {
-      const box = document.createElement("div"); box.className = "variant"; box.dataset.variant = i;
+    if (!list.length) { const none = document.createElement("div"); none.className = "none"; none.textContent = "звуков нет — добавь из списка ниже"; ev.append(none); }
+    list.forEach((v, i) => {
+      const box = document.createElement("div"); box.className = "snd"; box.dataset.snd = i;
       const head = document.createElement("div"); head.className = "row";
-      const label = document.createElement("div"); label.className = "nm"; label.style.fontSize = "13px"; label.textContent = variants.length > 1 ? `Звук ${i + 1}` : "Звук";
-      const one = document.createElement("button"); one.textContent = "▶"; one.title = "послушать только этот звук";
-      one.onclick = async () => { one.disabled = true; one.textContent = "…"; if (v.track) await loadTrack(v.track); one.disabled = false; one.textContent = "▶"; feel.playVariant(kind, i); };
-      head.append(label, one);
-      if (i > 0) { const del = document.createElement("button"); del.textContent = "×"; del.title = "убрать из набора"; del.onclick = () => { spec.extra.splice(i - 1, 1); if (!spec.extra.length) delete spec.extra; feel.save(); renderEvents(); }; head.append(del); }
       const sel = document.createElement("select");
       for (const [val, text] of OPTIONS) { const o = document.createElement("option"); o.value = val; o.textContent = text; sel.append(o); }
-      sel.value = v.track ? `track:${v.track}` : "none";
-      sel.onchange = async () => {
-        v.track = sel.value === "none" ? null : sel.value.slice(6);
-        v.from = null;
-        if (i === 0) spec.file = v.track ? v.track.replace(/-\d+$/, "") : null;
-        feel.save();
-        if (v.track) await loadTrack(v.track);
-        renderEvents();
-        feel.playVariant(kind, i);
-      };
-      box.append(head, sel,
-        sliderOf("начало", 0, 400, 1, () => v.from ?? onsetOfTrack(v.track), (x) => { v.from = x; }, fmtMs),
-        sliderOf("скорость", 0.25, 2.5, 0.01, () => v.rate, (x) => { v.rate = x; }, fmtSpeed),
-        sliderOf("тон", -12, 12, 0.1, () => v.pitch ?? 0, (x) => { v.pitch = x; }, fmtPitch));
-      const tie = document.createElement("button"); tie.style.cssText = "margin:0 0 8px";
+      sel.value = v.track;
+      sel.onchange = async () => { v.track = sel.value; v.from = null; v.len = 0; commit(spec, list); await loadTrack(v.track); renderEvents(); feel.playVariant(kind, i); };
+      const one = document.createElement("button"); one.textContent = "▶"; one.title = "послушать только этот звук с этими настройками";
+      one.onclick = async () => { await loadTrack(v.track); feel.playVariant(kind, i); };
+      const del = document.createElement("button"); del.textContent = "×"; del.title = "убрать этот звук из действия";
+      del.onclick = () => { list.splice(i, 1); commit(spec, list); renderEvents(); };
+      head.append(sel, one, del);
+      const apply = (fn) => (x) => { fn(x); commit(spec, list); };
+      box.append(head,
+        slider("начало", 0, lenOf(v.track), 10, () => v.from ?? onsetMs(v.track), apply((x) => { v.from = x; }), secs),
+        slider("длится", 0, lenOf(v.track), 10, () => v.len, apply((x) => { v.len = x; }), (x) => (x ? secs(x) : "до конца")),
+        slider("скорость", 0.25, 2.5, 0.01, () => v.rate, apply((x) => { v.rate = x; }), fmtSpeed),
+        slider("тон", -12, 12, 0.1, () => v.pitch, apply((x) => { v.pitch = x; }), fmtPitch),
+        slider("громкость", 0, 2, 0.05, () => v.vol, apply((x) => { v.vol = x; }), (x) => x.toFixed(2)),
+        slider("динамика", 0, 1, 0.05, () => v.dyn ?? 1 - spec.soft, apply((x) => { v.dyn = x; }), fmtPct));
+      const tie = document.createElement("button"); tie.style.cssText = "margin:4px 0 0";
       const paintTie = () => { tie.textContent = "скорость меняет тон: " + (v.tie === false ? "НЕТ" : "ДА"); tie.classList.toggle("on", v.tie !== false); };
-      tie.onclick = () => { v.tie = v.tie === false; feel.save(); paintTie(); };
-      paintTie();
+      tie.onclick = () => { v.tie = v.tie === false; commit(spec, list); paintTie(); }; paintTie();
       box.append(tie);
       ev.append(box);
     });
-    const add = document.createElement("button"); add.textContent = "+ ещё звук в набор (играет случайный)"; add.style.cssText = "margin:0 0 10px";
-    add.onclick = () => { const base = variants.at(-1); (spec.extra ??= []).push({ track: base.track ?? null, from: base.from ?? null, rate: base.rate, pitch: base.pitch ?? 0, ...(base.tie === false ? { tie: false } : {}) }); feel.save(); renderEvents(); };
+    const add = document.createElement("select"); add.className = "add";
+    const first = document.createElement("option"); first.value = ""; first.textContent = "+ добавить звук…"; add.append(first);
+    for (const [val, text] of OPTIONS) { const o = document.createElement("option"); o.value = val; o.textContent = text; add.append(o); }
+    add.onchange = async () => {
+      if (!add.value) return;
+      const base = list.at(-1);
+      list.push({ track: add.value, from: null, rate: base?.rate ?? 1, pitch: 0, tie: true, len: 0, vol: 1 });
+      commit(spec, list); await loadTrack(add.value); renderEvents(); feel.playVariant(kind, list.length - 1);
+    };
     ev.append(add);
-    ev.append(sliderOf("громкость", 0, 2, 0.05, () => spec.gain, (x) => { spec.gain = x; }, (x) => x.toFixed(2)),
-      sliderOf("разброс", 0, 0.3, 0.01, () => spec.jitter, (x) => { spec.jitter = x; }, (x) => "±" + Math.round(x * 100) + "%"));
     $("events").append(ev);
   }
 }
-/** Все дорожки, нужные событию: основная и из набора. */
-function ensureFor(spec) { return Promise.all([spec, ...(spec.extra ?? [])].filter((v) => v.track).map((v) => loadTrack(v.track))); }
 renderEvents();
-$("copy").onclick = () => { navigator.clipboard?.writeText(feel.exportPreset()); $("copy").textContent = "Скопировано"; setTimeout(() => ($("copy").textContent = "Копировать пресет"), 1200); };
+$("copy").onclick = () => { navigator.clipboard?.writeText(feel.exportPreset()); $("copy").textContent = "Скопировано"; setTimeout(() => ($("copy").textContent = "Копировать настройки"), 1200); };
 $("reset").onclick = () => { feel.reset(); feel.save(); renderEvents(); };
 </script>
 </body>
