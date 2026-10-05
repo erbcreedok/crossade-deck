@@ -32,6 +32,8 @@ export interface FeelEvent {
   z?: number;
   /** Своё действие или чужое: чужое звучит тише (`GAIN.other`) и не вибрирует. По умолчанию своё. */
   mine?: boolean;
+  /** Только объявление: событие случится и прозвучит позже, когда карта упадёт на стол. Звука нет; игра по нему глушит прежний звук того же движения. */
+  announce?: boolean;
 }
 
 /** Один звук события: какая дорожка, с какого места, на какой скорости и тоне. У события их может быть несколько — набор, который собирает сам человек. */
@@ -253,6 +255,7 @@ export function tableFeel(sound: TableSound, haptic: TableHaptic, opts: { factor
     log,
     get vibeMode() { return vibeMode(haptic); },
     play(e) {
+      if (e.announce) return -1;
       const spec = preset[e.kind], energy = Math.max(0, Math.min(1, e.energy ?? 1));
       // Звуков у действия может быть несколько — чтобы не повторялись одни и те же: каждый раз играет ОДИН, из «мешка» в случайном порядке; пока весь мешок не выпал, повторов нет.
       const samples: Variant[] = [...(spec.track ? [spec] : []), ...(spec.extra ?? [])];

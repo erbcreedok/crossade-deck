@@ -2169,6 +2169,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (placeDrops()) moving = true;
     if (placeDenies()) moving = true;
     if (placeSlams(now)) moving = true;
+    if (placeLandings(now)) moving = true;
     if (placeHomeMark()) moving = true;
     placeBodies();
     if (placeChairs(dt)) moving = true;
@@ -3043,6 +3044,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!hold && !drag.moved && Math.hypot(x - drag.x, y - drag.y) < 6) return;
     if (!drag.moved) {
       drag.moved = true;
+      landings.delete(drag.id);
       feel("grab", drag.id, 1);
       store.send({ t: "grab", id: drag.id });
       grabFn?.();
@@ -3108,12 +3110,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     // Легла — ждёт ответа стола там, куда её положили (над сукном — опускается на сукно, в руку — в щель).
     const o = cards.get(d.id), to = target(e, d);
-    // ЗВУК — В МОМЕНТ ОТПУСКАНИЯ, а не когда карта доехала: палец отпустил — слышно сразу (удар об стол звучит от самого удара, `slam`).
+    // ЗВУК — В МОМЕНТ, КОГДА КАРТА ПАДАЕТ НА СТОЛ (`onLand`), а не когда палец отпустил; в руку и в стопку — сразу.
     if (!slamForce) {
       if (to.in === "felt") {
         const fall = Math.min(1, Math.max(0, (o?.group.position.y ?? 0) / 2.5));
         if (cardRule(d.id, "move")) { if (cardNotice(d.id, "move")) feel("home", d.id, 1); }
-        else feel(lastThrow > 0.5 ? "throw" : "lay", d.id, lastThrow > 0.5 ? lastThrow : fall);
+        else { const kind = lastThrow > 0.5 ? "throw" : "lay", energy = lastThrow > 0.5 ? lastThrow : fall, id = d.id; feel(kind, id, energy, true, true); onLand(id, () => feel(kind, id, energy)); }
       } else feel("lay", d.id, 0.4);
     }
     if (o && to.in === "felt") landing = { id: d.id, place: lying(to.x, to.y, 0.01 + store.state.felt.length * FELT_STEP, to.angle, to.up), key: fromKey(d.id), until: performance.now() + 1500 };
@@ -3268,12 +3270,27 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    */
   // ——— ОЩУЩЕНИЕ: звук и вибрация на каждое движение карты (`feel.ts`); сцена только сообщает, что случилось и с какой силой ———
   let feelFn: ((e: FeelEvent) => void) | null = null;
-  function feel(kind: FeelKind, id: string | null, energy = 1, mine = true): void {
+  function feel(kind: FeelKind, id: string | null, energy = 1, mine = true, announce = false): void {
     if (!feelFn) return;
     const c = id ? screenOf(id) : null, r = renderer.domElement.getBoundingClientRect();
-    feelFn({ kind, energy, mine, x: c ? ((c.x - r.left) / r.width - 0.5) * 2 : 0, z: c ? ((c.y - r.top) / r.height - 0.5) * 2 : 0 });
+    feelFn({ kind, energy, mine, ...(announce ? { announce: true } : {}), x: c ? ((c.x - r.left) / r.width - 0.5) * 2 : 0, z: c ? ((c.y - r.top) / r.height - 0.5) * 2 : 0 });
   }
   let lastRotTick = 0, lastSpinTick = 0;
+  /** Звук, что ждёт касания стола: карта упала (опустилась к своему месту) — играет; не упала за `ms` — играет всё равно. Одна ожидающая запись на карту. */
+  const landings = new Map<string, { fn: () => void; armed: number; until: number }>();
+  function onLand(id: string, fn: () => void, ms = 1200): void {
+    const now = performance.now();
+    landings.set(id, { fn, armed: now + 40, until: now + ms });
+  }
+  function placeLandings(now: number): boolean {
+    for (const [id, w] of [...landings]) {
+      if (now < w.armed) continue;
+      const o = cards.get(id);
+      if (o && now <= w.until && o.group.position.y - o.target.pos.y >= 0.08) continue;
+      landings.delete(id); w.fn();
+    }
+    return landings.size > 0;
+  }
   /**
    * ЧУЖИЕ ДЕЙСТВИЯ СЛЫШНЫ И ВИДНЫ: что несёт другой палец, читается из потока «несу» (`store.carries`) — взял, шелест, перевернул, тики поворота, положил,
    * а удар (`fx: slam`) приходит прямо в потоке. Звучит тише своего (`mine: false`), удар встряхивает и мою камеру (слабее).
@@ -3294,12 +3311,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         if (h.up !== undefined && o.up !== h.up) { h.up = o.up; feel("flip", c.id, 1, false); }
         if (Math.abs((((o.angle - h.tick) % 360) + 540) % 360 - 180) >= 15) { h.tick = o.angle; feel("spin", c.id, 1, false); }
       }
-      if (c.fx === "slam" && !h.fx) { h.fx = true; feel("slam", c.id, 1, false); shakeCamera(0.55); }
+      if (c.fx === "slam" && !h.fx) { h.fx = true; const id = c.id; feel("slam", id, 1, false, true); onLand(id, () => { feel("slam", id, 1, false); shakeCamera(0.55); }, 800); }
     }
     for (const [id, h] of heard) {
       if (live.has(id)) continue;
       heard.delete(id);
-      if (!h.fx && cards.has(id)) feel("lay", id, 0.6, false);
+      if (!h.fx && cards.has(id)) { feel("lay", id, 0.6, false, true); onLand(id, () => feel("lay", id, 0.6, false)); }
     }
   }
   // ——— УДАР КАРТОЙ ОБ СТОЛ: несомая карта падает вниз сразу, жёстко, и камера вздрагивает от удара ———
@@ -3337,14 +3354,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     try { end({ pointerId: dragPid, clientX: lastFinger.x, clientY: lastFinger.y, type: "pointerup" } as PointerEvent); } finally { slamForce = false; }
     slamming.set(d.id, performance.now() + 800);
     slamTick0 = ticks; slamTicks = -1; shakePeakPx = 0;
-    feel("slam", d.id, 1);
+    feel("slam", d.id, 1, true, true);
   }
   /** Каждый кадр: упавшая после удара карта — тряска камеры; не упала за 0,8 с — отбой без тряски. */
   function placeSlams(now: number): boolean {
     for (const [id, until] of [...slamming]) {
       const o = cards.get(id);
-      if (!o || now > until) { slamming.delete(id); continue; }
-      if (o.group.position.y - o.target.pos.y < 0.08) { slamming.delete(id); slamTicks = ticks - slamTick0; shakeCamera(); }
+      if (!o || now > until) { slamming.delete(id); if (o) feel("slam", id, 1); continue; }
+      if (o.group.position.y - o.target.pos.y < 0.08) { slamming.delete(id); slamTicks = ticks - slamTick0; shakeCamera(); feel("slam", id, 1); }
     }
     return slamming.size > 0 || shake !== null;
   }
@@ -3590,6 +3607,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     cardQuat: (id: string) => { const o = cards.get(id); return o ? new THREE.Euler().setFromQuaternion(o.target.quat, "ZXY").toArray().slice(0, 3).map((v) => Math.round(((v as number) * 180) / Math.PI * 10) / 10) : null; },
     dropShadow: (id: string) => { const d = dropShadows.get(id); if (!d || !d.mesh.visible) return { on: false }; const a = d.pos; return { on: true, x: (a.getX(0) + a.getX(1) + a.getX(2) + a.getX(3)) / 4, z: (a.getZ(0) + a.getZ(1) + a.getZ(2) + a.getZ(3)) / 4 }; },
     ruleInfo: (id: string) => ({ shaking: denies.has(id), ring: cards.get(id)?.ring.visible === true, home: homeMark.visible, lift: cardRule(id, "lift"), move: cardRule(id, "move"), turn: cardRule(id, "turn"), notice: { lift: cardNotice(id, "lift"), move: cardNotice(id, "move"), turn: cardNotice(id, "turn"), rotate: cardNotice(id, "rotate"), slam: cardNotice(id, "slam") }, rotate: cardRule(id, "rotate"), slam: cardRule(id, "slam") }),
+    heightOf: (id: string) => cards.get(id)?.group.position.y ?? null,
+    airOf: (id: string) => { const o = cards.get(id); return o ? +(o.group.position.y - o.target.pos.y).toFixed(3) : null; },
     shakeInfo: () => ({ active: shake !== null && performance.now() - shake.t0 < SHAKE.ms, count: shakes, slamming: slamming.size, slamTicks, peakPx: Math.round(shakePeakPx) }),
     setThrow: (o: Partial<typeof THROW>) => { Object.assign(THROW, o); },
     cardGap: (id: string) => { const o = cards.get(id); return o ? +(o.group.position.y - o.target.pos.y).toFixed(3) : null; },

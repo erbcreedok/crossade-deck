@@ -20,11 +20,14 @@ async function phase(preset) {
   await p.waitForTimeout(1500);
   const hand = await p.evaluate(() => { const s = window.__t3d.state(); return s.chairs.find((x) => x.owner === window.__t3d.me()).hand.at(-1).id; });
   const from = await p.evaluate((i) => window.__t3d.screenOf(i), hand);
+  await p.evaluate((h) => { window.__hand = h; window.__marks = []; const log = (globalThis.__feelLog ??= []), o = log.push.bind(log); log.push = (...a) => { window.__marks.push([a[0].kind, performance.now(), window.__t3d.airOf(window.__hand)]); return o(...a); }; }, hand);
   const s1 = await p.evaluate(() => (globalThis.__tableSounds ?? []).length);
   await p.mouse.move(from.x, from.y); await p.mouse.down(); await p.mouse.move(from.x, from.y - 60, { steps: 5 });
-  await p.mouse.move(120, 420, { steps: 8 }); await p.mouse.up();
+  await p.mouse.move(120, 420, { steps: 8 }); await p.waitForTimeout(300);
+  const up = await p.evaluate(() => performance.now()), airUp = await p.evaluate((h) => window.__t3d.heightOf(h), hand); await p.mouse.up();
   await p.waitForTimeout(1000);
-  const out = await p.evaluate((n) => ({ old: (globalThis.__tableSounds ?? []).slice(n).map((x) => x.kind), feel: (globalThis.__feelLog ?? []).map((x) => x.kind) }), s1);
+  const out = await p.evaluate((n) => ({ old: (globalThis.__tableSounds ?? []).slice(n).map((x) => x.kind), feel: (globalThis.__feelLog ?? []).map((x) => x.kind), at: (window.__marks.find(([k]) => k === "lay" || k === "throw") ?? [])[1] ?? null, air: (window.__marks.find(([k]) => k === "lay" || k === "throw") ?? [])[2] ?? null }), s1);
+  out.after = out.at === null ? null : Math.round(out.at - up); out.airUp = airUp;
   await p.close();
   return out;
 }
@@ -35,6 +38,7 @@ try {
   // На стенде два экрана (мой и Алии), оба слышат; новое действие озвучивает мой, поэтому прежних стуков у «Положил» в игре на один меньше.
   const knock = (o) => o.old.filter((k) => k === "out" || k === "drop").length;
   check("«Положил» и «Бросил» записаны в игру: играет действие (lay или throw), и прежний стук моего экрана молчит (стуков меньше, чем без записи)", lay.feel.some((k) => k === "lay" || k === "throw") && knock(lay) < knock(none), { none, lay });
+  check("звук «Положил» — когда карта упала на стол, а не в миг, когда палец отпустил (в момент отпускания карта высоко над столом, в момент звука — уже на нём)", lay.air !== null && lay.airUp > 0.3 && lay.air < 0.12, lay);
   const other = await phase(JSON.stringify({ flip: { track: "turn-1" } }) + "\n");
   check("в игре только «Перевернул»: положить карту звучит по-старому (столько же стуков, сколько без записи)", knock(other) === knock(none) && !other.feel.includes("lay"), { none, other });
 } finally { writeFileSync(file, was); await browser.close(); }

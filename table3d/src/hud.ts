@@ -145,8 +145,8 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   const feel = tableFeel(sound, haptic, { factory: true });
   const feelAt = new Map<FeelKind, number>();
   for (const k of FEEL_LIVE) { const spec = feel.preset[k]; for (const t of [spec.track, ...(spec.extra ?? []).map((v) => v.track)]) if (t) void sound.ensure(t); }
-  scene.onFeel((e) => { if (!FEEL_LIVE.has(e.kind)) return; feelAt.set(e.kind, performance.now()); feel.play(e); });
-  const feelCovers = (cue: string): boolean => [...FEEL_LIVE].some((k) => FEEL_OLD[k].cues.includes(cue) && performance.now() - (feelAt.get(k) ?? -Infinity) < 1200);
+  scene.onFeel((e) => { if (!FEEL_LIVE.has(e.kind)) return; feelAt.set(e.kind, performance.now()); if (!e.announce) feel.play(e); });
+  const feelCovers = (cue: string): boolean => [...FEEL_LIVE].some((k) => FEEL_OLD[k].cues.includes(cue) && performance.now() - (feelAt.get(k) ?? -Infinity) < 2000);
   let touchedAt = -Infinity;
   addEventListener("pointerdown", () => (touchedAt = performance.now()), { capture: true });
   addEventListener("pointerup", () => (touchedAt = performance.now()), { capture: true });

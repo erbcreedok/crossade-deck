@@ -30,7 +30,8 @@ await clear();
 let c = await grabAt();
 check("взял карту — «grab»", (await kinds()).includes("grab"), await kinds());
 await p.mouse.up(); await p.waitForTimeout(120);
-check("положил — «lay» с вибрацией, и звук уже в момент отпускания (не после падения)", (await kinds()).includes("lay") && (await f.evaluate(() => window.__buzz.length)) > 0, { k: await kinds(), buzz: await f.evaluate(() => window.__buzz) });
+await f.waitForFunction(() => window.__feel.log.some((e) => e.kind === "lay"), null, { timeout: 4000 }).catch(() => {});
+check("положил — «lay» с вибрацией; звук играет, когда карта упала на стол (не в момент, когда палец отпустил)", (await kinds()).includes("lay") && (await f.evaluate(() => window.__buzz.length)) > 0, { k: await kinds(), buzz: await f.evaluate(() => window.__buzz) });
 check("«Положил» играет ту дорожку, что стоит в заводских (звук в журнале совпадает с настройкой)", await f.evaluate(() => { const l = window.__feel.preset.lay; return !!l.track && (window.__tableSounds ?? []).some((e) => e.file === l.track); }), await f.evaluate(() => ({ lay: window.__feel.preset.lay.track, log: (window.__tableSounds ?? []).map((e) => e.file) })));
 check("«Взял карту»: у звука есть дорожка и отрезок (начало меньше конца), «от силы» задана", await f.evaluate(() => { const g = window.__feel.preset.grab; return !!g.track && typeof g.from === "number" && g.end > g.from && typeof g.dyn === "number"; }), await f.evaluate(() => window.__feel.preset.grab));
 // 2. Бросил на скорости → «throw».
@@ -111,7 +112,7 @@ check("звуковая машина запущена, файлы доехали
 }
 // Выбранная на странице звуков дорожка играет на сценах: движению назначили точную дорожку — звучит именно она.
 {
-  const file = await f.evaluate(() => { window.__feel.preset.lay.track = "turn-1"; window.__feel.preset.lay.file = "turn"; window.__feel.play({ kind: "lay", energy: 1 }); return (window.__tableSounds ?? []).at(-1)?.file; });
+  const file = await f.evaluate(async () => { await window.__sound.ensure("turn-1"); window.__feel.preset.lay.track = "turn-1"; window.__feel.preset.lay.file = "turn"; window.__feel.play({ kind: "lay", energy: 1 }); return (window.__tableSounds ?? []).at(-1)?.file; });
   check("движению назначена точная дорожка — играет она", file === "turn-1", file);
   await f.evaluate(() => { window.__feel.reset("lay"); });
 }
