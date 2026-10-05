@@ -71,6 +71,8 @@ import { angleApart, croupierAngle, deckHome, freeAngle, ringLanding, seatPoint,
 
 /** Насколько близко середины двух карт, чтобы верхняя считалась ЛЕЖАЩЕЙ НА нижней (`FELT_OVERLAP` клиента). */
 const FELT_OVERLAP = 1.2;
+/** Ближе этого между серединами две стопки не лежат: меньше ширины карты с запасом на высоту (1,17 × 1,64). */
+const PILE_GAP = 1.45;
 
 interface Lock {
   by: string;
@@ -1281,13 +1283,31 @@ export class Table {
     const far = Math.hypot(x, y);
     const k = far > FELT_REACH ? FELT_REACH / far : 1;
     // ПОСТАВЛЕННАЯ СТОПКА ЛЕЖИТ ПОВЕРХ всего, что уже было на сукне, — и поверх других стопок.
-    pile.spot = { ...pile.spot, x: x * k, y: y * k, angle: turnOf(angle), below: this.felt.map((one) => one.id) };
+    const free = this.clearOfPiles(id, x * k, y * k);
+    pile.spot = { ...pile.spot, x: free.x, y: free.y, angle: turnOf(angle), below: this.felt.map((one) => one.id) };
     this.piles.delete(id);
     this.piles.set(id, pile);
     return { ops: this.commit([{ ...this.spotOp(id), top: true }]) };
   }
 
   /** Накрыто ли это место чьим-нибудь стулом. */
+  /**
+   * СТОПКИ НЕ ЛЕЖАТ ДРУГ НА ДРУГЕ. Стопку, поставленную так, что она накрыла бы другую (ближе `PILE_GAP` между серединами), отодвигает в ближайшее свободное место: слиться стопки могут только
+   * жестом (положить стопку на стопку), а не случайным наложением. Зоны рода (круг хода и подобные) не в счёт; за борт не выпихивает.
+   */
+  private clearOfPiles(self: string, x: number, y: number): { x: number; y: number } {
+    let at = { x, y };
+    for (let pass = 0; pass < 6; pass += 1) {
+      const hit = [...this.piles.entries()].find(([pid, p]) => pid !== self && !p.spot.zone && p.spot.pose !== "ring" && Math.hypot(p.spot.x - at.x, p.spot.y - at.y) < PILE_GAP)?.[1];
+      if (!hit) return at;
+      const dx = at.x - hit.spot.x, dy = at.y - hit.spot.y, len = Math.hypot(dx, dy);
+      const ux = len < 1e-6 ? 1 : dx / len, uy = len < 1e-6 ? 0 : dy / len;
+      at = { x: hit.spot.x + ux * PILE_GAP, y: hit.spot.y + uy * PILE_GAP };
+      const far = Math.hypot(at.x, at.y);
+      if (far > FELT_REACH) at = { x: (at.x / far) * FELT_REACH, y: (at.y / far) * FELT_REACH };
+    }
+    return at;
+  }
   private onSeat(x: number, y: number): boolean {
     return [...this.chairs.values()].some((chair) => {
       const at = seatPoint(chair.angle);
@@ -1304,7 +1324,7 @@ export class Table {
     const born = `p${this.pileSeq}`;
     const moved = [...zone.cards];
     this.piles.set(born, {
-      spot: { ...DEFAULT_SPOT, forever: false, x: x * k, y: y * k, angle: turnOf(angle), below: this.felt.map((one) => one.id) },
+      spot: { ...DEFAULT_SPOT, forever: false, ...this.clearOfPiles(id, x * k, y * k), angle: turnOf(angle), below: this.felt.map((one) => one.id) },
       cards: [],
       shuffles: 0,
     });
@@ -1374,7 +1394,7 @@ export class Table {
       const k = far > FELT_REACH ? FELT_REACH / far : 1;
       const felt = new Set(taken);
       this.piles.set(pileId, {
-        spot: { ...DEFAULT_SPOT, forever: false, x: (dest.x as number) * k, y: (dest.y as number) * k, angle: turnOf(dest.angle as number), below: this.felt.map((one) => one.id).filter((one) => !felt.has(one)) },
+        spot: { ...DEFAULT_SPOT, forever: false, ...this.clearOfPiles("", (dest.x as number) * k, (dest.y as number) * k), angle: turnOf(dest.angle as number), below: this.felt.map((one) => one.id).filter((one) => !felt.has(one)) },
         cards: [],
         shuffles: 0,
       });
