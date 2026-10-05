@@ -97,7 +97,7 @@ export interface FeelSpec {
 /** Заводские значения в коде; поверх них — то, что владелец сделал заводским на странице звуков (`feelPreset.json`). */
 const FEEL_BASE: Record<FeelKind, FeelSpec> = {
   grab: { file: "drop", track: "drop-1", from: 90, end: 150, dyn: 1, gain: 0.5, rate: 1, jitter: 0.06, soft: 1, cutMs: 0, layers: [{ kind: "tick", from: 900, to: 500, ms: 25, gain: 0.2 }], vibe: [8], style: "light" },
-  carry: { file: "hand", track: "hand-1", gain: 0.25, rate: 1.5, jitter: 0.1, soft: 0.2, cutMs: 90, layers: [], vibe: [], style: "soft" },
+  carry: { file: null, gain: 1, rate: 1, jitter: 0, soft: 1, cutMs: 0, layers: [], vibe: [], style: "soft" },
   lay: { file: "hand", track: "hand-1", from: 113, gain: 0.8, rate: 0.96, jitter: 0.06, soft: 0.45, cutMs: 0, layers: [], vibe: [14], style: "medium" },
   throw: { file: "hand", track: "hand-1", from: 113, gain: 1.1, rate: 0.82, jitter: 0.05, soft: 0.6, cutMs: 0, layers: [{ kind: "boom", from: 110, to: 60, ms: 90, gain: 0.35 }], vibe: [22], style: "rigid" },
   slam: { file: "drop", track: "drop-1", gain: 1.8, rate: 0.72, jitter: 0.03, soft: 1, cutMs: 0, layers: [{ kind: "boom", from: 95, to: 42, ms: 140, gain: 0.9 }, { kind: "noise", from: 180, ms: 90, gain: 0.5, q: 0.8 }], vibe: [40, 30, 60], style: "heavy" },
@@ -264,7 +264,7 @@ export function tableFeel(sound: TableSound, haptic: TableHaptic, opts: { factor
       const synth = spec.synth === false ? [] : spec.layers.map((l) => ({ ...l, gain: l.gain * (spec.soft + (1 - spec.soft) * energy) }));
       const vibe = e.mine !== false && prefs.vibe && spec.vibe.length ? spec.vibe.map((ms) => Math.max(1, Math.round(ms * (0.5 + 0.5 * energy)))) : [];
       const dyn = v.dyn ?? 1 - spec.soft, gain = spec.gain * (v.vol ?? 1) * (1 - dyn + dyn * energy);
-      if (prefs.sound) {
+      if (prefs.sound && (v.track || spec.file || synth.length)) {
         const rate = v.rate * (1 + (Math.random() * 2 - 1) * spec.jitter), cut = cutOf(v, spec);
         sound.voice({ file: spec.file, ...(v.track ? { track: v.track } : {}), ...(typeof v.from === "number" ? { from: v.from / 1000 } : {}), ...(v.pitch ? { pitch: v.pitch } : {}), ...(v.tie === false ? { tie: false } : {}), rate, gain, mine: e.mine !== false, x: e.x ?? 0, z: e.z ?? 0, layers: synth, ...(cut ? { cutMs: cut } : {}) });
       }
