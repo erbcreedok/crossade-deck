@@ -1,0 +1,28 @@
+table3d/vite.config.ts
+  s_73107c3d804131::t_135c1341f8ae58 15
+table3d/src/scene.ts
+  s_73107c3d804131::t_b652d2188eefdb 3283,3287
+  s_73107c3d804131::t_f5c1feb90583f2 2608,3276,3290
+design/zones/sounds-check.mjs
+  s_73107c3d804131::t_b652d2188eefdb 151,158,169
+server/table-client/feel.ts
+  s_73107c3d804131::t_135c1341f8ae58 11
+design/zones/feel-check.mjs
+  s_73107c3d804131::t_b652d2188eefdb 124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "805f39158b4736d94a17c608b984a5ffdf4effd4",
+  "prompts": {},
+  "sessions": {
+    "s_73107c3d804131": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e85b33e2-d0a6-4a90-b535-037e1d4326e5",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
