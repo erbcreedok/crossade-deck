@@ -159,6 +159,10 @@ export interface VoiceSpec {
   raw?: boolean;
   /** С какой секунды играть запись: перекрывает автоматический срез тишины (`onsetOf`). */
   from?: number;
+  /** Сдвиг высоты, полутона (0 — как есть). */
+  pitch?: number;
+  /** Скорость `rate` меняет и высоту (как пластинка; по умолчанию да). Нет — высота своя (`pitch`), скорость отдельно, запись растягивается (`stretchBuffer`). */
+  tie?: boolean;
   rate?: number;
   gain?: number;
   x?: number;
@@ -187,6 +191,35 @@ export interface SoundHealth {
   loading: string[];
   /** За сколько миллисекунд загрузилась (скачалась и декодировалась) каждая дорожка. */
   loadMs: Record<string, number>;
+  /** Сколько раз пришлось растягивать запись во времени (кэш считает один раз на дорожку и растяжение). */
+  stretches: number;
+}
+
+/**
+ * РАСТЯНУТЬ ЗАПИСЬ ВО ВРЕМЕНИ, НЕ МЕНЯЯ ВЫСОТЫ (наложение зёрен): запись режется на окна по 40 мс с половинным перекрытием и собирается заново с другим шагом.
+ * `T` — во сколько раз длиннее (меньше 1 — короче). Простейший способ: для коротких ударов и шелеста годится, для длинных тонов даёт лёгкую «дрожь».
+ * Скорость без смены высоты = растянуть на `T = высота / скорость` и играть с `playbackRate = высота`.
+ */
+export function stretchBuffer(ctx: { createBuffer(channels: number, length: number, rate: number): AudioBuffer }, buf: AudioBuffer, T: number): AudioBuffer {
+  const sr = buf.sampleRate, grain = Math.max(64, Math.floor(sr * 0.04)), hop = grain >> 1, ana = hop / T;
+  const outLen = Math.ceil(buf.length * T) + grain;
+  const out = ctx.createBuffer(buf.numberOfChannels, outLen, sr);
+  const win = new Float32Array(grain);
+  for (let i = 0; i < grain; i += 1) win[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / grain);
+  for (let ch = 0; ch < buf.numberOfChannels; ch += 1) {
+    const src = buf.getChannelData(ch), dst = out.getChannelData(ch), norm = new Float32Array(outLen);
+    for (let g = 0; ; g += 1) {
+      const a = Math.floor(g * ana), o = g * hop;
+      if (a >= buf.length || o + grain > outLen) break;
+      for (let i = 0; i < grain; i += 1) {
+        const idx = a + i;
+        dst[o + i]! += (idx < buf.length ? src[idx]! : 0) * win[i]!;
+        norm[o + i]! += win[i]!;
+      }
+    }
+    for (let i = 0; i < outLen; i += 1) if (norm[i]! > 1e-3) dst[i]! /= norm[i]!;
+  }
+  return out;
 }
 
 /** Где в записи на самом деле начинается звук: первый отсчёт заметнее порога (5% от пика, не меньше 0,5%). Не дальше 120 мс — дальше уже не тишина, а тихое начало самого звука. */
@@ -204,6 +237,8 @@ export function tableSound(opts: { lazy?: boolean } = {}): TableSound {
   const buffers = new Map<string, AudioBuffer>();
   /** Сколько секунд в начале каждой записи тишина (и «разгон» кодека AAC): с неё не играем, звук должен начинаться ровно в момент команды. */
   const onsets = new Map<string, number>();
+  /** Растянутые во времени копии записей: ключ — дорожка и растяжение. */
+  const stretched = new Map<string, AudioBuffer>();
   const log: Played[] = ((globalThis as { __tableSounds?: Played[] }).__tableSounds = []);
 
   /** Создать звуковую машину и загрузить записи — до первого касания: контекст спит, но файлы уже декодируются, и первый звук не ждёт загрузки. */
@@ -251,7 +286,7 @@ export function tableSound(opts: { lazy?: boolean } = {}): TableSound {
   };
   addEventListener("pointerdown", wake, { capture: true });
 
-  const health: SoundHealth = { state: "none", asked: 0, played: 0, silent: 0, loaded: 0, onsets: {}, loading: [], loadMs: {} };
+  const health: SoundHealth = { state: "none", asked: 0, played: 0, silent: 0, loaded: 0, onsets: {}, loading: [], loadMs: {}, stretches: 0 };
 
   const sound: TableSound = {
     prefs: readSoundPrefs(),
@@ -296,11 +331,21 @@ export function tableSound(opts: { lazy?: boolean } = {}): TableSound {
         const pick = exact ?? `${file}-${1 + Math.floor(Math.random() * FILES[file!])}`, buf = buffers.get(pick);
         if (buf) {
           const src = audio.createBufferSource(), vol = audio.createGain();
-          src.buffer = buf;
-          src.playbackRate.value = spec.rate ?? 1;
+          // Скорость и высота: с `tie` — как пластинка (одно число); без — запись растягивается на `высота / скорость` и играет с `playbackRate = высота`.
+          const speed = spec.rate ?? 1, shift = 2 ** ((spec.pitch ?? 0) / 12), tie = spec.tie !== false;
+          const rate = tie ? speed * shift : shift, stretch = tie ? 1 : shift / speed;
+          let use = buf;
+          if (Math.abs(stretch - 1) > 0.02) {
+            const key = `${pick}:${stretch.toFixed(3)}`;
+            let cached = stretched.get(key);
+            if (!cached) { cached = stretchBuffer(audio, buf, stretch); stretched.set(key, cached); health.stretches += 1; }
+            use = cached;
+          }
+          src.buffer = use;
+          src.playbackRate.value = rate;
           vol.gain.value = gain;
           src.connect(vol).connect(out);
-          src.start(t0, spec.from ?? (spec.raw ? 0 : onsets.get(pick) ?? 0));
+          src.start(t0, (spec.from ?? (spec.raw ? 0 : onsets.get(pick) ?? 0)) * (use === buf ? 1 : stretch));
           if (spec.cutMs) {
             const end = t0 + spec.cutMs / 1000;
             vol.gain.setValueAtTime(gain, end - 0.015);

@@ -45,6 +45,17 @@ await f.evaluate(() => { const sel = document.querySelector('.ev[data-kind="slam
 await f.waitForFunction(() => !!window.__sound.buffer("gather-2"), null, { timeout: 15000 });
 const saved = await f.evaluate(() => ({ preset: window.__feel.preset.slam.track, store: JSON.parse(localStorage.getItem("crossade.feel.v2")).preset.slam.track }));
 check("выбрал дорожку на «Удар об стол» — она в пресете и сохранена", saved.preset === "gather-2" && saved.store === "gather-2", saved);
+// Скорость без смены высоты: «скорость меняет тон» выключен — запись растягивается (считается один раз), в голос уходит tie=false и свой тон.
+await f.evaluate(() => { document.getElementById("tie").checked = false; const t = document.querySelector('.track[data-track="drop-1"]'); const sp = t.querySelector("input[type=range]"); sp.value = 0.5; sp.dispatchEvent(new Event("input")); });
+await f.evaluate(() => { window.__spec.length = 0; document.querySelector('.track[data-track="drop-1"] button').click(); });
+await p.waitForTimeout(600);
+const untied = await f.evaluate(() => ({ spec: window.__spec.at(-1), stretches: window.__sound.health.stretches }));
+check("«скорость меняет тон» выключен: голос с tie=false, скорость 0,5, запись растянута", untied.spec && untied.spec.tie === false && Math.abs(untied.spec.rate - 0.5) < 0.01 && untied.stretches >= 1, untied);
+await f.evaluate(() => { document.getElementById("tie").checked = true; });
+// Ручка тона: +12 пт — спека несёт pitch.
+await f.evaluate(() => { const t = document.querySelector('.track[data-track="drop-1"]'); const r = [...t.querySelectorAll("input[type=range]")][1]; r.value = 12; r.dispatchEvent(new Event("input")); window.__spec.length = 0; t.querySelector("button").click(); });
+await p.waitForTimeout(500);
+check("ручка «тон» +12 полутонов уходит в голос", (await f.evaluate(() => window.__spec.at(-1)?.pitch)) === 12);
 // «Загрузить все»: после неё загружены все 9 дорожек и у каждой нарисована волна.
 await f.evaluate(() => document.getElementById("all").click());
 await f.waitForFunction(() => window.__sound.tracks.every((n) => window.__sound.buffer(n)), null, { timeout: 30000 });

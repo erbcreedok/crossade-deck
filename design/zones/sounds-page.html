@@ -53,7 +53,7 @@
   <div id="diag"></div><div id="errors"></div>
   <div class="plate"><div class="head"><div class="n">1</div><div class="t">ДОРОЖКИ</div></div>
     <div class="hint">Все записи, что играет стол. Нажми на волну или ▶ — играет с начала. «Скорость» меняет и скорость, и высоту (как пластинку). Жёлтая черта — где звук на самом деле начинается: тишина до неё в игре срезается.</div>
-    <div class="tools"><label class="chk"><input type="checkbox" id="raw"> без среза тишины</label><label class="chk"><input type="checkbox" id="loop"> по кругу</label><button id="stop">■ стоп</button><button id="all">Загрузить все</button><span id="count" class="meta" style="color:var(--dim)"></span></div>
+    <div class="tools"><label class="chk"><input type="checkbox" id="raw"> без среза тишины</label><label class="chk"><input type="checkbox" id="loop"> по кругу</label><label class="chk"><input type="checkbox" id="tie" checked> скорость меняет тон</label><button id="stop">■ стоп</button><button id="all">Загрузить все</button><span id="count" class="meta" style="color:var(--dim)"></span></div>
     <div id="tracks"></div></div>
   <div class="plate"><div class="head"><div class="n">2</div><div class="t">КАКОЙ ЗВУК НА КАКОЕ ДВИЖЕНИЕ</div></div>
     <div class="hint">Выбери дорожку для движения и подстрой скорость и громкость. ▶ играет движение целиком: дорожка плюс синтез (тик, «бум»). Сохраняется сразу; страница «Карта — база» подхватывает.</div>
@@ -120,11 +120,11 @@ function runPlayhead(name, startSec, rate) {
   step();
   return ms;
 }
-function playTrack(name, rate, gain, fromMs) {
+function playTrack(name, rate, gain, fromMs, pitch = 0) {
   clearTimeout(play.timer);
   const once = () => {
     const b = sound.buffer(name), start = play.raw ? 0 : fromMs !== undefined ? fromMs / 1000 : b?.onset ?? 0;
-    sound.voice({ track: name, file: null, rate, gain, raw: play.raw, ...(fromMs !== undefined && !play.raw ? { from: fromMs / 1000 } : {}), layers: [] });
+    sound.voice({ track: name, file: null, rate, gain, pitch, tie: $("tie").checked, raw: play.raw, ...(fromMs !== undefined && !play.raw ? { from: fromMs / 1000 } : {}), layers: [] });
     const ms = runPlayhead(name, start, rate);
     if (play.loop && ms) play.timer = setTimeout(once, ms + 150);
   };
@@ -161,13 +161,13 @@ for (const name of sound.tracks) {
   const bar = document.createElement("div"); bar.className = "loadbar";
   const cv = document.createElement("canvas"); cv.className = "wave";
   const slider = (label, min, max, step, init, fmt) => { const l = document.createElement("div"); l.className = "sl"; l.innerHTML = `<span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}"><b></b>`; const r = l.querySelector("input"), v = l.querySelector("b"); r.value = init; v.textContent = fmt(init); r.oninput = () => { v.textContent = fmt(+r.value); }; l.get = () => +r.value; l.set = (x) => { r.value = x; v.textContent = fmt(x); }; return l; };
-  const sp = slider("скорость", 0.25, 2.5, 0.01, 1, (v) => v.toFixed(2) + "×"), gn = slider("громкость", 0, 2, 0.05, 1, (v) => v.toFixed(2)), st = slider("начало", 0, 400, 1, 0, (v) => v + " мс");
+  const sp = slider("скорость", 0.25, 2.5, 0.01, 1, (v) => v.toFixed(2) + "×"), gn = slider("громкость", 0, 2, 0.05, 1, (v) => v.toFixed(2)), st = slider("начало", 0, 400, 1, 0, (v) => v + " мс"), pt = slider("тон", -12, 12, 0.1, 0, (v) => (v > 0 ? "+" : "") + v.toFixed(1) + " пт");
   const wrap = document.createElement("div"); wrap.className = "wavebox";
   const ph = document.createElement("div"); ph.className = "ph";
   const dim = document.createElement("div"); dim.className = "dim";
   const sm = document.createElement("div"); sm.className = "sm";
   wrap.append(cv, dim, sm, ph);
-  box.append(row, bar, wrap, sp, gn, st);
+  box.append(row, bar, wrap, sp, pt, gn, st);
   $("tracks").append(box);
   cards.set(name, { box, play: play1, meta, cv, start: st, ph });
   // Черта начала двигается за ползунком «начало» в реальном времени; всё левее неё притемнено — это не играет.
@@ -180,7 +180,7 @@ for (const name of sound.tracks) {
     if (busy || performance.now() - last < 400) return;
     last = performance.now();
     busy = true;
-    try { if (await loadTrack(name)) playTrack(name, sp.get(), gn.get(), st.get()); }
+    try { if (await loadTrack(name)) playTrack(name, sp.get(), gn.get(), st.get(), pt.get()); }
     catch (e) { meta.textContent = `${name} · ошибка: ${e?.message ?? e}`; showError(`${name}: ${e?.message ?? e}`); play1.disabled = false; play1.textContent = "▶"; box.classList.remove("loading"); }
     finally { busy = false; }
   };
@@ -218,10 +218,15 @@ function renderEvents() {
       feel.save(); await ensureFor(spec); feel.play({ kind, energy: 1 }); renderEvents();
     };
     const slider = (label, min, max, step, get, set, fmt) => { const l = document.createElement("div"); l.className = "sl"; l.innerHTML = `<span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}"><b></b>`; const r = l.querySelector("input"), v = l.querySelector("b"); r.value = get(); v.textContent = fmt(get()); r.oninput = () => { set(+r.value); v.textContent = fmt(+r.value); feel.save(); }; return l; };
-    ev.append(row, sel,
+    const tie = document.createElement("button"); tie.className = "tie"; tie.style.cssText = "margin:0 0 8px";
+    const paintTie = () => { tie.textContent = "скорость меняет тон: " + (spec.tie === false ? "НЕТ" : "ДА"); tie.classList.toggle("on", spec.tie !== false); };
+    tie.onclick = () => { spec.tie = spec.tie === false; feel.save(); paintTie(); };
+    paintTie();
+    ev.append(row, sel, tie,
       slider("скорость", 0.25, 2.5, 0.01, () => spec.rate, (v) => { spec.rate = v; }, (v) => v.toFixed(2) + "×"),
       slider("громкость", 0, 2, 0.05, () => spec.gain, (v) => { spec.gain = v; }, (v) => v.toFixed(2)),
       slider("начало", 0, 400, 1, () => spec.from ?? Math.round(((spec.track ? sound.buffer(spec.track)?.onset : spec.file ? sound.buffer(`${spec.file}-1`)?.onset : 0) ?? 0) * 1000), (v) => { spec.from = v; }, (v) => v + " мс"),
+      slider("тон", -12, 12, 0.1, () => spec.pitch ?? 0, (v) => { spec.pitch = v; }, (v) => (v > 0 ? "+" : "") + v.toFixed(1) + " пт"),
       slider("разброс тона", 0, 0.3, 0.01, () => spec.jitter, (v) => { spec.jitter = v; }, (v) => "±" + Math.round(v * 100) + "%"));
     $("events").append(ev);
   }
