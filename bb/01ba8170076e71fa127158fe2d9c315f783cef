@@ -1,0 +1,23 @@
+server/table-client/soundsPacks.json
+  s_73107c3d804131::t_bc0ea451957401 1
+server/table-client/sound.pack.test.ts
+  s_73107c3d804131::t_bc0ea451957401 1-35
+server/table-client/sound.ts
+  s_73107c3d804131::t_bc0ea451957401 12,210-225,294-317,319-320
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bb01ba8170076e71fa127158fe2d9c315f783cef",
+  "prompts": {},
+  "sessions": {
+    "s_73107c3d804131": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e85b33e2-d0a6-4a90-b535-037e1d4326e5",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
