@@ -27,6 +27,7 @@ import { journal } from "../../server/table-client/journal.js";
 import { mountSettings } from "../../server/table-client/settings.js";
 import { tableSound } from "../../server/table-client/sound.js";
 import { tableHaptic } from "../../server/table-client/haptic.js";
+import { FEEL_LIVE, FEEL_OLD, tableFeel, type FeelKind } from "../../server/table-client/feel.js";
 import { tableMotion } from "../../server/table-client/motion.js";
 import { mountTalk, type WordAnchor } from "../../server/table-client/talk.js";
 import { HOST } from "../../server/table-client/host.js";
@@ -139,6 +140,13 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   try { const saved = Number(localStorage.getItem("t3d.fov")); if (saved) scene.setBaseFov(saved); } catch { /* без памяти — обзор по умолчанию */ }
   for (const k of ["vignette", "gauge"] as const) { try { if (localStorage.getItem(`t3d.${k}`) === "0") scene.setNeckViz(k, false); } catch { /* без памяти — включено */ } }
   // ——— ЗВУКИ И ВИБРАЦИИ: те же поводы, что у обычного стола (`cues.ts`) — что поменялось между двумя кадрами, там, где это на экране ———
+  // Действия, что владелец уже перевёл на новые звуки («В игру» на странице звуков, `feelPreset.json`): играет `feel.ts`, прежний звук тех же поводов молчит, пока это движение озвучено им.
+  // Нет в списке — всё как раньше.
+  const feel = tableFeel(sound, haptic, { factory: true });
+  const feelAt = new Map<FeelKind, number>();
+  for (const k of FEEL_LIVE) { const spec = feel.preset[k]; for (const t of [spec.track, ...(spec.extra ?? []).map((v) => v.track)]) if (t) void sound.ensure(t); }
+  scene.onFeel((e) => { if (!FEEL_LIVE.has(e.kind)) return; feelAt.set(e.kind, performance.now()); feel.play(e); });
+  const feelCovers = (cue: string): boolean => [...FEEL_LIVE].some((k) => FEEL_OLD[k].cues.includes(cue) && performance.now() - (feelAt.get(k) ?? -Infinity) < 1200);
   let touchedAt = -Infinity;
   addEventListener("pointerdown", () => (touchedAt = performance.now()), { capture: true });
   addEventListener("pointerup", () => (touchedAt = performance.now()), { capture: true });
@@ -158,7 +166,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       // Мерж и шафл звучат, пока идёт их анимация.
       const cut = cue.kind === "merge" ? Math.max(60, FLIGHT_MS) : cue.kind === "shuffle" ? SHUFFLE_MS + (SHUFFLE_CARDS - 1) * SHUFFLE_STAGGER_MS : undefined;
       const p = where(cue.at);
-      if (p) sound.play(cue.kind, (p.x - g.w / 2) / (g.w / 2), (p.y - g.h / 2) / (g.h / 2), own, cut);
+      if (p && !feelCovers(cue.kind)) sound.play(cue.kind, (p.x - g.w / 2) / (g.w / 2), (p.y - g.h / 2) / (g.h / 2), own, cut);
       // Вибрация — только своё: моё действие или что-то в моей руке, на моём стуле.
       if (own || ("chair" in cue.at && cue.at.chair === seat)) {
         if (cue.kind === "shuffle") { for (let t = 0; t < (cut ?? 0); t += SHUFFLE_TICK_MS) window.setTimeout(() => haptic.buzz("light"), t); }
@@ -169,7 +177,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
   store.onChange(() => { const next = store.state; if (next === prevCue) return; const prev = prevCue; prevCue = next; soundCues(prev, next); });
   // Вибрация на нажатие кнопок худа и на «взял карту».
   addEventListener("click", (e) => { if ((e.target as Element | null)?.closest?.("#hud button, #hud [role=button]")) haptic.buzz("light"); }, { capture: true });
-  scene.onGrab(() => haptic.buzz("light"));
+  scene.onGrab(() => { if (!FEEL_LIVE.has("grab")) haptic.buzz("light"); });
   // Отказ стола — вибрация ошибки.
   store.onRefused(() => haptic.buzz("error"));
   const book = journal();

@@ -113,6 +113,8 @@ export interface Played {
   x: number;
   z: number;
   gain: number;
+  /** Своё действие (громче) или чужое. */
+  mine?: boolean;
   cutMs?: number;
 }
 
@@ -267,7 +269,7 @@ export function tableSound(opts: { lazy?: boolean } = {}): TableSound {
   const onsets = new Map<string, number>();
   /** Растянутые во времени копии записей: ключ — дорожка и растяжение. */
   const stretched = new Map<string, AudioBuffer>();
-  const log: Played[] = ((globalThis as { __tableSounds?: Played[] }).__tableSounds = []);
+  const log: Played[] = ((globalThis as { __tableSounds?: Played[] }).__tableSounds ??= []);
 
   /** Создать звуковую машину и загрузить записи — до первого касания: контекст спит, но файлы уже декодируются, и первый звук не ждёт загрузки. */
   const boot = (): boolean => {
@@ -372,7 +374,7 @@ export function tableSound(opts: { lazy?: boolean } = {}): TableSound {
       // Дорожка, которую ещё не загружали (не была назначена при открытии страницы), — загрузится в фоне; сейчас промолчит, в следующий раз сыграет.
       if (spec.track && !buffers.has(spec.track)) void load(spec.track);
       const file = spec.file ?? null, exact = spec.track && buffers.has(spec.track) ? spec.track : null;
-      log.push({ kind: (file ?? "drop") as CueKind, file: exact ?? file ?? "synth", x: +x.toFixed(2), z: +z.toFixed(2), gain, ...(spec.cutMs ? { cutMs: spec.cutMs } : {}) });
+      log.push({ kind: (file ?? "drop") as CueKind, file: exact ?? file ?? "synth", x: +x.toFixed(2), z: +z.toFixed(2), gain, mine, ...(spec.cutMs ? { cutMs: spec.cutMs } : {}) });
       if (log.length > 50) log.shift();
       if (!ctx || ctx.state !== "running") { health.silent += 1; health.why = "asleep"; return; }
       const audio = ctx;
@@ -447,7 +449,7 @@ export function tableSound(opts: { lazy?: boolean } = {}): TableSound {
       const gain = (mine ? GAIN.mine : GAIN.other) * (sound.prefs.volume / 100);
       if (!sound.prefs.spatial) x = z = 0;
       const file = SOUND_OF[kind];
-      log.push({ kind, file, x: +x.toFixed(2), z: +z.toFixed(2), gain, ...(cutMs ? { cutMs } : {}) });
+      log.push({ kind, file, x: +x.toFixed(2), z: +z.toFixed(2), gain, mine, ...(cutMs ? { cutMs } : {}) });
       if (log.length > 50) log.shift();
       const pick = `${file}-${1 + Math.floor(Math.random() * FILES[file])}`, buf = buffers.get(pick);
       if (!ctx || !buf || ctx.state !== "running") {

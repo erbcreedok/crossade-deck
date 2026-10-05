@@ -112,6 +112,25 @@ export const FEEL_DEFAULT: Record<FeelKind, FeelSpec> = Object.fromEntries(
   FEEL_KINDS.map((k) => [k, { ...FEEL_BASE[k], ...((overrides as Partial<Record<FeelKind, Partial<FeelSpec>>>)[k] ?? {}) }]),
 ) as Record<FeelKind, FeelSpec>;
 
+/** Какие действия УЖЕ В ИГРЕ: те, что записаны в `feelPreset.json` («В игру» на странице звуков). У остальных игра играет свой прежний звук. */
+export const FEEL_LIVE: ReadonlySet<FeelKind> = new Set(FEEL_KINDS.filter((k) => k in (overrides as object)));
+
+/**
+ * ЧТО ИГРА ИГРАЛА ДО ЭТОГО: звуковые поводы стола (`cues.ts`), которые замещает действие, и словами — что именно. Действие, которого здесь нет, раньше не звучало вовсе.
+ * Пока действие «в игре», прежний звук тех же поводов молчит, если это же движение уже озвучило оно (иначе звучало бы дважды).
+ */
+export const FEEL_OLD: Record<FeelKind, { cues: string[]; text: string }> = {
+  grab: { cues: [], text: "без звука (только лёгкая вибрация)" },
+  carry: { cues: [], text: "без звука" },
+  lay: { cues: ["drop", "out", "hand"], text: "стук карты о стол (drop-1)" },
+  throw: { cues: ["drop", "out"], text: "стук карты о стол (drop-1), как при обычном «положил»" },
+  slam: { cues: ["slam"], text: "стук drop-1 ниже и громче, с басом" },
+  flip: { cues: ["turn"], text: "переворот (turn-1)" },
+  spin: { cues: [], text: "без звука" },
+  deny: { cues: [], text: "без звука (только вибрация ошибки)" },
+  home: { cues: [], text: "без звука" },
+};
+
 const KEY = "crossade.feel.v2";
 
 type VibeMode = "telegram" | "vibrate" | "ios-switch" | "none";
@@ -184,11 +203,11 @@ export interface TableFeel {
  * КАКИЕ ДОРОЖКИ НУЖНЫ НА САМОМ ДЕЛЕ: те, что назначены действиям (заводской пресет плюс то, что поменяли на этом устройстве). Остальные не загружаются — экономит трафик и память;
  * чем меньше звуков назначено и чем короче собранные отрывки, тем легче страница.
  */
-export function feelUsedTracks(): string[] {
+export function feelUsedTracks(factory = false): string[] {
   const used = new Set<string>();
   const merged: Record<string, FeelSpec> = {};
   for (const k of FEEL_KINDS) merged[k] = { ...FEEL_DEFAULT[k] };
-  try {
+  if (!factory) try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? "null") as { preset?: Partial<Record<FeelKind, Partial<FeelSpec>>> } | null;
     for (const k of FEEL_KINDS) if (raw?.preset?.[k]) Object.assign(merged[k]!, raw.preset[k]);
   } catch { /* нет хранилища — заводской */ }
@@ -199,15 +218,15 @@ export function feelUsedTracks(): string[] {
 const clone = (spec: FeelSpec): FeelSpec => ({ ...spec, ...(spec.extra ? { extra: spec.extra.map((v) => ({ ...v })) } : {}), layers: spec.layers.map((l) => ({ ...l })), vibe: [...spec.vibe] });
 
 /** Один пресет на страницу: звук и вибрация — те, что уже держит экран (`tableSound`, `tableHaptic`). */
-export function tableFeel(sound: TableSound, haptic: TableHaptic): TableFeel {
+export function tableFeel(sound: TableSound, haptic: TableHaptic, opts: { factory?: boolean } = {}): TableFeel {
   const preset = Object.fromEntries(FEEL_KINDS.map((k) => [k, clone(FEEL_DEFAULT[k])])) as Record<FeelKind, FeelSpec>;
   const prefs: FeelPrefs = { sound: true, vibe: true };
-  try {
+  if (!opts.factory) try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? "null") as { preset?: Partial<Record<FeelKind, Partial<FeelSpec>>>; prefs?: Partial<FeelPrefs> } | null;
     for (const k of FEEL_KINDS) if (raw?.preset?.[k]) Object.assign(preset[k], raw.preset[k]);
     if (raw?.prefs) Object.assign(prefs, raw.prefs);
   } catch { /* нет хранилища или битое — заводской */ }
-  const log: FeelLogged[] = ((globalThis as { __feelLog?: FeelLogged[] }).__feelLog = []);
+  const log: FeelLogged[] = ((globalThis as { __feelLog?: FeelLogged[] }).__feelLog ??= []);
 
   /** «Мешок» номеров звуков каждого действия: выпали все — перемешали заново (первый новый не равен последнему прежнему), так что подряд один и тот же не выпадает. */
   const bags = new Map<FeelKind, { left: number[]; last: number }>();

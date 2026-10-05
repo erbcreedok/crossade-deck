@@ -43,12 +43,15 @@ const feelPresetSaver = (): Plugin => ({
       req.on("data", (c) => { body += c; if (body.length > 100_000) req.destroy(); });
       req.on("end", () => {
         try {
-          const kinds = (JSON.parse(body) as { kinds?: Record<string, Record<string, unknown>> }).kinds ?? {};
+          const parsed = JSON.parse(body) as { kinds?: Record<string, Record<string, unknown>>; remove?: string[] };
+          const kinds = parsed.kinds ?? {};
           const file = JSON.parse(readFileSync(PRESET_FILE, "utf8")) as Record<string, unknown>, saved: string[] = [];
           for (const k of KINDS) if (kinds[k] && typeof kinds[k] === "object") { file[k] = cleanSpec(kinds[k]!); saved.push(k); }
+          const removed: string[] = [];
+          for (const k of parsed.remove ?? []) if (KINDS.includes(k) && k in file) { delete file[k]; removed.push(k); }
           writeFileSync(PRESET_FILE, JSON.stringify(file, null, 2) + "\n");
           res.setHeader("content-type", "application/json");
-          res.end(JSON.stringify({ ok: true, saved }));
+          res.end(JSON.stringify({ ok: true, saved, removed }));
         } catch (e) { res.statusCode = 400; res.end(String((e as Error).message)); }
       });
     });

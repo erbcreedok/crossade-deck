@@ -96,18 +96,18 @@ await f.evaluate(() => document.querySelectorAll('.ev[data-kind="lay"] .snd')[0]
 await p.waitForTimeout(200);
 check("× убирает последний звук: «звуков нет»", (await sounds("lay")) === 0 && await f.evaluate(() => /звуков нет/.test(document.querySelector('.ev[data-kind="lay"]').textContent)));
 await f.evaluate(() => document.getElementById("reset").click());
-// «Сделать заводским»: настройки действия записываются в файл заводских (его читает и стенд, и игра); файл возвращаем как был.
+// «В игру»: настройки действия записываются в файл заводских (его читает и стенд, и игра); файл возвращаем как был.
 {
   const { readFileSync, writeFileSync } = await import("fs");
   const file = new URL("../../server/table-client/feelPreset.json", import.meta.url), was = readFileSync(file, "utf8");
   try {
     await f.evaluate(() => { const sel = document.querySelector('.ev[data-kind="grab"] .snd select'); sel.value = "gather-3"; sel.dispatchEvent(new Event("change")); });
     await f.waitForFunction(() => window.__feel.preset.grab.track === "gather-3", null, { timeout: 5000 });
-    await f.evaluate(() => [...document.querySelectorAll('.ev[data-kind="grab"] > .row button')].find((b) => /заводским/.test(b.textContent)).click());
+    await f.evaluate(() => [...document.querySelectorAll('.ev[data-kind="grab"] > .row button')].find((b) => b.textContent === "В игру").click());
     await p.waitForTimeout(800);
     const saved = JSON.parse(readFileSync(file, "utf8"));
-    check("«Сделать заводским» у «Взял карту» записало действие в файл заводских (и только его)", saved.grab?.track === "gather-3" && Object.keys(saved).length === Object.keys(JSON.parse(was)).length + (JSON.parse(was).grab ? 0 : 1), { saved: Object.keys(saved), grab: saved.grab });
-    check("на странице написано, что записано", await f.evaluate(() => /Записано как заводское: Взял карту/.test(document.getElementById("saved").textContent)));
+    check("«В игру» у «Взял карту» записало действие в файл заводских (и только его)", saved.grab?.track === "gather-3" && Object.keys(saved).length === Object.keys(JSON.parse(was)).length + (JSON.parse(was).grab ? 0 : 1), { saved: Object.keys(saved), grab: saved.grab });
+    check("на странице написано, что записано", await f.evaluate(() => /Записано в игру: Взял карту/.test(document.getElementById("saved").textContent)));
   } finally { writeFileSync(file, was); }
 }
 // «Сохранить как новый звук»: вырезается отрезок со скоростью и тоном в отдельный маленький файл; в действии звук заменяется на него (скорость 1, тон 0, начало и конец — как у файла).
@@ -132,6 +132,58 @@ await f.evaluate(() => document.getElementById("reset").click());
     check("в списке своих звуков он записан", JSON.parse(readFileSync(custom, "utf8")).names.includes("zz-test-bake"));
     check("на странице написан размер и что файл нужно закоммитить", /КБ/.test(info.msg) && /закоммитить/.test(info.msg), info.msg);
   } finally { rmSync(file, { force: true }); writeFileSync(custom, was); await f.evaluate(() => document.getElementById("reset").click()); }
+}
+// ИГРА: что уже в игре и что на стенде; точечно «В игру» / «Вернуть как в игре» / «Убрать из игры» / «Сравнить»; файл заводских возвращаем как был.
+{
+  const { readFileSync, writeFileSync } = await import("fs");
+  const file = new URL("../../server/table-client/feelPreset.json", import.meta.url), was = readFileSync(file, "utf8");
+  try {
+    writeFileSync(file, "{}\n");
+    await p.reload(); await p.waitForTimeout(3000);
+    const g = p.frames().find((x) => x.url().includes("sounds-page"));
+    await g.waitForFunction(() => window.__ready && window.__sound.tracks.every((n) => window.__sound.buffer(n)), null, { timeout: 60000 });
+    await g.evaluate(() => { window.__feel.reset(); window.__feel.save(); window.__renderEvents(); });
+    const badge = (k) => g.evaluate((kk) => document.querySelector(`.ev[data-kind="${kk}"] .badge`)?.textContent, k);
+    const btn = (k, t) => g.evaluate(([kk, tt]) => { const b = [...document.querySelectorAll(`.ev[data-kind="${kk}"] > .row button`)].find((x) => x.textContent === tt); return b ? b.disabled : null; }, [k, t]);
+    const click = (k, t) => g.evaluate(([kk, tt]) => [...document.querySelectorAll(`.ev[data-kind="${kk}"] > .row button`)].find((x) => x.textContent === tt).click(), [k, t]);
+    const summary = () => g.evaluate(() => document.getElementById("summary").textContent);
+    check("в игре пока ничего: у «Положил» «в игре прежний звук» и сказано какой", (await badge("lay")) === "в игре прежний звук" && await g.evaluate(() => /прежний звук игры — стук карты о стол/.test(document.querySelector('.ev[data-kind="lay"] .state').textContent)));
+    check("сводка: в игре 0 из 9", /В игре новые звуки: 0 из 9/.test(await summary()), await summary());
+    check("«Убрать из игры», «Вернуть как в игре», «В игру» (совпадает) — «Убрать» и «Вернуть» недоступны, пока нечего", (await btn("lay", "Убрать из игры")) === true && (await btn("lay", "Вернуть как в игре")) === true && (await btn("lay", "В игру")) === false);
+    await g.evaluate(() => { window.__old = []; const o = window.__sound.play; window.__sound.play = (...a) => { window.__old.push(a[0]); return o.apply(window.__sound, a); }; });
+    await click("lay", "▶ в игре");
+    check("«▶ в игре» у не переведённого действия играет прежний звук игры (повод drop)", await g.evaluate(() => window.__old.at(-1) === "drop"));
+    await click("lay", "В игру"); await p.waitForTimeout(900);
+    check("«В игру» записало только «Положил» в файл", Object.keys(JSON.parse(readFileSync(file, "utf8"))).join() === "lay", readFileSync(file, "utf8"));
+    check("«Положил»: «в игре этот же», сводка 1 из 9, у «Взял» всё ещё прежний", (await badge("lay")) === "в игре этот же" && /1 из 9/.test(await summary()) && (await badge("grab")) === "в игре прежний звук");
+    check("«В игру» у совпадающего недоступна, «Убрать из игры» доступна", (await btn("lay", "В игру")) === true && (await btn("lay", "Убрать из игры")) === false);
+    await g.evaluate(() => { window.__feel.preset.lay.rate = 1.7; window.__renderEvents(); });
+    check("правка на стенде после записи: «изменён, в игре прежний»", (await badge("lay")) === "изменён, в игре прежний");
+    await g.evaluate(() => { window.__spec = []; const o = window.__sound.voice; window.__sound.voice = (sp) => { window.__spec.push(sp); return o.call(window.__sound, sp); }; });
+    await click("lay", "Сравнить"); await p.waitForTimeout(1500);
+    const sp = await g.evaluate(() => window.__spec.map((x) => +x.rate.toFixed(1)));
+    check("«Сравнить»: сначала звук игры (скорость как записана, около 1), потом со стенда (около 1.7)", sp.length === 2 && sp[0] < 1.3 && sp[1] > 1.4, sp);
+    await click("lay", "Вернуть как в игре");
+    check("«Вернуть как в игре»: правка отброшена, снова «в игре этот же»", (await badge("lay")) === "в игре этот же" && await g.evaluate(() => window.__feel.preset.lay.rate < 1.3));
+    await click("lay", "Убрать из игры"); await p.waitForTimeout(900);
+    check("«Убрать из игры»: действия нет в файле, снова прежний звук, сводка 0 из 9", !("lay" in JSON.parse(readFileSync(file, "utf8"))) && (await badge("lay")) === "в игре прежний звук" && /0 из 9/.test(await summary()));
+  } finally { writeFileSync(file, was); }
+}
+// «Добавить звук из файла»: файл сжимается в m4a, ложится в папку звуков, вписывается в список своих и появляется в галерее.
+{
+  const { readFileSync, writeFileSync, existsSync, rmSync } = await import("fs");
+  const custom = new URL("../../server/table-client/soundsCustom.json", import.meta.url), out = new URL("../../server/table-client/sounds/zz-test-upload.m4a", import.meta.url), was = readFileSync(custom, "utf8");
+  const g = p.frames().find((x) => x.url().includes("sounds-page"));
+  // 0,2 с синуса 440 Гц, 16 бит, 22050 Гц, моно
+  const n = 4410, buf = Buffer.alloc(44 + n * 2); buf.write("RIFF", 0); buf.writeUInt32LE(36 + n * 2, 4); buf.write("WAVEfmt ", 8); buf.writeUInt32LE(16, 16); buf.writeUInt16LE(1, 20); buf.writeUInt16LE(1, 22); buf.writeUInt32LE(22050, 24); buf.writeUInt32LE(44100, 28); buf.writeUInt16LE(2, 32); buf.writeUInt16LE(16, 34); buf.write("data", 36); buf.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i++) buf.writeInt16LE(Math.round(Math.sin(i / 22050 * 440 * 2 * Math.PI) * 12000), 44 + i * 2);
+  p.removeAllListeners("dialog"); p.once("dialog", (d) => d.accept("zz-test-upload"));
+  try {
+    await g.setInputFiles("#filepick", { name: "my beep.wav", mimeType: "audio/wav", buffer: buf });
+    await g.waitForFunction(() => !!document.querySelector('#gal .tile[data-track="zz-test-upload"]'), null, { timeout: 20000 });
+    check("загруженный файл: он в галерее и среди дорожек, файл m4a лежит в папке звуков", await g.evaluate(() => window.__sound.tracks.includes("zz-test-upload")) && existsSync(out));
+    check("вписан в список своих звуков, на странице сказано про коммит", JSON.parse(readFileSync(custom, "utf8")).names.includes("zz-test-upload") && await g.evaluate(() => /закоммитить/.test(document.getElementById("saved").textContent)));
+  } finally { rmSync(out, { force: true }); writeFileSync(custom, was); }
 }
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
