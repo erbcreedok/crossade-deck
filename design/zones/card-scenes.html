@@ -34,13 +34,15 @@
   .rrow button.on { opacity: 1; box-shadow: 0 0 0 2px var(--black), 0 0 0 4px var(--ink); }
   .rrow button.all { width: 38px; background: #4a3a28; }
   .rrow button.tg { width: 78px; background: #4a3a28; }
-  .frow { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 12px; }
-  .frow .fl { width: 108px; line-height: 1.15; }
-  .frow label { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0; }
-  .frow input[type=range] { flex: 1; min-width: 0; accent-color: var(--gold); }
-  .frow b { font-weight: 400; width: 36px; text-align: right; flex: none; }
-  .frow button, .fhead button { border: 0; padding: 4px 8px; background: #4a3a28; color: var(--ink); box-shadow: 0 0 0 2px var(--black); cursor: pointer; font: 400 12px 'Tiny5', monospace; }
-  .frow button.on, .fhead button.on { background: var(--gold); color: var(--black); }
+  .fev { margin: 0 0 12px; padding: 0 0 10px; border-bottom: 2px solid rgba(11,7,4,.5); }
+  .fev:last-child { border-bottom: 0; }
+  .fev .ft { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 14px; }
+  .fev .ft .fl { flex: 1; line-height: 1.2; }
+  .fev .fs { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 12px; }
+  .fev .fs > span { width: 74px; flex: none; color: #cdbf9d; }
+  .fev .fs input[type=range] { flex: 1; min-width: 0; accent-color: var(--gold); height: 28px; }
+  .fev .fs b { font-weight: 400; width: 48px; text-align: right; flex: none; }
+  .fev button, .fhead button { border: 0; padding: 6px 12px; background: #4a3a28; color: var(--ink); box-shadow: 0 0 0 2px var(--black); cursor: pointer; font: 400 13px 'Tiny5', monospace; }
   .fhead { display: flex; gap: 8px; align-items: center; margin: 0 0 10px; flex-wrap: wrap; }
   #bar { display: flex; gap: 6px; margin: 0 0 12px; font: 400 12px 'Tiny5', monospace; }
   #bar button { font: inherit; padding: 5px 9px; border: 0; background: var(--panel); color: var(--ink); box-shadow: 0 0 0 2px var(--black); cursor: pointer; }
@@ -163,8 +165,8 @@ for (const f of document.querySelectorAll(".frame")) f.classList.add("ready");
   const mk = (label, get, set) => { const b = document.createElement("button"); const paint = () => { b.classList.toggle("on", get()); b.textContent = label + ": " + (get() ? "ДА" : "НЕТ"); }; b.onclick = () => { set(!get()); feel.save(); paint(); }; paint(); head.append(b); };
   mk("Звук", () => feel.prefs.sound, (v) => { feel.prefs.sound = v; });
   mk("Вибрация", () => feel.prefs.vibe, (v) => { feel.prefs.vibe = v; });
-  const vol = document.createElement("label"); vol.style.cssText = "display:flex;align-items:center;gap:4px;flex:1;min-width:140px";
-  vol.innerHTML = '<span>громкость</span><input type="range" min="0" max="100" step="10" style="flex:1;accent-color:#f2c14e"><b style="font-weight:400;width:34px;text-align:right"></b>';
+  const vol = document.createElement("label"); vol.style.cssText = "display:flex;align-items:center;gap:8px;flex:1 1 100%;order:3";
+  vol.innerHTML = '<span style="width:74px;flex:none;color:#cdbf9d">громкость</span><input type="range" min="0" max="100" step="10" style="flex:1;min-width:0;accent-color:#f2c14e;height:28px"><b style="font-weight:400;width:48px;text-align:right;flex:none"></b>';
   const vr = vol.querySelector("input"), vb = vol.querySelector("b");
   vr.value = sound.prefs.volume; vb.textContent = sound.prefs.volume;
   vr.oninput = () => { sound.prefs.volume = +vr.value; vb.textContent = vr.value; sound.save(); };
@@ -175,7 +177,7 @@ for (const f of document.querySelectorAll(".frame")) f.classList.add("ready");
   body.append(head);
   const list = document.createElement("div"); body.append(list);
   const slider = (label, min, max, step, get, set, fmt) => {
-    const l = document.createElement("label"); l.innerHTML = `<span style="width:44px;flex:none">${label}</span><input type="range" min="${min}" max="${max}" step="${step}"><b></b>`;
+    const l = document.createElement("div"); l.className = "fs"; l.innerHTML = `<span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}"><b></b>`;
     const r = l.querySelector("input"), v = l.querySelector("b");
     r.value = get(); v.textContent = fmt(get());
     r.oninput = () => { set(+r.value); v.textContent = fmt(+r.value); feel.save(); };
@@ -184,15 +186,17 @@ for (const f of document.querySelectorAll(".frame")) f.classList.add("ready");
   function render() {
     list.replaceChildren();
     for (const kind of FEEL_KINDS) {
-      const spec = feel.preset[kind], row = document.createElement("div"); row.className = "frow"; row.dataset.kind = kind;
+      const spec = feel.preset[kind], ev = document.createElement("div"); ev.className = "fev"; ev.dataset.kind = kind;
+      const top = document.createElement("div"); top.className = "ft";
       const name = document.createElement("div"); name.className = "fl"; name.textContent = FEEL_NAMES[kind];
-      const play = document.createElement("button"); play.textContent = "▶"; play.title = "послушать (и вибрация)"; play.onclick = () => feel.play({ kind, energy: 1 });
-      const weak = document.createElement("button"); weak.textContent = "▷"; weak.title = "слабая сила"; weak.onclick = () => feel.play({ kind, energy: 0.2 });
-      row.append(name, play, weak,
-        slider("гром.", 0, 2, 0.05, () => spec.gain, (v) => { spec.gain = v; }, (v) => v.toFixed(2)),
+      const play = document.createElement("button"); play.textContent = "▶ сильно"; play.title = "послушать при полной силе"; play.onclick = () => feel.play({ kind, energy: 1 });
+      const weak = document.createElement("button"); weak.textContent = "▷ слабо"; weak.title = "послушать при малой силе"; weak.onclick = () => feel.play({ kind, energy: 0.2 });
+      top.append(name, play, weak);
+      ev.append(top,
+        slider("громкость", 0, 2, 0.05, () => spec.gain, (v) => { spec.gain = v; }, (v) => v.toFixed(2)),
         slider("тон", 0.4, 2, 0.02, () => spec.rate, (v) => { spec.rate = v; }, (v) => v.toFixed(2)),
-        slider("вибр.", 0, 120, 2, () => spec.vibe[0] ?? 0, (v) => { spec.vibe = v ? [v, ...spec.vibe.slice(1)] : []; }, (v) => v + "мс"));
-      list.append(row);
+        slider("вибрация", 0, 120, 2, () => spec.vibe[0] ?? 0, (v) => { spec.vibe = v ? [v, ...spec.vibe.slice(1)] : []; }, (v) => v + " мс"));
+      list.append(ev);
     }
   }
   render();

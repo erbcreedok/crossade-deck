@@ -15,6 +15,7 @@ await p.waitForTimeout(3000);
 const f = p.frames().find((x) => x.url().includes("card-scenes"));
 await f.waitForFunction(() => window.__ready && window.__feel, null, { timeout: 60000 });
 await p.waitForTimeout(1500);
+const early = await f.evaluate(() => ({ loaded: window.__sound.health.loaded, state: window.__sound.health.state }));
 const id = await f.evaluate(() => window.__me.state.felt[0].id);
 const kinds = () => f.evaluate(() => window.__feel.log.map((e) => e.kind));
 const clear = () => f.evaluate(() => { window.__feel.log.length = 0; window.__buzz?.length; });
@@ -69,6 +70,8 @@ await clear(); await f.evaluate(() => (window.__buzz.length = 0));
 c = await grabAt(); await p.mouse.up(); await p.waitForTimeout(900);
 check("🔊 выключен у сцены — тишина и без вибрации", (await kinds()).length === 0 && (await f.evaluate(() => window.__buzz.length)) === 0, { k: await kinds(), buzz: await f.evaluate(() => window.__buzz) });
 await f.evaluate(() => document.querySelector("#who-top .mute").click());
+// 6б. Записи декодируются сразу при загрузке страницы, до первого касания (первый звук не ждёт загрузки и не опаздывает).
+check("записи звуков загружены заранее, до первого касания (не меньше 7 из 9 уже декодированы)", early.loaded >= 7, early);
 // 7. Звук доехал до браузера: записи загружены (в логе голоса есть «drop»).
 const played = await f.evaluate(() => ({ health: window.__sound.health, last: (window.__tableSounds ?? []).length }));
 check("звуковая машина запущена, файлы доехали: звуков сыграно много, молчаливых мало", played.health.state === "running" && played.health.played >= 10 && played.health.silent <= 2, played);

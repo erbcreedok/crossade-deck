@@ -167,6 +167,8 @@ export interface SoundHealth {
   /** Сколько промолчало — и почему промолчало последнее. */
   silent: number;
   why?: "off" | "asleep" | "no-file";
+  /** Сколько записей уже декодировано и готово играть. */
+  loaded: number;
 }
 
 export function tableSound(): TableSound {
@@ -174,28 +176,36 @@ export function tableSound(): TableSound {
   const buffers = new Map<string, AudioBuffer>();
   const log: Played[] = ((globalThis as { __tableSounds?: Played[] }).__tableSounds = []);
 
+  /** Создать звуковую машину и загрузить записи — до первого касания: контекст спит, но файлы уже декодируются, и первый звук не ждёт загрузки. */
+  const boot = (): boolean => {
+    if (ctx) return true;
+    const Ctx = globalThis.AudioContext ?? (globalThis as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return false;
+    try {
+      ctx = new Ctx({ latencyHint: "interactive" });
+    } catch {
+      ctx = new Ctx();
+    }
+    holdAudio(ctx);
+    for (const [kind, n] of Object.entries(FILES)) for (let i = 1; i <= n; i += 1) load(`${kind}-${i}`);
+    return true;
+  };
   const wake = () => {
     // Выключенный звук не будит аудио вовсе: открытая аудиосессия iOS может глушить вибрацию.
     if (!sound.on && !sound.voiceOn) return;
-    if (!ctx) {
-      const Ctx = globalThis.AudioContext ?? (globalThis as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (!Ctx) return;
-      ctx = new Ctx();
-      holdAudio(ctx);
-      for (const [kind, n] of Object.entries(FILES)) for (let i = 1; i <= n; i += 1) load(`${kind}-${i}`);
-    }
-    if (ctx.state === "suspended") void ctx.resume();
+    if (!boot()) return;
+    if (ctx!.state === "suspended") void ctx!.resume();
   };
   const load = (name: string) => {
     fetch(`${HOST}/table/sounds/${name}.m4a`)
       .then((r) => r.arrayBuffer())
       .then((bytes) => ctx!.decodeAudioData(bytes))
-      .then((buf) => void buffers.set(name, buf))
+      .then((buf) => { buffers.set(name, buf); health.loaded = buffers.size; })
       .catch(() => {});
   };
   addEventListener("pointerdown", wake, { capture: true });
 
-  const health: SoundHealth = { state: "none", asked: 0, played: 0, silent: 0 };
+  const health: SoundHealth = { state: "none", asked: 0, played: 0, silent: 0, loaded: 0 };
 
   const sound: TableSound = {
     prefs: readSoundPrefs(),
@@ -224,14 +234,12 @@ export function tableSound(): TableSound {
       if (!ctx || ctx.state !== "running") { health.silent += 1; health.why = "asleep"; return; }
       const audio = ctx;
       health.played += 1;
-      // Все голоса одного звука идут через одну панораму.
+      // Все голоса одного звука идут через одну панораму. Лево-право — дешёвым стерео-панорамером: объёмный HRTF на телефоне съедает задержку, а у телефонного динамика перед-зад всё равно нет.
       const out = audio.createGain();
       out.gain.value = 1;
-      if (sound.prefs.spatial) {
-        const pan = audio.createPanner();
-        pan.panningModel = "HRTF"; pan.distanceModel = "inverse"; pan.refDistance = 1; pan.rolloffFactor = 0.25;
-        const px = Math.max(-1, Math.min(1, x)) * 2, pz = Math.max(-1, Math.min(1, z)) * 2;
-        if (pan.positionX) { pan.positionX.value = px; pan.positionY.value = 0; pan.positionZ.value = pz; } else pan.setPosition(px, 0, pz);
+      if (sound.prefs.spatial && audio.createStereoPanner) {
+        const pan = audio.createStereoPanner();
+        pan.pan.value = Math.max(-1, Math.min(1, x));
         out.connect(pan).connect(audio.destination);
       } else out.connect(audio.destination);
       const t0 = audio.currentTime;
@@ -339,5 +347,6 @@ export function tableSound(): TableSound {
       }
     },
   };
+  if (sound.on) boot();
   return sound;
 }
