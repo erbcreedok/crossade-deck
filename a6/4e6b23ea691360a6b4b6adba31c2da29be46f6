@@ -1,0 +1,23 @@
+server/table-client/feel.ts
+  s_d1074c8bc76056::t_45673bc02a17a7 70-98,126-127,149,162-169
+design/zones/feel-check.mjs
+  s_d1074c8bc76056::t_8add39d5645289 81-85,87-103
+design/zones/card-scenes.html
+  s_d1074c8bc76056::t_45673bc02a17a7 154-155,159,179-181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a64e6b23ea691360a6b4b6adba31c2da29be46f6",
+  "prompts": {},
+  "sessions": {
+    "s_d1074c8bc76056": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "badbded6-896c-42c7-bfbf-fb2e63e12d3e",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
