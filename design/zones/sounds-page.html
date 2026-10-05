@@ -32,8 +32,11 @@
   .sl input[type=range] { flex: 1; min-width: 0; accent-color: var(--gold); height: 28px; }
   .sl b { font-weight: 400; width: 52px; text-align: right; flex: none; }
   .tools { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; }
-  @keyframes slide { from { background-position: 0 0; } to { background-position: 28px 0; } }
-  .loadbar { height: 6px; margin: 0 0 8px; background: repeating-linear-gradient(135deg, var(--gold) 0 7px, #4a3a28 7px 14px); background-size: 28px 100%; animation: slide .6s linear infinite; box-shadow: 0 0 0 2px var(--black); display: none; }
+  @keyframes run { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+  .loadbar { position: relative; overflow: hidden; height: 8px; margin: 0 0 8px; background: #4a3a28; box-shadow: 0 0 0 2px var(--black); display: none; }
+  .loadbar::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 33%; background: var(--gold); animation: run 0.9s linear infinite; will-change: transform; }
+  #diag { font-size: 11px; color: var(--dim); line-height: 1.4; margin: 0 0 10px; white-space: pre-wrap; word-break: break-all; }
+  #errors { font-size: 11px; color: #ff9d8a; white-space: pre-wrap; word-break: break-all; }
   .loading .loadbar { display: block; }
   button[disabled] { opacity: .55; cursor: default; }
   .chk { display: flex; align-items: center; gap: 6px; font-size: 12px; }
@@ -42,6 +45,7 @@
 <body>
 <div class="page">
   <h1>ЗВУКИ ДВИЖЕНИЙ</h1>
+  <div id="diag"></div><div id="errors"></div>
   <div class="plate"><div class="head"><div class="n">1</div><div class="t">ДОРОЖКИ</div></div>
     <div class="hint">Все записи, что играет стол. Нажми на волну или ▶ — играет с начала. «Скорость» меняет и скорость, и высоту (как пластинку). Жёлтая черта — где звук на самом деле начинается: тишина до неё в игре срезается.</div>
     <div class="tools"><label class="chk"><input type="checkbox" id="raw"> без среза тишины</label><label class="chk"><input type="checkbox" id="loop"> по кругу</label><button id="stop">■ стоп</button><button id="all">Загрузить все</button><span id="count" class="meta" style="color:var(--dim)"></span></div>
@@ -52,6 +56,9 @@
     <div id="events"></div></div>
 </div>
 <script type="module">
+const showError = (m) => { const e = document.getElementById("errors"); if (e) e.textContent += m + "\n"; };
+addEventListener("error", (ev) => showError("Ошибка: " + ev.message));
+addEventListener("unhandledrejection", (ev) => showError("Ошибка (promise): " + (ev.reason?.message ?? ev.reason)));
 globalThis.__TABLE_HOST__ = `http://${location.hostname}:2591`;
 if (!crypto.randomUUID) crypto.randomUUID = () => "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16));
 await document.fonts.load("20px Tiny5");
@@ -62,6 +69,15 @@ const $ = (id) => document.getElementById(id);
 const sound = tableSound({ lazy: true }), feel = tableFeel(sound, tableHaptic());
 window.__sound = sound; window.__feel = feel;
 window.__ready = true;
+{
+  // Что здесь на самом деле: звуковой сервер, аудио, касания.
+  const diag = $("diag"), host = globalThis.__TABLE_HOST__, t0 = performance.now();
+  const line = (t) => { diag.textContent += t + "\n"; };
+  line(`звуки берутся с ${host}`);
+  fetch(`${host}/table/sounds/drop-1.m4a`, { method: "HEAD" }).then((r) => line(`сервер звуков ответил ${r.status} за ${Math.round(performance.now() - t0)} мс`)).catch((e) => line(`сервер звуков НЕ ответил: ${e?.message ?? e}`));
+  line(`AudioContext: ${typeof (globalThis.AudioContext ?? globalThis.webkitAudioContext)}`);
+  addEventListener("pointerdown", (e) => { diag.dataset.last = `касание ${e.target?.tagName ?? "?"}`; }, true);
+}
 
 const TRACK_NAMES = { "drop-1": "Стук карты о стол", "hand-1": "Скольжение карты", "turn-1": "Переворот", "merge-1": "Веер / слияние", "shuffle-1": "Тасовка", "sort-1": "Перестановка", "gather-1": "Сбор (1)", "gather-2": "Сбор (2)", "gather-3": "Сбор (3)" };
 const play = { raw: false, loop: false, timer: 0 };
@@ -101,13 +117,16 @@ async function loadTrack(name) {
   const card = cards.get(name);
   if (sound.buffer(name)) return true;
   card.box.classList.add("loading"); card.play.disabled = true; card.play.textContent = "…"; card.meta.textContent = `${name} · загрузка…`;
-  const ok = await sound.ensure(name);
+  const t0 = performance.now();
+  const tick = setInterval(() => { card.meta.textContent = `${name} · загрузка… ${((performance.now() - t0) / 1000).toFixed(1)} с (аудио: ${window.__sound.health.state})`; }, 250);
+  const ok = await Promise.race([sound.ensure(name), new Promise((r) => setTimeout(() => r("timeout"), 15000))]);
+  clearInterval(tick);
   card.box.classList.remove("loading"); card.play.disabled = false; card.play.textContent = "▶";
-  card.meta.textContent = ok ? trackMeta(name) : `${name} · не загрузилась (сервер звуков :2591 недоступен?)`;
+  card.meta.textContent = ok === true ? trackMeta(name) : ok === "timeout" ? `${name} · не загрузилась за 15 с (аудио: ${window.__sound.health.state}); смотри строку «сервер звуков» вверху` : `${name} · не загрузилась (сервер звуков :2591 недоступен или не отдаёт файл)`;
   const b = sound.buffer(name);
   if (b) { wave(card.cv, b.audio, b.onset); card.start.set(Math.round(b.onset * 1000)); }
   refreshCount();
-  return ok;
+  return ok === true;
 }
 for (const name of sound.tracks) {
   const box = document.createElement("div"); box.className = "track"; box.dataset.track = name;
@@ -123,8 +142,18 @@ for (const name of sound.tracks) {
   box.append(row, bar, cv, sp, gn, st);
   $("tracks").append(box);
   cards.set(name, { box, play: play1, meta, cv, start: st });
-  const go = async () => { if (await loadTrack(name)) playTrack(name, sp.get(), gn.get(), st.get()); };
-  play1.onclick = go; cv.onclick = go;
+  let busy = false, last = 0;
+  const go = async () => {
+    // Касание даёт и `pointerup`, и `click` — второй в пределах 400 мс гасим, иначе звук сыграет дважды.
+    if (busy || performance.now() - last < 400) return;
+    last = performance.now();
+    busy = true;
+    try { if (await loadTrack(name)) playTrack(name, sp.get(), gn.get(), st.get()); }
+    catch (e) { meta.textContent = `${name} · ошибка: ${e?.message ?? e}`; showError(`${name}: ${e?.message ?? e}`); play1.disabled = false; play1.textContent = "▶"; box.classList.remove("loading"); }
+    finally { busy = false; }
+  };
+  // `pointerup` надёжнее `click` на айфоне внутри рамки; оба ведут в одно и то же (повтор гасит `busy`).
+  for (const el of [play1, cv]) { el.addEventListener("pointerup", (e) => { if (e.pointerType !== "mouse") go(); }); el.addEventListener("click", go); }
   requestAnimationFrame(() => { const b = sound.buffer(name); if (b) wave(cv, b.audio, b.onset); else { const g = cv.getContext("2d"); cv.width = cv.clientWidth; cv.height = cv.clientHeight; g.fillStyle = "#4a3a28"; g.font = "12px Tiny5, monospace"; g.fillText("волна появится после загрузки", 10, 32); } });
 }
 $("all").onclick = async () => { $("all").disabled = true; await Promise.all(sound.tracks.map((n) => loadTrack(n))); $("all").disabled = false; };
