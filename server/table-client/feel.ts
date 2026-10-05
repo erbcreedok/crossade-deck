@@ -6,6 +6,7 @@
 
 import type { Haptic, TableHaptic } from "./haptic.js";
 import type { TableSound, VoiceLayer, VoiceSpec } from "./sound.js";
+import overrides from "./feelPreset.json";
 
 export const FEEL_KINDS = ["grab", "carry", "lay", "throw", "slam", "flip", "spin", "deny", "home"] as const;
 export type FeelKind = (typeof FEEL_KINDS)[number];
@@ -93,7 +94,8 @@ export interface FeelSpec {
   style: Haptic;
 }
 
-export const FEEL_DEFAULT: Record<FeelKind, FeelSpec> = {
+/** Заводские значения в коде; поверх них — то, что владелец сделал заводским на странице звуков (`feelPreset.json`). */
+const FEEL_BASE: Record<FeelKind, FeelSpec> = {
   grab: { file: "drop", track: "drop-1", from: 90, end: 150, dyn: 1, gain: 0.5, rate: 1, jitter: 0.06, soft: 1, cutMs: 0, layers: [{ kind: "tick", from: 900, to: 500, ms: 25, gain: 0.2 }], vibe: [8], style: "light" },
   carry: { file: "hand", track: "hand-1", gain: 0.25, rate: 1.5, jitter: 0.1, soft: 0.2, cutMs: 90, layers: [], vibe: [], style: "soft" },
   lay: { file: "hand", track: "hand-1", from: 113, gain: 0.8, rate: 0.96, jitter: 0.06, soft: 0.45, cutMs: 0, layers: [], vibe: [14], style: "medium" },
@@ -104,6 +106,11 @@ export const FEEL_DEFAULT: Record<FeelKind, FeelSpec> = {
   deny: { file: null, gain: 1, rate: 1, jitter: 0, soft: 1, cutMs: 0, layers: [{ kind: "boom", from: 160, to: 110, ms: 90, gain: 0.5 }, { kind: "tick", from: 300, to: 200, ms: 60, gain: 0.3 }], vibe: [30, 40, 30], style: "error" },
   home: { file: "hand", track: "hand-1", gain: 0.6, rate: 0.8, jitter: 0.05, soft: 1, cutMs: 200, layers: [{ kind: "boom", from: 120, to: 80, ms: 70, gain: 0.25 }], vibe: [15], style: "soft" },
 };
+
+/** Заводской пресет: код плюс `feelPreset.json` (его пишет кнопка «Сделать заводским» на странице звуков). */
+export const FEEL_DEFAULT: Record<FeelKind, FeelSpec> = Object.fromEntries(
+  FEEL_KINDS.map((k) => [k, { ...FEEL_BASE[k], ...((overrides as Partial<Record<FeelKind, Partial<FeelSpec>>>)[k] ?? {}) }]),
+) as Record<FeelKind, FeelSpec>;
 
 const KEY = "crossade.feel.v2";
 

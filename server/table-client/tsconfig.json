@@ -7,6 +7,7 @@
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
+    "resolveJsonModule": true,
     "types": []
   },
   "include": ["./*.ts", "../src/table/contract.ts", "../src/table/patch.ts", "../src/table/table.ts"]

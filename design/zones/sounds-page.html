@@ -82,7 +82,8 @@
     <div class="gal" id="gal"></div></div>
   <div class="plate"><div class="head"><div class="n">2</div><div class="t">ЗВУКИ ДЕЙСТВИЙ</div></div>
     <div class="hint">На каждое действие — столько звуков, сколько хочешь, из любых. У каждого звука свои: с какой секунды начинается, где кончается (в самой записи, скорость и тон это место не двигают), скорость, тон, громкость и «от силы» (насколько сила движения делает его громче или тише). При каждом действии играет ОДИН звук из списка — каждый раз другой, по кругу в случайном порядке, подряд один и тот же не повторяется. Сохраняется сразу; «Карта — база» подхватывает.</div>
-    <div class="tools"><button id="copy">Копировать настройки</button><button id="reset">Сбросить всё</button></div>
+    <div class="tools"><button id="saveall">Сделать ВСЁ заводским</button><button id="copy">Копировать настройки</button><button id="reset">Сбросить всё</button></div>
+    <div class="hint" id="saved"></div>
     <div id="events"></div></div>
 </div>
 <script type="module">
@@ -228,8 +229,11 @@ function renderEvents() {
     const paintSynth = () => { synth.textContent = "тик/бум: " + (spec.synth === false ? "НЕТ" : "ДА"); synth.classList.toggle("on", spec.synth !== false); };
     synth.onclick = () => { spec.synth = spec.synth === false; feel.save(); paintSynth(); }; paintSynth();
     synth.title = "синтезированные тик и «бум» поверх записей";
+    const save = document.createElement("button"); save.textContent = "Сделать заводским"; save.title = "записать настройки этого действия в файл заводских: игра и стенд будут играть их по умолчанию";
+    save.onclick = () => saveFactory([kind]);
     row.append(nm, strong, weak, synth);
     ev.append(row);
+    const row2 = document.createElement("div"); row2.className = "row"; row2.append(save); ev.append(row2);
     if (!list.length) { const none = document.createElement("div"); none.className = "none"; none.textContent = "звуков нет — добавь из списка ниже"; ev.append(none); }
     list.forEach((v, i) => {
       const box = document.createElement("div"); box.className = "snd"; box.dataset.snd = i;
@@ -288,6 +292,18 @@ function renderEvents() {
   }
 }
 renderEvents();
+/** Записать настройки действий в файл заводских (`server/table-client/feelPreset.json`) через dev-сервер; потом файл остаётся только закоммитить. */
+async function saveFactory(kinds) {
+  const out = {};
+  for (const k of kinds) out[k] = JSON.parse(JSON.stringify(feel.preset[k]));
+  $("saved").textContent = "Записываю…";
+  try {
+    const r = await fetch("/__feel-preset", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kinds: out }) });
+    const j = await r.json();
+    $("saved").textContent = j.ok ? `Записано как заводское: ${j.saved.map((k) => FEEL_NAMES[k]).join(", ")}. Файл: server/table-client/feelPreset.json (дальше его нужно закоммитить).` : "Не записалось";
+  } catch (e) { $("saved").textContent = "Не записалось: " + (e?.message ?? e); showError("сохранение заводских: " + (e?.message ?? e)); }
+}
+$("saveall").onclick = () => saveFactory([...FEEL_KINDS]);
 $("copy").onclick = () => { navigator.clipboard?.writeText(feel.exportPreset()); $("copy").textContent = "Скопировано"; setTimeout(() => ($("copy").textContent = "Копировать настройки"), 1200); };
 $("reset").onclick = () => { feel.reset(); feel.save(); renderEvents(); };
 </script>

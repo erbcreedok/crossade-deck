@@ -96,6 +96,20 @@ await f.evaluate(() => document.querySelectorAll('.ev[data-kind="lay"] .snd')[0]
 await p.waitForTimeout(200);
 check("× убирает последний звук: «звуков нет»", (await sounds("lay")) === 0 && await f.evaluate(() => /звуков нет/.test(document.querySelector('.ev[data-kind="lay"]').textContent)));
 await f.evaluate(() => document.getElementById("reset").click());
+// «Сделать заводским»: настройки действия записываются в файл заводских (его читает и стенд, и игра); файл возвращаем как был.
+{
+  const { readFileSync, writeFileSync } = await import("fs");
+  const file = new URL("../../server/table-client/feelPreset.json", import.meta.url), was = readFileSync(file, "utf8");
+  try {
+    await f.evaluate(() => { const sel = document.querySelector('.ev[data-kind="grab"] .snd select'); sel.value = "gather-3"; sel.dispatchEvent(new Event("change")); });
+    await f.waitForFunction(() => window.__feel.preset.grab.track === "gather-3", null, { timeout: 5000 });
+    await f.evaluate(() => [...document.querySelectorAll('.ev[data-kind="grab"] > .row button')].find((b) => /заводским/.test(b.textContent)).click());
+    await p.waitForTimeout(800);
+    const saved = JSON.parse(readFileSync(file, "utf8"));
+    check("«Сделать заводским» у «Взял карту» записало действие в файл заводских (и только его)", saved.grab?.track === "gather-3" && Object.keys(saved).length === Object.keys(JSON.parse(was)).length + (JSON.parse(was).grab ? 0 : 1), { saved: Object.keys(saved), grab: saved.grab });
+    check("на странице написано, что записано", await f.evaluate(() => /Записано как заводское: Взял карту/.test(document.getElementById("saved").textContent)));
+  } finally { writeFileSync(file, was); }
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const k of checks) console.log(k.ok ? "ok  " : "FAIL", k.name, k.ok ? "" : JSON.stringify(k.got));
