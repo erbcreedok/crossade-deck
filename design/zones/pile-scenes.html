@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>Стопка — база (сцены)</title>
+<link href="/@fs/Users/giyers/Desktop/crossade-deck/design/zones/fonts/tiny5.css" rel="stylesheet">
+<style>
+  :root { --panel: #3a2a1d; --well: #1c120b; --ink: #f5ead0; --wood: #6b4d2c; --black: #0b0704; --gold: #f2c14e; --goldLight: #f8d885; --goldDark: #b08a26; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: #0d2118; color: var(--ink); font: 400 13px/1.3 'Tiny5', monospace; }
+  .page { width: min(100vw, 480px); margin: 0 auto; padding: 14px 12px 40px; }
+  h1 { margin: 4px 2px 12px; font-weight: 400; font-size: 18px; }
+  .plate { background: linear-gradient(var(--panel), var(--well)); margin: 0 0 22px; padding: 12px 10px 10px;
+    box-shadow: 0 -2px 0 0 var(--black), 0 2px 0 0 var(--black), -2px 0 0 0 var(--black), 2px 0 0 0 var(--black), inset 0 0 0 2px var(--wood), 0 6px 0 0 rgba(11,7,4,.6); }
+  .head { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+  .head .n { width: 22px; height: 22px; background: linear-gradient(var(--goldLight), var(--goldDark)); color: var(--black); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--black); }
+  .head .t { font-size: 15px; letter-spacing: .3px; }
+  .who { margin-left: auto; display: flex; gap: 6px; }
+  .who button { width: 22px; height: 22px; border: 0; padding: 0; background: var(--c); box-shadow: 0 0 0 2px var(--black); opacity: .55; cursor: pointer; }
+  .who button.on { opacity: 1; box-shadow: 0 0 0 2px var(--black), 0 0 0 4px var(--ink); }
+  .lag { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 12px; }
+  .lag input { flex: 1; accent-color: var(--gold); }
+  .lag b { font-weight: 400; min-width: 52px; text-align: right; }
+  .frame { opacity: 0; transition: opacity .35s; position: relative; width: 100%; height: 300px; overflow: hidden; border-radius: 10px; background: #0a1511; box-shadow: 0 0 0 3px var(--wood), 0 0 0 5px var(--black); touch-action: none; }
+  .frame.ready { opacity: 1; }
+  .stage { position: absolute; }
+  .zcv { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+  .say { position: absolute; z-index: 9; transform: translate(-50%, 0); font: 400 12px 'Tiny5', monospace; color: var(--ink); background: var(--panel); padding: 3px 8px; box-shadow: 0 0 0 2px var(--black); pointer-events: none; white-space: nowrap; display: none; }
+  .rrow { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+  .rrow .rl { flex: 1; font-size: 13px; line-height: 1.2; }
+  .rrow .rc { display: flex; gap: 6px; }
+  .rrow button { width: 26px; height: 26px; border: 0; padding: 0; background: var(--c, #3a2a1d); color: var(--ink); box-shadow: 0 0 0 2px var(--black); opacity: .45; cursor: pointer; font: 400 11px 'Tiny5', monospace; }
+  .rrow button.on { opacity: 1; box-shadow: 0 0 0 2px var(--black), 0 0 0 4px var(--ink); }
+  .rrow button.all { width: 38px; background: #4a3a28; }
+  .rrow button.tg { width: 78px; background: #4a3a28; }
+  .fev { margin: 0 0 12px; padding: 0 0 10px; border-bottom: 2px solid rgba(11,7,4,.5); }
+  .fev:last-child { border-bottom: 0; }
+  .fev .ft { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 14px; }
+  .fev .ft .fl { flex: 1; line-height: 1.2; }
+  .fev .fs { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 12px; }
+  .fev .fs > span { width: 74px; flex: none; color: #cdbf9d; }
+  .fev .fs input[type=range] { flex: 1; min-width: 0; accent-color: var(--gold); height: 28px; }
+  .fev .fs b { font-weight: 400; width: 48px; text-align: right; flex: none; }
+  .fev button, .fhead button { border: 0; padding: 6px 12px; background: #4a3a28; color: var(--ink); box-shadow: 0 0 0 2px var(--black); cursor: pointer; font: 400 13px 'Tiny5', monospace; }
+  .fhead { display: flex; gap: 8px; align-items: center; margin: 0 0 10px; flex-wrap: wrap; }
+  #bar { display: flex; gap: 6px; margin: 0 0 12px; font: 400 12px 'Tiny5', monospace; }
+  #bar button { font: inherit; padding: 5px 9px; border: 0; background: var(--panel); color: var(--ink); box-shadow: 0 0 0 2px var(--black); cursor: pointer; }
+  #bar button.on { background: var(--gold); color: var(--black); }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>СТОПКА — БАЗА</h1>
+    <div class="plate"><div class="head"><div class="n">1</div><div class="t">ВИД СВЕРХУ</div><div class="who" id="who-top"></div></div><div class="lag"><span>пинг</span><input type="range" id="lag-top" min="0" max="1000" step="50" value="0"><b id="lagv-top">0 мс</b></div><div class="lag"><span>дрожание</span><input type="range" id="jit-top" min="0" max="500" step="25" value="0"><b id="jitv-top">0 мс</b></div><div class="frame" id="f-top"><div class="stage" id="s-top"></div></div></div>
+  <div class="plate"><div class="head"><div class="n">2</div><div class="t">ВИД ОТ ПЕРВОГО ЛИЦА</div><div class="who" id="who-first"></div></div><div class="lag"><span>пинг</span><input type="range" id="lag-first" min="0" max="1000" step="50" value="0"><b id="lagv-first">0 мс</b></div><div class="lag"><span>дрожание</span><input type="range" id="jit-first" min="0" max="500" step="25" value="0"><b id="jitv-first">0 мс</b></div><div class="frame" id="f-first"><div class="stage" id="s-first"></div></div></div>
+</div>
+<script type="module">
+// ЭТА ЖЕ СЦЕНА СТЕНДА (`harness.html`), ДВАЖДЫ. Настоящий `scene.ts` и один локальный стол с dev-сервера игры (порт 9590): я смотрю сверху, Алия — от первого лица, поэтому всё, что делают в одной сцене (взяли карту, бросили, карты ждут апрува), сразу видно в другой. Приёмка стопки (принимает / не принимает / нужен апрув) — та же, что на стенде, общая для обеих.
+globalThis.__TABLE_HOST__ = `http://${location.hostname}:2591`;
+if (!crypto.randomUUID) crypto.randomUUID = () => "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16));
+await document.fonts.load("20px Tiny5");
+const { mountScene } = await import("/src/scene.ts");
+const { localTable } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/localStore.ts");
+// ИГРОКИ — только управление и доступы: ни места, ни тела на сцене. Сцена смотрит из места «своего» наблюдателя (камера стоит), а двигает карты тот игрок, кого выбрали у сцены.
+const PLAYERS = [
+  { key: "blue", name: "Синий", ink: "#4a8fe0" },
+  { key: "red", name: "Красный", ink: "#e0483f" },
+  { key: "green", name: "Зелёный", ink: "#59b36a" },
+  { key: "yellow", name: "Жёлтый", ink: "#f2c14e" },
+];
+// ЗА СТОЛОМ СИДЯТ ТОЛЬКО ДВА НАБЛЮДАТЕЛЯ — это камеры двух сцен (сверху и от первого лица), у каждого свой стул, чтобы было откуда смотреть. Четыре цвета — не люди за столом, а только
+// «кто двигает» и «кому что можно»: они встают из-за стола сразу, стульев и тел у них нет. Какой цвет выбран у сцены, такого цвета и её наблюдатель для остальных сцен (имя и цвет за столом
+// меняются на лету, стул тот же) — поэтому несущий в соседней сцене светится выбранным цветом и совпасть с «моим местом» не может.
+const EYES = [{ key: "eye-top", name: "Камера сверху", ink: "#4a8fe0" }, { key: "eye-first", name: "Камера от первого лица", ink: "#e0483f" }];
+const table = localTable({ players: [...EYES, ...PLAYERS], standing: PLAYERS.map((p) => p.key), admin: "blue", cards: 8 });
+const views = Object.fromEntries([...EYES, ...PLAYERS].map((p) => [p.key, table.view(p.key)]));
+const me = views["eye-top"], alia = views["eye-first"];
+const viewpointOf = { top: "eye-top", first: "eye-first" };
+const controller = { top: "blue", first: "blue" };
+for (const w of ["top", "first"]) table.recolor(viewpointOf[w], { name: PLAYERS[0].name, ink: PLAYERS[0].ink });
+const CTL_KEYS = new Set(["body", "say", "shoot", "mic", "log", "rtc", "askStickers", "watch"]);
+const { carryOf } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/tape.ts");
+const lat = { top: 0, first: 0 }, jit = { top: 0, first: 0 };
+// ЖИВОЙ НОСИТЕЛЬ КАРТ: что несёт палец в одной сцене, доходит до другой пакетами, как через сервер: каждое слово едет `пинг отправителя + пинг получателя` и ещё случайное «дрожание»;
+// слова доходят по порядку (как по сокету), поэтому задержавшиеся слова приходят пачкой, а между ними пауза — карта у соседа стоит, потом прыгает.
+const sendAt = { top: 0, first: 0 };
+const inbox = { top: null, first: null }, lastAt = { top: 0, first: 0 }, hear = { top: [], first: [] };
+const note = (who, out) => {
+  const other = who === "top" ? "first" : "top";
+  const at = Math.max(lastAt[other] + 1, performance.now() + lat[who] + lat[other] + Math.random() * (jit[who] + jit[other]));
+  lastAt[other] = at;
+  setTimeout(() => { inbox[other] = { out, at: performance.now() }; for (const l of hear[other]) l(); }, at - performance.now());
+};
+/** Что сцена `who` знает о соседе: последнее дошедшее до неё слово; замолчал дольше 400 мс — считается, что карту отпустили. */
+const heard = (who) => { const e = inbox[who]; return e && e.out && performance.now() - e.at < 400 ? e.out : null; };
+/** Хранилище сцены: читает стол из места наблюдателя, а намерения шлёт от имени выбранного игрока, через пинг сцены. */
+const OUT = new Set(["send", "command"]);
+const asPlayer = (viewpoint, which) => { const other = which === "top" ? "first" : "top"; return new Proxy(viewpoint, { get: (t, k) => {
+  if (k === "send") return (intent) => { if (intent.t === "drop" || intent.t === "unpick") note(which, null); const at = Math.max(sendAt[which] + 1, performance.now() + lat[which] + Math.random() * jit[which]); sendAt[which] = at; setTimeout(() => views[controller[which]].send(intent), at - performance.now()); };
+  if (k === "actor") return views[controller[which]].me;
+  if (k === "command") return (c) => setTimeout(() => views[controller[which]].command(c), lat[which] + Math.random() * jit[which]);
+  if (k === "carry") return (out) => note(which, out);
+  if (k === "onChange") return (l) => { hear[which].push(l); viewpoint.onChange(l); };
+  if (k === "carries") { const out = heard(which); const c = out ? carryOf(viewpoint.state, out.id, viewpointOf[other], out.over) : null; return c ? [{ ...c, ...(out.flip ? { flip: out.flip } : {}), ...(out.tilt ? { tilt: out.tilt } : {}), ...(out.spin ? { spin: out.spin } : {}), ...(out.fx ? { fx: out.fx } : {}) }] : []; }
+  if (CTL_KEYS.has(k)) return (...a) => views[controller[which]][k](...a);
+  return Reflect.get(t, k, t);
+} }); };const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const $ = (id) => document.getElementById(id);
+
+// СТЕНД: у кадра свой размер сцены (`SW`×`SH`), в кадре видна только середина — стола с кромкой и стульев не видно.
+const sizeStage = (s, w, h, fw, fh) => Object.assign(s.style, { width: w + "px", height: h + "px", left: (fw - w) / 2 + "px", top: (fh - h) / 2 + "px" });
+const FW = $("f-top").clientWidth, FH = 300;
+sizeStage($("s-top"), 820, 820, FW, FH);
+sizeStage($("s-first"), 1000, 1000, FW, FH);
+await wait(200);
+const top = mountScene($("s-top"), asPlayer(me, "top")), first = mountScene($("s-first"), asPlayer(alia, "first"));
+top.setCamMode("top"); first.setCamMode("head");
+top.setFigures(false); first.setFigures(false);
+top.test.setBareTable(true); first.test.setBareTable(true);
+top.test.setNeckFree(true); first.test.setNeckFree(true);
+await wait(800);
+
+// СТОЛ: одна стопка из восьми карт посреди сукна, больше ничего.
+me.send({ t: "deckMove", pile: me.state.piles[0].id, x: 0, y: 0.8, angle: -8 });
+await wait(600);
+// Рука наблюдателей не принимает карты: карта над её зоной остаётся на столе.
+for (const key of ["eye-top", "eye-first"]) views[key].send({ t: "flag", chair: views[key].state.chairs.find((c) => c.owner === key).id, flag: "reject", on: true });
+await wait(900);
+// Сдвиг кадра первого лица: центр сцены (стопка) — в кадр. Считаем, когда камера встала: на медленном телефоне она ещё едет, и сдвиг по первому замеру выходил неверным.
+{
+  const id = me.state.piles[0].cards.at(-1).id;
+  let prev = null, still = 0;
+  for (let i = 0; i < 80 && still < 6; i++) { const a = first.test.screenOf(id); still = prev && Math.hypot(a.x - prev.x, a.y - prev.y) < 0.4 ? still + 1 : 0; prev = a; await wait(100); }
+  const at = first.test.screenOf(id), st = $("s-first").getBoundingClientRect();
+  $("s-first").style.left = (FW / 2 - (at.x - st.left)) + "px"; $("s-first").style.top = (FH * 0.42 - (at.y - st.top)) + "px";
+}
+await wait(300);
+
+for (const f of document.querySelectorAll(".frame")) f.classList.add("ready");
+{ const { addFullscreen } = await import("./frameFull.js"); window.__full = { top: addFullscreen($("f-top"), $("s-top")), first: addFullscreen($("f-first"), $("s-first")) }; }
+
+// Камера включена всегда: ничего не блокируется.
+// ПИНГ И ДРОЖАНИЕ каждой сцены: ползунки задают задержку (мс), с которой её слова доходят до стола и до соседней сцены, и случайный разброс поверх неё.
+for (const which of ["top", "first"]) { const ej = $("jit-" + which); ej.oninput = () => { jit[which] = Number(ej.value); $("jitv-" + which).textContent = ej.value + " мс"; }; const el = $("lag-" + which); el.oninput = () => { lat[which] = Number(el.value); $("lagv-" + which).textContent = el.value + " мс"; }; }
+window.__lag = { lat, jit };
+// ВЫБОР ИГРОКА У КАЖДОЙ СЦЕНЫ: по умолчанию синий; смена не трогает камеру.
+for (const which of ["top", "first"]) {
+  const box = $("who-" + which);
+  for (const pl of PLAYERS) {
+    const b = document.createElement("button"); b.title = pl.name; b.style.setProperty("--c", pl.ink); b.style.setProperty("--ink", "#f5ead0"); b.dataset.k = pl.key;
+    if (pl.key === controller[which]) b.className = "on";
+    b.onclick = () => { controller[which] = pl.key; table.recolor(viewpointOf[which], { name: pl.name, ink: pl.ink }); for (const x of box.children) x.className = x.dataset.k === pl.key ? "on" : ""; };
+    box.append(b);
+  }
+  // Сброс камеры этой сцены: вернуть, как при загрузке (камеру можно утащить случайным свайпом).
+  const r = document.createElement("button"); r.textContent = "↺"; r.title = "камера в исходное"; r.style.cssText = "width:22px;height:22px;border:0;padding:0;background:#3a2a1d;color:#f5ead0;box-shadow:0 0 0 2px #0b0704;font:inherit;cursor:pointer";
+  r.onclick = () => { (which === "top" ? top : first).home(); };
+  box.append(r);
+}
+window.__top = top; window.__first = first; window.__me = me; window.__alia = alia; window.__ready = true;
+</script>
+</body>
+</html>
