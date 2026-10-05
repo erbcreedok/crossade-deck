@@ -51,8 +51,38 @@ await p.waitForTimeout(300);
 const third = await spec();
 check("▶ у третьего звука играет только его с его настройками: начало 0,3 с, длится 0,2 с, ×1,5, +3 пт, громкость 0,5", third && third.track === "merge-1" && Math.abs(third.from - 0.3) < 0.011 && third.cutMs === 200 && Math.abs(third.rate - 1.5) < 0.01 && third.pitch === 3 && Math.abs(third.gain - 0.8 * 0.5) < 0.05 && (third.layers ?? []).length === 0, third);
 check("настройки сохранены у этого звука, у других остались свои", await f.evaluate(() => { const l = window.__feel.preset.lay; const all = [l, ...(l.extra ?? [])]; return all.length === 4 && all[2].track === "merge-1" && all[2].len === 200 && all[0].len !== 200 && all[1].len !== 200; }));
+// Картинка звука в секции 2: волна, золотая черта старта и оранжевая — конца; двигаются за ползунками сразу; бегунок бежит при воспроизведении.
+{
+  const m = () => f.evaluate(() => { const b = document.querySelectorAll('.ev[data-kind="lay"] .snd')[2], g = (c) => parseFloat(b.querySelector(c).style.left); return { start: g(".sm"), end: g(".em"), d1: parseFloat(b.querySelector(".d1").style.width), d2: parseFloat(b.querySelector(".d2").style.width), wave: b.querySelector("canvas").getContext("2d").getImageData(0, 0, b.querySelector("canvas").width, b.querySelector("canvas").height).data.some((v, i) => i % 4 === 3 && v > 0), lg: b.querySelector(".lg").textContent, lg2: b.querySelector(".lg2").textContent }; });
+  const set = (label, val) => f.evaluate(([l, v]) => { const box = document.querySelectorAll('.ev[data-kind="lay"] .snd')[2]; const r = [...box.querySelectorAll(".sl")].find((x) => x.querySelector("span").textContent === l).querySelector("input"); r.value = v; r.dispatchEvent(new Event("input")); }, [label, val]);
+  const a = await m();
+  check("у звука в секции 2 есть картинка: волна, черта старта, черта конца, подписи «старт» и «конец»", a.wave && a.end > a.start && /старт/.test(a.lg) && /конец/.test(a.lg2), a);
+  await set("начало", 100); await set("длится", 0); const b0 = await m();
+  await set("начало", 400); const b1 = await m();
+  check("ползунок «начало» двигает черту старта на волне сразу и притемняет левее", b1.start > b0.start + 10 && Math.abs(b1.d1 - b1.start) < 0.5, { b0, b1 });
+  await set("длится", 100); const c1 = await m();
+  await set("длится", 300); const c2 = await m();
+  check("ползунок «длится» двигает черту конца: дольше — правее; правее конца притемнено", c2.end > c1.end + 5 && Math.abs(c2.d2 - (100 - c2.end)) < 0.5, { c1, c2 });
+  await set("начало", 100); await set("длится", 100); await set("скорость", 1); await set("тон", 0); const s1 = await m();
+  await set("скорость", 2); const s2 = await m();
+  check("скорость меняет, где кончается (быстрее — за то же время проходит больше записи)", s2.end > s1.end + 5, { s1, s2 });
+  await set("тон", 3);
+  await set("начало", 100); await set("длится", 200); await set("скорость", 1.5);
+  await f.evaluate(() => document.querySelectorAll('.ev[data-kind="lay"] .snd')[2].querySelectorAll("button")[0].click());
+  await p.waitForTimeout(40);
+  const ph1 = await f.evaluate(() => { const e = document.querySelectorAll('.ev[data-kind="lay"] .snd')[2].querySelector(".ph"); return { shown: e.style.display, left: parseFloat(e.style.left) }; });
+  await p.waitForTimeout(60);
+  const ph2 = await f.evaluate(() => { const e = document.querySelectorAll('.ev[data-kind="lay"] .snd')[2].querySelector(".ph"); return { shown: e.style.display, left: parseFloat(e.style.left) }; });
+  check("при ▶ белый бегунок бежит по волне от старта к концу", ph1.shown === "block" && ph2.left > ph1.left, { ph1, ph2 });
+  // «Всё действие»: играют все четыре звука сразу.
+  await clear();
+  await f.evaluate(() => { [...document.querySelectorAll('.ev[data-kind="lay"] .row button')].find((b) => /всё действие/.test(b.textContent)).click(); });
+  await p.waitForTimeout(300);
+  const all = await f.evaluate(() => window.__spec.map((s) => s.track));
+  check("«▶ всё действие» играет ВСЕ четыре звука списка разом", all.length === 4 && new Set(all).size === 4, all);
+}
 // Динамика: у звука свой ползунок; при слабом действии громкость падает по ней.
-await f.evaluate(() => { const box = document.querySelectorAll('.ev[data-kind="lay"] .snd')[0]; const r = [...box.querySelectorAll(".sl")].find((l) => l.querySelector("span").textContent === "динамика").querySelector("input"); r.value = 0; r.dispatchEvent(new Event("input")); });
+await f.evaluate(() => { const box = document.querySelectorAll('.ev[data-kind="lay"] .snd')[0]; const r = [...box.querySelectorAll(".sl")].find((l) => l.querySelector("span").textContent === "от силы").querySelector("input"); r.value = 0; r.dispatchEvent(new Event("input")); });
 await clear();
 await f.evaluate(() => { window.__feel.preset.lay.extra = []; delete window.__feel.preset.lay.extra; window.__feel.play({ kind: "lay", energy: 0.1 }); });
 const dyn0 = await spec();

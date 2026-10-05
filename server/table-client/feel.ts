@@ -187,17 +187,21 @@ export function tableFeel(sound: TableSound, haptic: TableHaptic): TableFeel {
     get vibeMode() { return vibeMode(haptic); },
     play(e) {
       const spec = preset[e.kind], energy = Math.max(0, Math.min(1, e.energy ?? 1));
-      // Набор: основной звук и ещё те, что добавил человек, — играет случайный, со своими началом, скоростью и тоном.
-      const pool: Variant[] = [spec, ...(spec.extra ?? [])], pick = pool[Math.floor(Math.random() * pool.length)]!;
-      const dyn = pick.dyn ?? 1 - spec.soft, gain = spec.gain * (pick.vol ?? 1) * (1 - dyn + dyn * energy);
-      const rate = pick.rate * (1 + (Math.random() * 2 - 1) * spec.jitter);
+      // Играют ВСЕ звуки списка действия разом, каждый со своими началом, длительностью, скоростью, тоном, громкостью и динамикой; тик и «бум» (если не выключены) — один раз.
+      const samples: Variant[] = [...(spec.track ? [spec] : []), ...(spec.extra ?? [])];
+      const voices: Variant[] = samples.length ? samples : [{ rate: spec.rate }];
+      const synth = spec.synth === false ? [] : spec.layers.map((l) => ({ ...l, gain: l.gain * (spec.soft + (1 - spec.soft) * energy) }));
       const vibe = e.mine !== false && prefs.vibe && spec.vibe.length ? spec.vibe.map((ms) => Math.max(1, Math.round(ms * (0.5 + 0.5 * energy)))) : [];
-      log.push({ kind: e.kind, mine: e.mine !== false, energy: +energy.toFixed(2), gain: prefs.sound ? +gain.toFixed(3) : 0, vibe });
+      let loudest = 0;
+      voices.forEach((v, i) => {
+        const dyn = v.dyn ?? 1 - spec.soft, gain = spec.gain * (v.vol ?? 1) * (1 - dyn + dyn * energy);
+        loudest = Math.max(loudest, gain);
+        if (!prefs.sound || (gain <= 0.001 && i > 0)) return;
+        const rate = v.rate * (1 + (Math.random() * 2 - 1) * spec.jitter), cut = v.len ?? spec.cutMs;
+        sound.voice({ file: spec.file, ...(v.track ? { track: v.track } : {}), ...(typeof v.from === "number" ? { from: v.from / 1000 } : {}), ...(v.pitch ? { pitch: v.pitch } : {}), ...(v.tie === false ? { tie: false } : {}), rate, gain, mine: e.mine !== false, x: e.x ?? 0, z: e.z ?? 0, layers: i === 0 ? synth : [], ...(cut ? { cutMs: cut } : {}) });
+      });
+      log.push({ kind: e.kind, mine: e.mine !== false, energy: +energy.toFixed(2), gain: prefs.sound ? +loudest.toFixed(3) : 0, vibe });
       if (log.length > 60) log.shift();
-      if (prefs.sound && gain > 0.001) {
-        const voice: VoiceSpec = { file: spec.file, ...(pick.track ? { track: pick.track } : {}), ...(typeof pick.from === "number" ? { from: pick.from / 1000 } : {}), ...(pick.pitch ? { pitch: pick.pitch } : {}), ...(pick.tie === false ? { tie: false } : {}), rate, gain, mine: e.mine !== false, x: e.x ?? 0, z: e.z ?? 0, layers: spec.synth === false ? [] : spec.layers.map((l) => ({ ...l, gain: l.gain * (spec.soft + (1 - spec.soft) * energy) })), ...((pick.len ?? spec.cutMs) ? { cutMs: (pick.len ?? spec.cutMs)! } : {}) };
-        sound.voice(voice);
-      }
       if (vibe.length) {
         const mode = vibeMode(haptic);
         // Telegram умеет только готовые стили; без него — рисунок в миллисекундах там, где есть `navigator.vibrate`; на iPhone — тики переключателя Safari.
