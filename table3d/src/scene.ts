@@ -53,7 +53,7 @@ const HOLD_PICK_MS = 350;
  */
 /** Несомая в свободном месте карта смотрит на глаз несущего: `face` — доля пути от «лежит плашмя» до «лицом к глазу» (остальное — наклон туда, куда ляжет). */
 const CARRY_TILT = { face: 0.65, floor: 0.12 };
-const SPRING = { k: 170, damp: 0.62 }, SPRING_HELD = { k: 900, damp: 0.9 };
+const SPRING = { k: 170, damp: 0.62 }, SPRING_HELD = { k: 900, damp: 0.9 }, SPRING_SLAM = { k: 2600, damp: 0.8 };
 /** Над своей рукой несомая карта — выше соседей на эту долю своей высоты, ближе к глазу и чуть крупнее. */
 /** Размер своих карт в руке относительно обычного: предел ползунка в настройках. */
 const HAND_SIZE = { min: 0.5, max: 2 };
@@ -2119,7 +2119,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       if (!g.userData.placed) { g.position.copy(t.pos); g.quaternion.copy(t.quat); g.scale.setScalar(t.scale); g.userData.placed = true; g.userData.v = new THREE.Vector3(); g.userData.sv = 0; continue; }
       // ПРУЖИНА: ускорение к месту, затухание скоростью; поворот догоняет плавно.
       // Мелкими шагами: жёсткая пружина на целом кадре разлетается.
-      const sp = drag?.id === id ? SPRING_HELD : gathering?.has(id) ? (gather!.fast ? SPRING_HELD : GATHER.spring) : SPRING, c = 2 * Math.sqrt(sp.k) * sp.damp;
+      const sp = drag?.id === id ? SPRING_HELD : slamming.has(id) ? SPRING_SLAM : gathering?.has(id) ? (gather!.fast ? SPRING_HELD : GATHER.spring) : SPRING, c = 2 * Math.sqrt(sp.k) * sp.damp;
       const v = g.userData.v as THREE.Vector3, steps = Math.ceil(dt * 240), h = dt / steps, d = new THREE.Vector3();
       let sc = g.scale.x, sv = g.userData.sv as number;
       // ПЕРЕВОРОТ НА СТОЛЕ: пока карта наклонена, её край уходит вниз на полширины·sin(наклона) — цель поднята на столько, чтобы край не прошёл сквозь стол.
@@ -2163,6 +2163,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     placeGlow();
     if (placeDrops()) moving = true;
     if (placeDenies()) moving = true;
+    if (placeSlams(now)) moving = true;
     if (placeHomeMark()) moving = true;
     placeBodies();
     if (placeChairs(dt)) moving = true;
@@ -2174,6 +2175,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     // Своя рука у глаза — вторым проходом поверх всего: борт стола, подошедший к камере вплотную, её не закрывает.
     camera.layers.set(0);
     headsFront();
+    // Тряска от удара: камера сдвинута только на время кадра — состояние взгляда (`rig`) она не меняет.
+    const jolt = shakeNow(now), keepPos = camera.position.clone(), keepRot = camera.quaternion.clone();
+    if (jolt) { camera.translateX(jolt.x); camera.translateY(jolt.y); camera.rotateZ(jolt.roll); camera.updateMatrixWorld(); }
     renderer.render(scene, camera);
     renderer.autoClear = false;
     renderer.clearDepth();
@@ -2181,6 +2185,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     renderer.render(scene, camera);
     renderer.autoClear = true;
     camera.layers.set(0);
+    if (jolt) { camera.position.copy(keepPos); camera.quaternion.copy(keepRot); camera.updateMatrixWorld(); }
     // Панели «лицом к камере» — повёрнуты, как камера; остальные стоят, как поставлены.
     for (const one of panel3d.values()) if (one.at.tilt === "camera") placePanel(one);
     css.setSize(w, h);
@@ -2909,14 +2914,19 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   renderer.domElement.addEventListener("pointerup", stackUp, { capture: true });
   renderer.domElement.addEventListener("pointercancel", stackUp, { capture: true });
   renderer.domElement.addEventListener("pointerdown", (e) => {
-    if (reseat || store.replay?.on || e.button === 2) return;
+    if (e.button === 2) {
+      // Левой держу карту, правую нажал — удар.
+      if (drag?.moved && e.pointerType === "mouse") { e.stopImmediatePropagation(); e.preventDefault(); slam(); }
+      return;
+    }
+    if (reseat || store.replay?.on) return;
     // ВТОРОЙ ПАЛЕЦ при несомой карте — переворот: ведёт карту вбок (`cardFlip.ts`); камеру и всё остальное это касание не трогает.
     if (drag?.moved && dragPid !== null && e.pointerId !== dragPid && !flipTouch) {
       e.stopImmediatePropagation();
       try { renderer.domElement.setPointerCapture(e.pointerId); } catch { /* нет такого указателя */ }
       const fl = new CardFlip();
       fl.begin(e.clientX);
-      flipTouch = { pid: e.pointerId, fl, x0: e.clientX, y0: e.clientY, mode: "undecided", rot0: drag.rot };
+      flipTouch = { pid: e.pointerId, fl, x0: e.clientX, y0: e.clientY, mode: "undecided", rot0: drag.rot, t0: performance.now() };
       return;
     }
     live.add(e.pointerId);
@@ -2971,7 +2981,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Несомая карта над стопкой садится ровно на неё. Стенд дизайна выключает это: карта остаётся на весу под пальцем (`test.setPileSnap`). */
   let pileSnap = true;
   // ——— ПЕРЕВОРОТ КАРТЫ В РУКЕ: F (комп) или второй палец вбок (телефон); логика жеста — `cardFlip.ts` ———
-  let dragPid: number | null = null, lastFinger = { x: 0, y: 0 }, flipDeg = 0, flipTouch: { pid: number; fl: CardFlip; x0: number; y0: number; mode: "undecided" | "flip" | "turn"; rot0: number } | null = null;
+  let dragPid: number | null = null, lastFinger = { x: 0, y: 0 }, flipDeg = 0, flipTouch: { pid: number; fl: CardFlip; x0: number; y0: number; mode: "undecided" | "flip" | "turn"; rot0: number; t0: number } | null = null;
   /** Карта, которую несу, с поворотом «в воздухе»: вокруг её длинной оси на `flipDeg`. */
   const flipped = (p: Place): Place => (flipDeg ? { ...p, quat: p.quat.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), flipDeg * DEG)) } : p);
   const dragPlace = (x: number, y: number): Place | null => {
@@ -3053,6 +3063,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     // Ctrl/Cmd при переносе: карта стоит на месте и вращается за движением мыши (вправо — по часовой).
     const dx = e.clientX - ptrX;
     ptrX = e.clientX;
+    // Правая кнопка нажата поверх левой: браузер шлёт это не `pointerdown`, а `pointermove` с новыми `buttons` — удар.
+    const chord = (e.buttons & 2) !== 0 && (prevButtons & 2) === 0 && drag.moved && e.pointerType === "mouse";
+    prevButtons = e.buttons;
+    if (chord) { slam(); return; }
     if ((e.ctrlKey || e.metaKey) && drag.moved && e.pointerType === "mouse") {
       if (cardRule(drag.id, "rotate")) { deny(drag.id, "rotate"); return; }
       drag.rot += dx * SPIN.perPx;
@@ -3130,15 +3144,26 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const flipUp = (e: PointerEvent): void => {
     if (!flipTouch || e.pointerId !== flipTouch.pid) return;
     e.stopImmediatePropagation();
-    const t = flipTouch;
+    const t = flipTouch, now = performance.now();
     flipTouch = null;
     if (t.mode === "flip" && !t.fl.clicked) flipDeg = 0;
     carriedAt = 0;
     pushCarry();
     layout(store.state);
+    // Второй палец коснулся и тут же ушёл (не двигаясь) — тап; два тапа подряд — удар картой.
+    if (t.mode === "undecided" && now - t.t0 < SLAM_TAP.press && e.type === "pointerup") {
+      if (now - lastSecondTap < SLAM_TAP.gap) { lastSecondTap = 0; slam(); } else lastSecondTap = now;
+    }
   };
+  let lastSecondTap = 0;
   renderer.domElement.addEventListener("pointerup", flipUp, { capture: true });
   renderer.domElement.addEventListener("pointercancel", flipUp, { capture: true });
+  // Пробел при несомой карте — удар.
+  addEventListener("keydown", (e) => {
+    if (e.code !== "Space" || e.repeat || !drag?.moved || (e.target as HTMLElement | null)?.closest?.("input, textarea, [contenteditable]")) return;
+    e.preventDefault();
+    slam();
+  });
   // F: пока держу карту — перевернуть (на компьютере).
   addEventListener("keydown", (e) => {
     if (e.code !== "KeyF" || e.repeat || !drag?.moved || flipTouch || e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement | null)?.closest?.("input, textarea, [contenteditable]")) return;
@@ -3201,7 +3226,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   renderer.domElement.addEventListener("pointercancel", (e) => { if (spin && e.pointerId === spin.pid) { spin = null; layout(store.state); draw(); } }, { capture: true });
   // Системное меню по правой кнопке на карте гасим всегда; своё показываем на отпускании (мышь) или здесь (долгое касание пальцем).
   renderer.domElement.addEventListener("contextmenu", (e) => {
-    const id = drag?.moved ? null : hitCard(e);
+    if (drag?.moved) { e.preventDefault(); return; }
+    const id = hitCard(e);
     if (!id || !takeable(id)) return;
     e.preventDefault();
     if ((e as PointerEvent).pointerType === "touch" || (e as PointerEvent).pointerType === "pen") openCardMenu(e.clientX, e.clientY, id);
@@ -3219,9 +3245,51 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * ЛОЖИТСЯ КАК ЛЁГ ПАЛЕЦ: быстро тянул и бросил — карта летит дальше по лучу камеры и ложится там, где луч встречает стол; палец стоит (или слегка дрожит) —
    * карта падает вертикально, ровно под собой. Между — плавно по скорости пальца за последние `THROW.window` мс.
    */
+  // ——— УДАР КАРТОЙ ОБ СТОЛ: несомая карта падает вниз сразу, жёстко, и камера вздрагивает от удара ———
+  // Мышь: левой держишь карту, правую кнопку нажать — удар; или пробел. Телефон: первый палец держит, вторым — двойной тап.
+  /** Двойной тап вторым пальцем: касание не дольше `press`, второе не позже `gap` после первого (мс). */
+  const SLAM_TAP = { press: 300, gap: 450 };
+  const SHAKE = { ms: 380, pos: 0.16, roll: 0.9 };
+  let shake: { t0: number; amp: number } | null = null, shakes = 0;
+  const slamming = new Map<string, number>();
+  let slamForce = false;
+  function shakeCamera(amp = 1): void {
+    shake = { t0: performance.now(), amp };
+    shakes++;
+    try { navigator.vibrate?.(25); } catch { /* нет вибрации */ }
+  }
+  /** Смещение камеры от тряски в этот миг: затухает к концу, складывается из нескольких несоизмеримых частот — не качание, а удар. */
+  function shakeNow(now: number): { x: number; y: number; roll: number } | null {
+    if (!shake) return null;
+    const age = now - shake.t0;
+    if (age >= SHAKE.ms) { shake = null; return null; }
+    const k = (1 - age / SHAKE.ms) ** 2 * shake.amp;
+    return {
+      x: (Math.sin(age * 0.19) + 0.6 * Math.sin(age * 0.43 + 1)) * SHAKE.pos * k,
+      y: (Math.sin(age * 0.23 + 2) + 0.6 * Math.sin(age * 0.37)) * SHAKE.pos * k,
+      roll: (Math.sin(age * 0.29 + 3) + 0.5 * Math.sin(age * 0.51)) * SHAKE.roll * DEG * k,
+    };
+  }
+  /** Удар: отпустить несомую карту сейчас же, строго вниз под собой; как только она упала на стол — тряска. */
+  function slam(): void {
+    if (!drag?.moved || dragPid === null) return;
+    const d = drag;
+    slamForce = true;
+    try { end({ pointerId: dragPid, clientX: lastFinger.x, clientY: lastFinger.y, type: "pointerup" } as PointerEvent); } finally { slamForce = false; }
+    slamming.set(d.id, performance.now() + 800);
+  }
+  /** Каждый кадр: упавшая карта — удар (тряска); не упала за 0,8 с — отбой без тряски. */
+  function placeSlams(now: number): boolean {
+    for (const [id, until] of [...slamming]) {
+      const o = cards.get(id);
+      if (!o || now > until) { slamming.delete(id); continue; }
+      if (o.group.position.y - o.target.pos.y < 0.08) { slamming.delete(id); shakeCamera(); }
+    }
+    return slamming.size > 0 || shake !== null;
+  }
   /** Вращение рукой: градусов на пиксель движения (мышь с Ctrl/Cmd, второй палец по вертикали, правая кнопка — по углу, там не нужно). */
   const SPIN = { perPx: 0.45, dead: 10 };
-  let ptrX = 0;
+  let ptrX = 0, prevButtons = 0;
   const THROW = { window: 120, still: 100, full: 600, settle: 40 };
   let trail: { x: number; y: number; t: number }[] = [];
   let lastThrow = 0;
@@ -3241,13 +3309,13 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (home) return { in: "felt", x: home.x, y: home.y, up: d.up, angle: cardRule(d.id, "rotate") ? home.angle : d.angle };
     let at = { x: a.x, y: a.y };
     if (d.moved) {
-      const under = heldAt(e.clientX, e.clientY, d.angle, d.up), w = throwWeight();
+      const under = heldAt(e.clientX, e.clientY, d.angle, d.up), w = slamForce ? 0 : throwWeight();
       lastThrow = w;
       if (under) at = { x: under.pos.x + (a.x - under.pos.x) * w, y: under.pos.z + (a.y - under.pos.z) * w };
       // Взял и почти не сдвинул (поднял и опустил): карта поднималась по лучу и сместилась к камере — ложится не под собой, а на своё место; чем дальше палец от места взятия, тем больше «под собой».
       const start = d.x !== undefined && d.y !== undefined ? store.state.felt.find((f) => f.id === d.id) : undefined;
       if (start) {
-        const k = Math.max(0, Math.min(1, Math.hypot(e.clientX - d.x!, e.clientY - d.y!) / THROW.settle));
+        const k = slamForce ? 1 : Math.max(0, Math.min(1, Math.hypot(e.clientX - d.x!, e.clientY - d.y!) / THROW.settle));
         at = { x: start.x + (at.x - start.x) * k, y: start.y + (at.y - start.y) * k };
       }
     }
@@ -3461,6 +3529,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     cardQuat: (id: string) => { const o = cards.get(id); return o ? new THREE.Euler().setFromQuaternion(o.target.quat, "ZXY").toArray().slice(0, 3).map((v) => Math.round(((v as number) * 180) / Math.PI * 10) / 10) : null; },
     dropShadow: (id: string) => { const d = dropShadows.get(id); if (!d || !d.mesh.visible) return { on: false }; const a = d.pos; return { on: true, x: (a.getX(0) + a.getX(1) + a.getX(2) + a.getX(3)) / 4, z: (a.getZ(0) + a.getZ(1) + a.getZ(2) + a.getZ(3)) / 4 }; },
     ruleInfo: (id: string) => ({ shaking: denies.has(id), ring: cards.get(id)?.ring.visible === true, home: homeMark.visible, lift: cardRule(id, "lift"), move: cardRule(id, "move"), turn: cardRule(id, "turn"), notice: { lift: cardNotice(id, "lift"), move: cardNotice(id, "move"), turn: cardNotice(id, "turn"), rotate: cardNotice(id, "rotate") }, rotate: cardRule(id, "rotate") }),
+    shakeInfo: () => ({ active: shake !== null && performance.now() - shake.t0 < SHAKE.ms, count: shakes, slamming: slamming.size }),
     setNeckFree: (on: boolean) => { neckFree = on; },
     panInfo: () => ({ x: rig.panX, z: rig.panZ }),
     lookBy: (dyaw: number, dpitch: number) => lookBy(dyaw, dpitch),
