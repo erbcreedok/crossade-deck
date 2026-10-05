@@ -24,7 +24,7 @@ const spec = await f.evaluate(() => window.__spec?.at(-1));
 check("▶ у дорожки играет именно её на выбранной скорости", spec && spec.track === "drop-1" && Math.abs(spec.rate - 0.5) < 0.01, spec);
 // Выбор дорожки на движение сохраняется в пресете и в хранилище.
 await f.evaluate(() => { const sel = document.querySelector('.ev[data-kind="slam"] select'); sel.value = "track:gather-2"; sel.dispatchEvent(new Event("change")); });
-const saved = await f.evaluate(() => ({ preset: window.__feel.preset.slam.track, store: JSON.parse(localStorage.getItem("crossade.feel.v1")).preset.slam.track }));
+const saved = await f.evaluate(() => ({ preset: window.__feel.preset.slam.track, store: JSON.parse(localStorage.getItem("crossade.feel.v2")).preset.slam.track }));
 check("выбрал дорожку на «Удар об стол» — она в пресете и сохранена", saved.preset === "gather-2" && saved.store === "gather-2", saved);
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);

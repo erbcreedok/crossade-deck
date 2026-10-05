@@ -62,8 +62,8 @@ export interface FeelSpec {
 export const FEEL_DEFAULT: Record<FeelKind, FeelSpec> = {
   grab: { file: "hand", gain: 0.5, rate: 1.25, jitter: 0.06, soft: 1, cutMs: 120, layers: [{ kind: "tick", from: 900, to: 500, ms: 25, gain: 0.2 }], vibe: [8], style: "light" },
   carry: { file: "hand", gain: 0.25, rate: 1.5, jitter: 0.1, soft: 0.2, cutMs: 90, layers: [], vibe: [], style: "soft" },
-  lay: { file: "drop", gain: 0.8, rate: 1, jitter: 0.06, soft: 0.45, cutMs: 0, layers: [], vibe: [14], style: "medium" },
-  throw: { file: "drop", gain: 1.1, rate: 0.85, jitter: 0.05, soft: 0.6, cutMs: 0, layers: [{ kind: "boom", from: 110, to: 60, ms: 90, gain: 0.35 }], vibe: [22], style: "rigid" },
+  lay: { file: "hand", track: "hand-1", from: 113, gain: 0.8, rate: 0.96, jitter: 0.06, soft: 0.45, cutMs: 0, layers: [], vibe: [14], style: "medium" },
+  throw: { file: "hand", track: "hand-1", from: 113, gain: 1.1, rate: 0.82, jitter: 0.05, soft: 0.6, cutMs: 0, layers: [{ kind: "boom", from: 110, to: 60, ms: 90, gain: 0.35 }], vibe: [22], style: "rigid" },
   slam: { file: "drop", gain: 1.8, rate: 0.72, jitter: 0.03, soft: 1, cutMs: 0, layers: [{ kind: "boom", from: 95, to: 42, ms: 140, gain: 0.9 }, { kind: "noise", from: 180, ms: 90, gain: 0.5, q: 0.8 }], vibe: [40, 30, 60], style: "heavy" },
   flip: { file: "turn", gain: 0.8, rate: 1, jitter: 0.05, soft: 1, cutMs: 0, layers: [{ kind: "tick", from: 1800, to: 900, ms: 30, gain: 0.25 }], vibe: [10, 20, 10], style: "rigid" },
   spin: { file: null, gain: 1, rate: 1, jitter: 0.04, soft: 1, cutMs: 0, layers: [{ kind: "tick", from: 1400, to: 1000, ms: 18, gain: 0.35 }], vibe: [6], style: "selection" },
@@ -71,7 +71,7 @@ export const FEEL_DEFAULT: Record<FeelKind, FeelSpec> = {
   home: { file: "hand", gain: 0.6, rate: 0.8, jitter: 0.05, soft: 1, cutMs: 200, layers: [{ kind: "boom", from: 120, to: 80, ms: 70, gain: 0.25 }], vibe: [15], style: "soft" },
 };
 
-const KEY = "crossade.feel.v1";
+const KEY = "crossade.feel.v2";
 
 type VibeMode = "telegram" | "vibrate" | "ios-switch" | "none";
 
@@ -178,7 +178,14 @@ export function tableFeel(sound: TableSound, haptic: TableHaptic): TableFeel {
       }
     },
     save() {
-      try { localStorage.setItem(KEY, JSON.stringify({ preset, prefs })); } catch { /* нет хранилища */ }
+      // Хранится только то, что отличается от заводского: поменяли заводской пресет — он дойдёт и до тех, кто ничего не трогал.
+      const diff: Record<string, Partial<FeelSpec>> = {};
+      for (const k of FEEL_KINDS) {
+        const own: Record<string, unknown> = {}, fac = FEEL_DEFAULT[k] as unknown as Record<string, unknown>;
+        for (const [key, v] of Object.entries(preset[k])) if (JSON.stringify(v) !== JSON.stringify(fac[key])) own[key] = v;
+        if (Object.keys(own).length) diff[k] = own as Partial<FeelSpec>;
+      }
+      try { localStorage.setItem(KEY, JSON.stringify({ preset: diff, prefs })); } catch { /* нет хранилища */ }
     },
     reset(kind) {
       for (const k of kind ? [kind] : FEEL_KINDS) preset[k] = clone(FEEL_DEFAULT[k]);
