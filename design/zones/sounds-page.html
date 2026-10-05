@@ -119,7 +119,7 @@ for (const plate of document.querySelectorAll(".plate[data-fold]")) {
   const id = plate.dataset.fold, head = plate.querySelector(".head"), arrow = document.createElement("span");
   arrow.className = "arrow"; head.prepend(arrow);
   const paint = () => { plate.classList.toggle("closed", folded.has(id)); arrow.textContent = folded.has(id) ? "▸" : "▾"; };
-  head.onclick = () => { toggleFold(id); paint(); }; paint();
+  head.onclick = () => { toggleFold(id); paint(); repaintWaves(); }; paint();
 }
 const sound = tableSound({ lazy: true }), feel = tableFeel(sound, tableHaptic());
 /** Что уже в игре: действия из `feelPreset.json` и снимок их настроек на момент записи. Нет в списке — игра играет прежний звук. */
@@ -146,7 +146,14 @@ const usersOf = (name) => FEEL_KINDS.filter((k) => tracksOfSpec(feel.preset[k]).
 const tiles = new Map();
 let phTimer = 0;
 const refreshCount = () => { $("count").textContent = `Загружено ${sound.tracks.filter((n) => sound.buffer(n)).length} из ${sound.tracks.length}.`; };
+/** Какая запись нарисована на каком холсте: чтобы перерисовать волну, когда секцию развернули (в свёрнутой у холста нет ширины и волна выходит размытой). */
+const waveOf = new WeakMap();
+function repaintWaves() {
+  requestAnimationFrame(() => { for (const c of document.querySelectorAll("canvas")) { const a = waveOf.get(c); if (a && c.clientWidth > 0) wave(c, a); } });
+}
 function wave(canvas, audio) {
+  waveOf.set(canvas, audio);
+  if (!canvas.clientWidth) return;
   const dpr = devicePixelRatio || 1, w = canvas.clientWidth, h = canvas.clientHeight;
   canvas.width = Math.max(10, w * dpr); canvas.height = Math.max(10, h * dpr);
   const g = canvas.getContext("2d"), d = audio.getChannelData(0), per = Math.max(1, Math.floor(d.length / canvas.width));
@@ -338,7 +345,7 @@ function renderEvents() {
     const nm = document.createElement("div"); nm.className = "nm";
     const arrow = document.createElement("span"); arrow.className = "arrow"; nm.append(arrow, FEEL_NAMES[kind]);
     const paintFold = () => { ev.classList.toggle("closed", folded.has("ev:" + kind)); arrow.textContent = folded.has("ev:" + kind) ? "▸" : "▾"; };
-    nm.onclick = () => { toggleFold("ev:" + kind); paintFold(); }; paintFold();
+    nm.onclick = () => { toggleFold("ev:" + kind); paintFold(); repaintWaves(); }; paintFold();
     const strong = document.createElement("button"), weak = document.createElement("button"), synth = document.createElement("button");
     strong.textContent = "▶ действие"; weak.textContent = "▷ слабо";
     const mine = () => boxes.filter((b) => b.box.closest(".ev") === ev);

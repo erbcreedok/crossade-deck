@@ -20,7 +20,7 @@ const clear = () => f.evaluate(() => { window.__spec = []; });
 
 // 1. Галерея: все 9 звуков загружены при открытии, у каждого плитка с волной, никаких ручек.
 const gal = await f.evaluate(() => ({ tiles: [...document.querySelectorAll("#gal .tile")].map((t) => t.dataset.track), ranges: document.querySelectorAll("#gal input").length, selects: document.querySelectorAll("#gal select").length, waves: [...document.querySelectorAll("#gal canvas")].every((c) => c.getContext("2d").getImageData(0, 0, c.width, c.height).data.some((v, i) => i % 4 === 3 && v > 0)) }));
-check("галерея: 17 плиток-звуков (все записи из папки), у каждой волна", gal.tiles.length === 17 && gal.waves && ["drop-4", "hand-3", "turn-3", "merge-2"].every((t) => gal.tiles.includes(t)), gal);
+check("галерея: плитка на каждую запись из папки (не меньше 17: набор Kenney и свои), у каждой волна", gal.tiles.length >= 17 && gal.waves && ["drop-4", "hand-3", "turn-3", "merge-2"].every((t) => gal.tiles.includes(t)), gal);
 check("в галерее нет ни ползунков, ни выбора — только слушать", gal.ranges === 0 && gal.selects === 0, gal);
 await clear();
 await f.evaluate(() => document.querySelector('#gal .tile[data-track="gather-2"]').click());
@@ -32,7 +32,7 @@ check("при воспроизведении плитка подсвечена �
 // 2. Звуки действий: у каждого действия список; добавить звук из любых; свои настройки у каждого; ▶ играет ровно его.
 const ev = (kind) => `.ev[data-kind="${kind}"]`;
 const sounds = (kind) => f.evaluate((k) => document.querySelectorAll(`.ev[data-kind="${k}"] .snd`).length, kind);
-check("в списке выбора звука действия те же 17 звуков (и подсказка «добавить»), никаких групп", await f.evaluate(() => { const o = [...document.querySelectorAll('.ev[data-kind="lay"] select.add option')].map((x) => x.textContent); return o.length === 18 && !o.some((t) => /групп/.test(t)); }));
+check("в списке выбора звука действия те же звуки, что в галерее (и подсказка «добавить»), никаких групп", await f.evaluate(() => { const o = [...document.querySelectorAll('.ev[data-kind="lay"] select.add option')].map((x) => x.textContent); return o.length === document.querySelectorAll("#gal .tile").length + 1 && !o.some((t) => /групп/.test(t)); }));
 check("у действия «Положил» один звук по умолчанию", (await sounds("lay")) === 1);
 for (const t of ["turn-1", "merge-1", "shuffle-1"]) {
   const had = await sounds("lay");
@@ -205,9 +205,18 @@ await f.evaluate(() => document.getElementById("reset").click());
   check("повторное нажатие разворачивает", await h2.evaluate(() => document.querySelector('.ev[data-kind="lay"] .snd').offsetParent !== null));
   await h2.evaluate(() => document.querySelector('[data-fold="plate2"] .head').click());
   check("секция 2 свёрнута: действий не видно, заголовок виден; секция 1 на месте", await h2.evaluate(() => document.querySelector("#events").offsetParent === null && document.querySelector('[data-fold="plate2"] .head').offsetParent !== null && document.querySelector("#gal").offsetParent !== null));
-  await h2.evaluate(() => document.querySelector('[data-fold="plate1"] .head').click());
-  check("секция 1 свёрнута: галерея скрыта", await h2.evaluate(() => document.querySelector("#gal").offsetParent === null));
-  await h2.evaluate(() => localStorage.removeItem("crossade.sounds.fold"));
+  // волна после разворота чёткая: холст по пикселям равен своему размеру на экране (а не 10 пикселей растянутых)
+  // секция 2 была свёрнута при загрузке страницы (холсты без ширины): после разворота волны должны быть перерисованы
+  await p.reload(); await p.waitForTimeout(3000);
+  const h3 = p.frames().find((x) => x.url().includes("sounds-page"));
+  await h3.waitForFunction(() => window.__ready && window.__sound.tracks.every((n) => window.__sound.buffer(n)), null, { timeout: 60000 });
+  await h3.evaluate(() => document.querySelector('[data-fold="plate2"] .head').click());
+  await p.waitForTimeout(400);
+  const sharp = await h3.evaluate(() => { const c = document.querySelector('.ev[data-kind="grab"] .wb canvas'); return { px: c.width, css: c.clientWidth }; });
+  check("волна после разворота чёткая (пикселей не меньше, чем ширина на экране)", sharp.css > 100 && sharp.px >= sharp.css, sharp);
+  await h3.evaluate(() => document.querySelector('[data-fold="plate1"] .head').click());
+  check("секция 1 свёрнута: галерея скрыта", await h3.evaluate(() => document.querySelector("#gal").offsetParent === null));
+  await h3.evaluate(() => localStorage.removeItem("crossade.sounds.fold"));
 }
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
