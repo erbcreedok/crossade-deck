@@ -1,0 +1,24 @@
+design/zones/sounds-page.html
+  s_d1074c8bc76056::t_d82e6d770ce7d1 24,60,194-199,207,209,211-251,255-256
+server/table-client/feel.ts
+  s_d1074c8bc76056::t_1ff5e81ac64db6 37-50,52-53,83-84,87-88,91,148-149,162,183-185,190,204-207
+  s_d1074c8bc76056::t_5246b60a48a380 208
+design/zones/sounds-check.mjs
+  s_d1074c8bc76056::t_a50a7eba9fed61 59-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "85f8d5b509b5cc74ba4e5eab2df844f34e73def4",
+  "prompts": {},
+  "sessions": {
+    "s_d1074c8bc76056": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "badbded6-896c-42c7-bfbf-fb2e63e12d3e",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
