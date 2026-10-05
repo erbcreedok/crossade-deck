@@ -118,12 +118,43 @@ export interface TableSound {
   /** `x`, `z` — место на экране в долях от середины (см. `Played`). */
   /** `cutMs` — звук обрывается, когда кончилась анимация, которую он озвучивает. */
   play(kind: CueKind, x: number, z: number, mine: boolean, cutMs?: number): void;
+  /** Голос по описанию (`VoiceSpec`): запись и слои синтеза. */
+  voice(spec: VoiceSpec): void;
   /**
    * ЧТО СО ЗВУКОМ НА САМОМ ДЕЛЕ. Дальше колонки не видно никому, но всё до неё — видно, и «не
    * слышу» почти всегда объясняется именно здесь: браузер не пустил (`state` не `running`, пока
    * человек не коснулся экрана), звук заглушён своими настройками, или файл ещё не доехал.
    */
   readonly health: SoundHealth;
+}
+
+/** Один слой синтезированного звука поверх (или вместо) записи. `boom` — низкий тон с падением частоты; `tick` — короткий щелчок; `noise` — шум через полосовой фильтр (шелест, скольжение). */
+export interface VoiceLayer {
+  kind: "boom" | "tick" | "noise";
+  /** Частота (для `noise` — центр полосы), Гц. */
+  from: number;
+  /** Куда падает частота `boom`/`tick`; нет — не падает. */
+  to?: number;
+  ms: number;
+  gain: number;
+  /** Добротность полосы у `noise`. */
+  q?: number;
+}
+
+/**
+ * ГОЛОС НЕ ПО ПОВОДУ СТОЛА, А ПО ОПИСАНИЮ: запись (если есть) с высотой `rate` и громкостью `gain`, плюс слои синтеза, по месту `x`, `z`. Так звучит то, чего столу
+ * сказать нечем: взяли, повернули, отказ. Подбирается ручками на стенде (`feel.ts`), в игре читает тот же пресет.
+ */
+export interface VoiceSpec {
+  file?: keyof typeof FILES | null;
+  rate?: number;
+  gain?: number;
+  x?: number;
+  z?: number;
+  cutMs?: number;
+  layers?: VoiceLayer[];
+  /** Своё громче чужого (`GAIN`). */
+  mine?: boolean;
 }
 
 export interface SoundHealth {
@@ -181,6 +212,70 @@ export function tableSound(): TableSound {
     // СВОЁ ГОЛОСОВОЕ СЛЫШНО ТИШЕ: чтобы автор знал, что ушло, но не слушал себя в полный голос.
     voiceGain: (mine) => (sound.voiceOn ? (mine ? VOICE_GAIN.mine : VOICE_GAIN.other) * (sound.prefs.voiceVolume / 100) : 0),
     save: () => writeSoundPrefs(sound.prefs),
+    voice(spec) {
+      health.asked += 1;
+      if (!sound.on) { health.silent += 1; health.why = "off"; return; }
+      const mine = spec.mine !== false;
+      const gain = (mine ? GAIN.mine : GAIN.other) * (sound.prefs.volume / 100) * (spec.gain ?? 1);
+      const x = sound.prefs.spatial ? (spec.x ?? 0) : 0, z = sound.prefs.spatial ? (spec.z ?? 0) : 0;
+      const file = spec.file ?? null;
+      log.push({ kind: (file ?? "drop") as CueKind, file: file ?? "synth", x: +x.toFixed(2), z: +z.toFixed(2), gain, ...(spec.cutMs ? { cutMs: spec.cutMs } : {}) });
+      if (log.length > 50) log.shift();
+      if (!ctx || ctx.state !== "running") { health.silent += 1; health.why = "asleep"; return; }
+      const audio = ctx;
+      health.played += 1;
+      // Все голоса одного звука идут через одну панораму.
+      const out = audio.createGain();
+      out.gain.value = 1;
+      if (sound.prefs.spatial) {
+        const pan = audio.createPanner();
+        pan.panningModel = "HRTF"; pan.distanceModel = "inverse"; pan.refDistance = 1; pan.rolloffFactor = 0.25;
+        const px = Math.max(-1, Math.min(1, x)) * 2, pz = Math.max(-1, Math.min(1, z)) * 2;
+        if (pan.positionX) { pan.positionX.value = px; pan.positionY.value = 0; pan.positionZ.value = pz; } else pan.setPosition(px, 0, pz);
+        out.connect(pan).connect(audio.destination);
+      } else out.connect(audio.destination);
+      const t0 = audio.currentTime;
+      if (file) {
+        const buf = buffers.get(`${file}-${1 + Math.floor(Math.random() * FILES[file])}`);
+        if (buf) {
+          const src = audio.createBufferSource(), vol = audio.createGain();
+          src.buffer = buf;
+          src.playbackRate.value = spec.rate ?? 1;
+          vol.gain.value = gain;
+          src.connect(vol).connect(out);
+          src.start(t0);
+          if (spec.cutMs) {
+            const end = t0 + spec.cutMs / 1000;
+            vol.gain.setValueAtTime(gain, end - 0.015);
+            vol.gain.linearRampToValueAtTime(0, end);
+            src.stop(end);
+          }
+        } else { health.silent += 1; health.why = "no-file"; }
+      }
+      for (const layer of spec.layers ?? []) {
+        const end = t0 + layer.ms / 1000, env = audio.createGain();
+        env.gain.setValueAtTime(Math.max(0.0001, gain * layer.gain), t0);
+        env.gain.exponentialRampToValueAtTime(0.0001, end);
+        if (layer.kind === "noise") {
+          const len = Math.max(1, Math.floor(audio.sampleRate * (layer.ms / 1000)));
+          const nb = audio.createBuffer(1, len, audio.sampleRate), data = nb.getChannelData(0);
+          for (let i = 0; i < len; i += 1) data[i] = Math.random() * 2 - 1;
+          const src = audio.createBufferSource(), band = audio.createBiquadFilter();
+          src.buffer = nb;
+          band.type = "bandpass"; band.frequency.value = layer.from; band.Q.value = layer.q ?? 1.2;
+          src.connect(band).connect(env).connect(out);
+          src.start(t0);
+        } else {
+          const osc = audio.createOscillator();
+          osc.type = layer.kind === "tick" ? "triangle" : "sine";
+          osc.frequency.setValueAtTime(layer.from, t0);
+          if (layer.to) osc.frequency.exponentialRampToValueAtTime(layer.to, end);
+          osc.connect(env).connect(out);
+          osc.start(t0);
+          osc.stop(end + 0.02);
+        }
+      }
+    },
     play(kind, x, z, mine, cutMs) {
       health.asked += 1;
       if (!sound.on) {
