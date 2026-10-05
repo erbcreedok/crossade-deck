@@ -720,7 +720,7 @@ export class Table {
       : [];
     const flip = typeof out.flip === "number" && Number.isFinite(out.flip) ? Math.max(-180, Math.min(180, Math.round(out.flip))) : 0;
     const tilt = typeof out.tilt === "number" && Number.isFinite(out.tilt) ? Math.max(0, Math.min(90, Math.round(out.tilt))) : 0;
-    this.carries.set(out.id, { by, over, ...(auto ? { auto: true as const } : {}), ...(flock.length ? { with: flock } : {}), ...(flip ? { flip } : {}), ...(tilt ? { tilt } : {}), ...(out.fx === "slam" ? { fx: "slam" as const } : {}) });
+    this.carries.set(out.id, { by, over, ...(auto ? { auto: true as const } : {}), ...(flock.length ? { with: flock } : {}), ...(flip ? { flip } : {}), ...(tilt ? { tilt } : {}), ...(out.fx === "slam" && !this.pinned(by, out.id, "slam") ? { fx: "slam" as const } : {}) });
     return { ok: true };
   }
 
@@ -834,14 +834,14 @@ export class Table {
     if (!this.may(by, "pile.guard")) return { refused: "not-yours" };
     if (typeof id !== "string" || typeof on !== "boolean" || !this.whereIs(id)) return { refused: "gone" };
     const now = this.cardRules.get(id) ?? NO_CARD_RULES;
-    const next: CardRules = { lift: [...now.lift], move: [...now.move], turn: [...now.turn], rotate: [...now.rotate], notice: { ...now.notice } };
+    const next: CardRules = { lift: [...now.lift], move: [...now.move], turn: [...now.turn], rotate: [...now.rotate], slam: [...now.slam], notice: { ...now.notice } };
     const named = (x: unknown): x is CardRule => (CARD_RULES as readonly unknown[]).includes(x);
     if (rule === "notice" && named(who)) next.notice[who] = on;
     else if (named(rule) && typeof who === "string") {
       const list = next[rule].filter((key) => key !== who);
       next[rule] = on ? [...list, who] : list;
     } else return { refused: "bad" };
-    const clear = !next.lift.length && !next.move.length && !next.turn.length && !next.rotate.length && !CARD_RULES.some((one) => next.notice[one]);
+    const clear = !next.lift.length && !next.move.length && !next.turn.length && !next.rotate.length && !next.slam.length && !CARD_RULES.some((one) => next.notice[one]);
     if (clear) this.cardRules.delete(id); else this.cardRules.set(id, next);
     return { ops: this.commit([{ t: "cardRules", id, rules: clear ? null : next }]) };
   }

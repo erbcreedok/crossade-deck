@@ -279,13 +279,13 @@ export type PileGuard = (typeof PILE_GUARDS)[number];
 
 /**
  * ПРАВИЛА КАРТЫ — что с ней нельзя делать, и кому: `lift` не поднять, `move` не переместить по сукну (поднять и перевернуть можно, а при броске она
- * возвращается туда, откуда её подняли), `turn` не перевернуть, `rotate` не повернуть (угол остаётся прежним; поднять и переместить это не мешает и наоборот). Каждое — список key людей, которым нельзя (пусто — можно всем). `notice` — по каждому запрету, показывать ли
+ * возвращается туда, откуда её подняли), `turn` не перевернуть, `rotate` не повернуть (угол остаётся прежним; поднять и переместить это не мешает и наоборот), `slam` не бить об стол (удар не уходит остальным, камера у них не вздрагивает). Каждое — список key людей, которым нельзя (пусто — можно всем). `notice` — по каждому запрету, показывать ли
  * отказ: включён — карта даёт знать «нельзя» (тряска, контур возврата), выключен — отказ тихий.
  */
-export const CARD_RULES = ["lift", "move", "turn", "rotate"] as const;
+export const CARD_RULES = ["lift", "move", "turn", "rotate", "slam"] as const;
 export type CardRule = (typeof CARD_RULES)[number];
-export interface CardRules { lift: string[]; move: string[]; turn: string[]; rotate: string[]; notice: Record<CardRule, boolean> }
-export const NO_CARD_RULES: CardRules = { lift: [], move: [], turn: [], rotate: [], notice: { lift: false, move: false, turn: false, rotate: false } };
+export interface CardRules { lift: string[]; move: string[]; turn: string[]; rotate: string[]; slam: string[]; notice: Record<CardRule, boolean> }
+export const NO_CARD_RULES: CardRules = { lift: [], move: [], turn: [], rotate: [], slam: [], notice: { lift: false, move: false, turn: false, rotate: false, slam: false } };
 
 /** Колода стола — стопка команд бота. Остальные стопки собирают игроки (`gather`), и они не вечные. */
 export const MAIN_PILE = "deck";

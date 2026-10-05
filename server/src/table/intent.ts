@@ -14,7 +14,7 @@ const NAME_MAX = 120;
 export const BATCH_MAX = 512;
 
 const ARRANGES: readonly Arrange[] = ["suit", "rank", "reverse", "shuffle"];
-const RULE_NAMES: readonly string[] = ["lift", "move", "turn", "rotate"];
+const RULE_NAMES: readonly string[] = ["lift", "move", "turn", "rotate", "slam"];
 const CHAIR_FLAGS: readonly ChairFlag[] = ["lock", "hide", "reject", "forever"];
 const POSE_KEYS: readonly (keyof HandPose)[] = ["fan", "shrink", "tuck"];
 
@@ -120,7 +120,7 @@ const READERS: { [K in Intent["t"]]: (raw: Raw) => Extract<Intent, { t: K }> | n
   },
   deckDo: (r) => (name(r.pile) && oneOf(DECK_DOS, r.how) ? { t: "deckDo", pile: r.pile, how: r.how } : null),
   spin: (r) => (name(r.id) && typeof r.angle === "number" && Number.isFinite(r.angle) ? { t: "spin", id: r.id, angle: r.angle } : null),
-  cardRule: (r) => (name(r.id) && bool(r.on) && (r.rule === "notice" ? RULE_NAMES.includes(r.who as string) : RULE_NAMES.includes(r.rule as string) && name(r.who)) ? { t: "cardRule", id: r.id, rule: r.rule as "lift" | "move" | "turn" | "rotate" | "notice", who: r.who as string, on: r.on } : null),
+  cardRule: (r) => (name(r.id) && bool(r.on) && (r.rule === "notice" ? RULE_NAMES.includes(r.who as string) : RULE_NAMES.includes(r.rule as string) && name(r.who)) ? { t: "cardRule", id: r.id, rule: r.rule as "lift" | "move" | "turn" | "rotate" | "slam" | "notice", who: r.who as string, on: r.on } : null),
   deckForever: (r) => (name(r.pile) && bool(r.on) ? { t: "deckForever", pile: r.pile, on: r.on } : null),
   deckPin: (r) => (name(r.pile) && bool(r.on) ? { t: "deckPin", pile: r.pile, on: r.on } : null),
   deckGuard: (r) => (name(r.pile) && oneOf(PILE_GUARDS, r.guard) && bool(r.on) ? { t: "deckGuard", pile: r.pile, guard: r.guard, on: r.on } : null),

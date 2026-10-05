@@ -47,7 +47,7 @@ describe("правила карты", () => {
     const t = seated(), id = onFelt(t);
     t.act("a", { t: "cardRule", id, rule: "lift", who: "b", on: true }, 2);
     t.act("a", { t: "cardRule", id, rule: "notice", who: "move", on: true }, 3);
-    expect(t.seenBy("b").cardRules?.[id]).toEqual({ lift: ["b"], move: [], turn: [], rotate: [], notice: { lift: false, move: true, turn: false, rotate: false } });
+    expect(t.seenBy("b").cardRules?.[id]).toEqual({ lift: ["b"], move: [], turn: [], rotate: [], slam: [], notice: { lift: false, move: true, turn: false, rotate: false, slam: false } });
     t.act("a", { t: "cardRule", id, rule: "lift", who: "b", on: false }, 4);
     t.act("a", { t: "cardRule", id, rule: "notice", who: "move", on: false }, 5);
     expect(t.seenBy("b").cardRules?.[id]).toBeUndefined();
@@ -90,5 +90,15 @@ describe("правила карты", () => {
     t.act("b", { t: "grab", id }, 3);
     t.act("b", { t: "drop", id, to: { in: "felt", x: -3, y: -3, up: true, angle: 77 } }, 4);
     expect(felt(t, id)).toMatchObject({ x: 1, y: 2, angle: 77 });
+  });
+  it("не бить об стол — удар такого игрока не уходит остальным, у остальных проходит", () => {
+    const t = seated(), id = onFelt(t), hover = { in: "felt", x: 0, y: 0, up: false, angle: 0 } as const;
+    t.act("a", { t: "cardRule", id, rule: "slam", who: "a", on: true }, 2);
+    t.act("a", { t: "grab", id }, 3);
+    t.carry("a", { id, over: hover, fx: "slam" }, 4);
+    expect(t.carriesSeenBy("b")[0]!.fx).toBeUndefined();
+    t.act("a", { t: "cardRule", id, rule: "slam", who: "a", on: false }, 5);
+    t.carry("a", { id, over: hover, fx: "slam" }, 6);
+    expect(t.carriesSeenBy("b")[0]!.fx).toBe("slam");
   });
 });

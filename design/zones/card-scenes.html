@@ -208,10 +208,10 @@ for (const f of document.querySelectorAll(".frame")) f.classList.add("ready");
 // ПРАВИЛА КАРТЫ: для каждого запрета — «все» и цветные флажки игроков (отмечены — им нельзя); внизу — показывать ли отказ. Ставит админ (синий).
 {
   const id = me.state.felt[0].id;
-  const rules = () => me.state.cardRules?.[id] ?? { lift: [], move: [], turn: [], rotate: [], notice: { lift: false, move: false, turn: false, rotate: false } };
+  const rules = () => me.state.cardRules?.[id] ?? { lift: [], move: [], turn: [], rotate: [], slam: [], notice: { lift: false, move: false, turn: false, rotate: false, slam: false } };
   const send = (intent) => views.blue.send({ t: "cardRule", id, ...intent });
   const body = $("rules-body"), paints = [];
-  for (const [rule, label] of [["lift", "Нельзя поднять"], ["move", "Нельзя перемещать по столу (поднять и перевернуть можно, вернётся на место)"], ["turn", "Нельзя перевернуть"], ["rotate", "Нельзя вращать (угол остаётся прежним; поднять и переместить не мешает)"]]) {
+  for (const [rule, label] of [["lift", "Нельзя поднять"], ["move", "Нельзя перемещать по столу (поднять и перевернуть можно, вернётся на место)"], ["turn", "Нельзя перевернуть"], ["rotate", "Нельзя вращать (угол остаётся прежним; поднять и переместить не мешает)"], ["slam", "Нельзя бить об стол (удар не доходит остальным)"]]) {
     const row = document.createElement("div"); row.className = "rrow"; row.dataset.rule = rule;
     const lab = document.createElement("div"); lab.className = "rl"; lab.textContent = label;
     const chips = document.createElement("div"); chips.className = "rc";

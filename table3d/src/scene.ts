@@ -3336,6 +3336,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   function slam(): void {
     if (!drag?.moved || dragPid === null) return;
     const d = drag;
+    if (cardRule(d.id, "slam")) { deny(d.id, "slam"); return; }
     if (d.where) store.carry({ id: d.id, over: d.where, fx: "slam" });
     slamForce = true;
     try { end({ pointerId: dragPid, clientX: lastFinger.x, clientY: lastFinger.y, type: "pointerup" } as PointerEvent); } finally { slamForce = false; }
@@ -3593,7 +3594,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     ringLit: () => [...ringFields.entries()].map(([id, f]) => ({ id, zone: f.zone.visible, glow: f.glow.visible, slot: f.slot.visible })),
     cardQuat: (id: string) => { const o = cards.get(id); return o ? new THREE.Euler().setFromQuaternion(o.target.quat, "ZXY").toArray().slice(0, 3).map((v) => Math.round(((v as number) * 180) / Math.PI * 10) / 10) : null; },
     dropShadow: (id: string) => { const d = dropShadows.get(id); if (!d || !d.mesh.visible) return { on: false }; const a = d.pos; return { on: true, x: (a.getX(0) + a.getX(1) + a.getX(2) + a.getX(3)) / 4, z: (a.getZ(0) + a.getZ(1) + a.getZ(2) + a.getZ(3)) / 4 }; },
-    ruleInfo: (id: string) => ({ shaking: denies.has(id), ring: cards.get(id)?.ring.visible === true, home: homeMark.visible, lift: cardRule(id, "lift"), move: cardRule(id, "move"), turn: cardRule(id, "turn"), notice: { lift: cardNotice(id, "lift"), move: cardNotice(id, "move"), turn: cardNotice(id, "turn"), rotate: cardNotice(id, "rotate") }, rotate: cardRule(id, "rotate") }),
+    ruleInfo: (id: string) => ({ shaking: denies.has(id), ring: cards.get(id)?.ring.visible === true, home: homeMark.visible, lift: cardRule(id, "lift"), move: cardRule(id, "move"), turn: cardRule(id, "turn"), notice: { lift: cardNotice(id, "lift"), move: cardNotice(id, "move"), turn: cardNotice(id, "turn"), rotate: cardNotice(id, "rotate"), slam: cardNotice(id, "slam") }, rotate: cardRule(id, "rotate"), slam: cardRule(id, "slam") }),
     shakeInfo: () => ({ active: shake !== null && performance.now() - shake.t0 < SHAKE.ms, count: shakes, slamming: slamming.size, slamTicks, peakPx: Math.round(shakePeakPx) }),
     setThrow: (o: Partial<typeof THROW>) => { Object.assign(THROW, o); },
     cardGap: (id: string) => { const o = cards.get(id); return o ? +(o.group.position.y - o.target.pos.y).toFixed(3) : null; },

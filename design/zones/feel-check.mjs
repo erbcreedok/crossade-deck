@@ -64,6 +64,19 @@ await recenter(); await click('[data-rule="move"] [data-k="blue"]'); await click
 await clear(); c = await grabAt();  await p.mouse.move(c.x + 90, c.y + 60, { steps: 5 }); await p.mouse.up(); await p.waitForTimeout(1100);
 check("нельзя перемещать, показ включён — «home»", (await kinds()).includes("home"), await f.evaluate(() => window.__feel.log));
 await click('[data-rule="move"] [data-k="blue"]'); await click('[data-rule="move"] .tg');
+// Запрет «нельзя бить об стол»: у запретившего правая кнопка при левой карту не бросает и камера не вздрагивает; без запрета — удар.
+{
+  await recenter();
+  await click('[data-rule="slam"] [data-k="blue"]'); await p.waitForTimeout(500);
+  await clear();
+  const sc0 = await f.evaluate(() => ({ top: window.__top.test.shakeInfo().count, first: window.__first.test.shakeInfo().count }));
+  c = await grabAt(); await p.mouse.down({ button: "right" }); await p.waitForTimeout(500);
+  const still = await f.evaluate(() => window.__top.test.draggingId());
+  const sc1 = await f.evaluate(() => ({ top: window.__top.test.shakeInfo().count, first: window.__first.test.shakeInfo().count }));
+  await p.mouse.up({ button: "right" }); await p.mouse.up(); await p.waitForTimeout(300);
+  check("нельзя бить об стол: карта осталась в руке, камера не вздрогнула ни у кого", still !== null && sc1.top === sc0.top && sc1.first === sc0.first, { still, sc0, sc1 });
+  await click('[data-rule="slam"] [data-k="blue"]'); await p.waitForTimeout(400);
+}
 // 6. 🔊 у сцены глушит её: ни событий, ни вибрации.
 await f.evaluate(() => document.querySelector("#who-top .mute").click()); await p.waitForTimeout(150);
 await clear(); await f.evaluate(() => (window.__buzz.length = 0));
