@@ -12,6 +12,8 @@ const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
 p.on("pageerror", (e) => errors.push(e.message));
 await p.goto(`${base}/?stand&cam=top`);
 await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+// Долгое удержание над стопкой поднимает её; часы стоят, чтобы медленная машина не делала этого сама посреди проверки.
+await p.evaluate(() => (window.__t3dScreens ?? []).forEach((s) => s.holdClock(0)));
 await p.waitForTimeout(1500);
 const id = await p.evaluate(() => { const s = window.__t3d.state(); const c = s.chairs.find((x) => x.owner === "me").hand.at(0); window.__t3d.dropFeltAt(c.id, -1.2, 0.4); return c.id; });
 await p.waitForTimeout(900);

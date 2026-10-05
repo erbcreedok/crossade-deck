@@ -155,6 +155,8 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
     const clock = (ms) => f.evaluate((v) => { window.__top.test.holdClock(v); }, ms);
     const info = () => f.evaluate(() => window.__top.test.holdInfo());
     const pilesOf = () => f.evaluate(() => window.__me.state.piles.map((q) => ({ id: q.id, n: q.cards.length, x: q.x, y: q.y, top: q.cards.at(-1).id, locked: window.__me.state.locks?.[q.id] ?? null })));
+    // позиция на экране, когда она перестала меняться (камера ещё могла ехать, карты — лететь)
+    const stable = async (id) => { let prev = null; for (let k = 0; k < 40; k++) { const cur = await screen(id); if (prev && Math.hypot(cur.x - prev.x, cur.y - prev.y) < 0.3) return cur; prev = cur; await p.waitForTimeout(150); } return prev; };
     const waitFor = async (fn, ms = 8000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { const v = await fn(); if (v) return v; await p.waitForTimeout(100); } return null; };
     const home = async () => { await f.evaluate(() => window.__me.send({ t: "deckMove", pile: "deck", x: 0, y: 0.8, angle: -8 })); await p.waitForTimeout(500); };
     await setCtl("blue");
@@ -164,7 +166,7 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
     // А. взял верхнюю карту стопки и держу над ней неподвижно
     await clock(0);
     const st0 = (await pilesOf())[0];
-    const at = await screen(st0.top);
+    const at = await stable(st0.top);
     await p.mouse.move(at.x, at.y); await p.mouse.down(); await p.mouse.move(at.x + 12, at.y - 6, { steps: 3 }); await p.mouse.move(at.x + 14, at.y - 8);
     await clock(150); await p.waitForTimeout(400);
     const early = await info();
@@ -192,7 +194,7 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
     check("две стопки: основная и новая, собранная из выложенных карт", two.length === 2 && two.some((q) => q.id !== "deck" && q.n >= 2), two);
     const main = two.find((q) => q.id === "deck"), small = two.find((q) => q.id !== "deck");
     {
-      const from = await screen(main.top), to = await screen(small.top);
+      const from = await stable(main.top), to = await stable(small.top);
       await clock(0);
       await p.mouse.move(from.x, from.y); await p.mouse.down(); await p.mouse.move(from.x - 10, from.y - 6, { steps: 3 }); await p.mouse.move(to.x, to.y, { steps: 10 });
       await clock(400);
@@ -209,18 +211,56 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
       const now = await pilesOf();
       const big = now.find((q) => q.id === "deck"), tiny = now.find((q) => q.id !== "deck");
       const tab = await f.evaluate((id) => window.__top.test.tabs().find((t) => t.pile === id), tiny.id);
-      const target = await screen(big.top);
+      const target = await stable(big.top);
       await clock(0);
       await p.mouse.move(tab.x, tab.y); await p.mouse.down(); await p.mouse.move(tab.x + 12, tab.y, { steps: 3 }); await p.mouse.move(target.x, target.y, { steps: 10 });
       await clock(400);
       await waitFor(async () => { const i = await info(); return i.blinking ? i : null; });
       await clock(5000);
-      const merged = await waitFor(async () => { const q = await pilesOf(); return q.length === 1 ? q[0] : null; });
+      const merged = await waitFor(async () => { const q = await pilesOf(); return q.length === 1 && q[0].locked !== null ? q[0] : null; });
       check("удержание стопки над другой стопкой: они слились в одну и она поднята под палец", !!merged && merged.n === big.n + tiny.n && merged.locked !== null, { merged, big, tiny });
       await clock(0);
       await p.mouse.up(); await p.waitForTimeout(900);
     }
     await home();
+    // Г. куча карт на сукне (не стопка): держишь над ней карту — верхняя поднимается через holdMs, остальные по очереди; кто успел подняться, идёт за пальцем
+    {
+      await f.evaluate(() => {
+        const spots = [[-2.7, 0.8], [-2.5, 0.95], [-2.65, 1.05], [-2.45, 0.8]];
+        for (const [x, y] of spots) { const id = window.__me.state.piles[0].cards.at(-1).id; window.__me.send({ t: "grab", id }); window.__me.send({ t: "drop", id, to: { in: "felt", x, y, up: true, angle: 0 } }); }
+      });
+      await p.waitForTimeout(1200);
+      const heap = await f.evaluate(() => window.__me.state.felt.map((c) => ({ id: c.id, x: c.x, y: c.y })));
+      const topLoose = heap.at(-1), mainTop = (await pilesOf())[0];
+      check("куча: на сукне четыре карты лежат кучкой, не стопкой", heap.length === 4 && (await pilesOf()).length === 1, heap);
+      const from = await stable(mainTop.top), to = await stable(topLoose.id);
+      await clock(0);
+      await p.mouse.move(from.x, from.y); await p.mouse.down(); await p.mouse.move(from.x - 10, from.y - 6, { steps: 3 }); await p.mouse.move(to.x, to.y, { steps: 10 });
+      await clock(400);
+      const blink = await waitFor(async () => { const i = await info(); return i.blinking && String(i.pile).startsWith("heap:") ? i : null; });
+      check("куча: над кучей мигает подсветка", !!blink, blink);
+      await clock(5000);
+      const countOf = async () => { const q = await f.evaluate(() => window.__me.state.piles.filter((x) => x.id !== "deck").map((x) => ({ id: x.id, n: x.cards.length, locked: window.__me.state.locks?.[x.id] ?? null }))); return q[0] ?? null; };
+      const born = await waitFor(async () => { const q = await countOf(); return q && q.n >= 2 && q.locked !== null ? q : null; });
+      check("куча: время вышло — несомая карта и верхняя слепились в стопку, и она под пальцем", !!born && born.n === 2 && born.locked !== null, born);
+      await clock(5000 + 140);
+      const third = await waitFor(async () => { const q = await countOf(); return q && q.n >= 3 ? q : null; });
+      const looseBefore = await f.evaluate(() => window.__me.state.felt.map((c) => ({ id: c.id, x: c.x, y: c.y })));
+      check("куча: через шаг присоединилась следующая карта, остальные ещё лежат на сукне", !!third && third.n === 3 && looseBefore.length === 2, { third, loose: looseBefore.length });
+      await clock(5000 + 140);
+      await p.mouse.move(to.x + 60, to.y + 20, { steps: 6 }); await p.waitForTimeout(300);
+      const looseAfter = await f.evaluate(() => window.__me.state.felt.map((c) => ({ id: c.id, x: c.x, y: c.y })));
+      check("куча: палец поехал — те, что не успели подняться, остались на месте", looseAfter.length === 2 && looseAfter.every((c) => looseBefore.some((b) => b.id === c.id && Math.hypot(b.x - c.x, b.y - c.y) < 0.01)), { looseBefore, looseAfter });
+      await clock(5000 + 140 * 3);
+      const all = await waitFor(async () => { const q = await countOf(); return q && q.n === 5 ? q : null; });
+      check("куча: дождались — поднялись все, в стопке пять карт, на сукне пусто", !!all && (await f.evaluate(() => window.__me.state.felt.length)) === 0, all);
+      await clock(0);
+      await p.mouse.up(); await p.waitForTimeout(900);
+      // собрать всё обратно в основную стопку, как было
+      await f.evaluate(() => { const other = window.__me.state.piles.find((x) => x.id !== "deck"); if (other) window.__me.send({ t: "pileDrop", pile: other.id, to: { in: "deck", pile: "deck" } }); });
+      await p.waitForTimeout(800);
+      await home();
+    }
   }
   // действия кнопками: перемешать
   await setCtl("blue");

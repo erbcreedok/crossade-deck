@@ -2314,8 +2314,17 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const glowMat = new THREE.MeshBasicMaterial({ map: cardGlowTexture(), color: 0x7fd1b9, transparent: true, depthWrite: false });
   const glowMesh = new THREE.Mesh(new THREE.PlaneGeometry(CARD_W + 1, CARD_H + 1), glowMat);
   glowMesh.visible = false; glowMesh.renderOrder = 1; scene.add(glowMesh);
-  let glowFor: { pile: string; level: "hint" | "hot"; blink?: number } | null = null;
+  let glowFor: { pile: string; level: "hint" | "hot"; blink?: number; spot?: { x: number; y: number; angle: number } } | null = null;
   function placeGlow(): void {
+    if (glowFor?.spot) {
+      glowMesh.position.set(glowFor.spot.x, 0.004, glowFor.spot.y);
+      glowMesh.rotation.set(-Math.PI / 2, -glowFor.spot.angle * DEG, 0, "YXZ");
+      const hz = 2 + 7 * (glowFor.blink ?? 0);
+      glowMat.opacity = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(performance.now() / 1000 * hz * Math.PI * 2));
+      glowMat.color.setHex(0xf2c14e);
+      glowMesh.visible = true;
+      return;
+    }
     const p = glowFor ? store.state.piles.find((x) => x.id === glowFor!.pile) : undefined, base = p ? cards.get(p.cards[0]?.id ?? "") : undefined;
     if (!glowFor || !p || !base || !base.group.visible) { glowMesh.visible = false; return; }
     base.group.updateMatrixWorld(true);
@@ -3365,27 +3374,84 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     return { pile: pile.id, finger };
   }
+  /**
+   * КУЧА НА СУКНЕ: несомую карту держат над картами, что лежат на столе (не стопкой): под пальцем самая верхняя из них, а «куча» — все, кто лежит на ней и на тех, что ей касаются.
+   * Сверху вниз, как их поднимать: сначала самая верхняя.
+   */
+  const HEAP = { link: 1.2, step: 130 };
+  function holdTargetHeap(): { top: { id: string; x: number; y: number; angle: number }; ids: string[]; finger: { x: number; y: number } } | null {
+    if (store.replay?.on || !tabFn || !drag?.moved || !drag.where || drag.where.in !== "felt") return null;
+    // Под пальцем — точка стола на луче из глаза (карта в руке висит выше и смещена к камере, по ней целить нельзя).
+    const hit = onFelt({ clientX: lastFinger.x, clientY: lastFinger.y });
+    if (!hit) return null;
+    const w = { x: hit.x, y: hit.z }, held = drag.id, me = actorKey();
+    const free = store.state.felt.map((f, i) => ({ ...f, i })).filter((f) => f.id !== held && (!store.state.locks[f.id] || store.state.locks[f.id] === me) && (!store.state.picks[f.id] || store.state.picks[f.id] === me));
+    const under = free.filter((f) => {
+      const a = -f.angle * DEG, dx = w.x - f.x, dz = w.y - f.y;
+      return Math.abs(dx * Math.cos(a) - dz * Math.sin(a)) <= CARD_W / 2 && Math.abs(dx * Math.sin(a) + dz * Math.cos(a)) <= CARD_H / 2;
+    }).sort((a, b) => b.i - a.i)[0];
+    if (!under) return null;
+    const seen = new Set([under.id]), queue = [under];
+    while (queue.length) { const c = queue.shift()!; for (const o of free) if (!seen.has(o.id) && Math.hypot(o.x - c.x, o.y - c.y) < HEAP.link) { seen.add(o.id); queue.push(o); } }
+    const ids = free.filter((f) => seen.has(f.id)).sort((a, b) => b.i - a.i).map((f) => f.id);
+    return { top: { id: under.id, x: under.x, y: under.y, angle: under.angle }, ids, finger: lastFinger };
+  }
+  /** Куча поднимается по очереди: первая карта и несомая слепились в стопку под пальцем, остальные присоединяются через `HEAP.step` мс — те, что успели, идут за пальцем. */
+  let heapRun: { ids: string[]; held: string; pile: string | null; next: number; nextAt: number } | null = null;
+  function placeHeapRun(now: number): boolean {
+    const run = heapRun;
+    if (!run) return false;
+    if (!run.pile) {
+      const p = store.state.piles.find((x) => x.cards.some((c) => c.id === run.held));
+      if (!p) return true;
+      run.pile = p.id; run.nextAt = now + HEAP.step;
+      if (lastPtrEv) tabFn?.(p.id, lastPtrEv, { lifted: true });
+      return true;
+    }
+    if (!pileCarry || pileCarry.pile !== run.pile) { heapRun = null; return false; }
+    while (now >= run.nextAt && run.next < run.ids.length) {
+      const id = run.ids[run.next++]!;
+      if (store.state.felt.some((f) => f.id === id)) store.send({ t: "gather", ids: [id], side: "keep", to: { pile: run.pile } });
+      run.nextAt += HEAP.step;
+    }
+    if (run.next >= run.ids.length) { heapRun = null; return false; }
+    return true;
+  }
   function placeHold(real: number): boolean {
     const now = holdVirtual ?? real;
-    const t = holdTargetPile();
+    if (placeHeapRun(now)) { holdLift = null; return true; }
+    const pt = holdTargetPile(), ht = pt ? null : holdTargetHeap();
+    const t = pt ? { key: pt.pile, finger: pt.finger } : ht ? { key: `heap:${ht.top.id}`, finger: ht.finger } : null;
     if (!t) { holdLift = null; if (glowFor?.blink !== undefined) glowFor = null; return false; }
-    if (!holdLift || holdLift.pile !== t.pile || Math.hypot(t.finger.x - holdLift.at.x, t.finger.y - holdLift.at.y) > HOLD.still) holdLift = { pile: t.pile, since: now, at: { ...t.finger } };
-    const ms = holdMsOf(t.pile), el = now - holdLift.since;
+    if (!holdLift || holdLift.pile !== t.key || Math.hypot(t.finger.x - holdLift.at.x, t.finger.y - holdLift.at.y) > HOLD.still) holdLift = { pile: t.key, since: now, at: { ...t.finger } };
+    const ms = pt ? holdMsOf(pt.pile) : 1500, el = now - holdLift.since;
     if (el < HOLD.from) { if (glowFor?.blink !== undefined) glowFor = null; return true; }
-    glowFor = { pile: t.pile, level: "hot", blink: Math.min(1, el / ms) };
+    glowFor = pt ? { pile: pt.pile, level: "hot", blink: Math.min(1, el / ms) } : { pile: "", level: "hot", blink: Math.min(1, el / ms), spot: { x: ht!.top.x, y: ht!.top.y, angle: ht!.top.angle } };
     if (el < ms) return true;
+    if (ht) {
+      // Куча: несомая карта ложится на самую верхнюю, обе слепляются в стопку, стопка под палец; остальные поднимутся следом по очереди.
+      const ev = lastPtrEv, held = drag!.id, d = drag!;
+      holdLift = null; glowFor = null;
+      if (!ev) return false;
+      forcedTo = { in: "felt", x: ht.top.x, y: ht.top.y, up: d.up, angle: ht.top.angle };
+      try { end(ev); } finally { forcedTo = null; }
+      store.send({ t: "gather", ids: [ht.top.id, held], side: "keep", to: { x: ht.top.x, y: ht.top.y, angle: ht.top.angle } });
+      heapRun = { ids: ht.ids.slice(1), held, pile: null, next: 0, nextAt: 0 };
+      return true;
+    }
+    if (!pt) return false;
     // Время вышло: несомое ложится на стопку сверху, стопка поднимается под палец (тот же жест, что тяга за язычок, только уже начатый).
     const ev = lastPtrEv;
     holdLift = null; glowFor = null;
     if (!ev) return false;
-    if (drag?.moved) { forcedTo = { in: "deck", pile: t.pile }; try { end(ev); } finally { forcedTo = null; } }
+    if (drag?.moved) { forcedTo = { in: "deck", pile: pt.pile }; try { end(ev); } finally { forcedTo = null; } }
     else if (pileCarry) {
       const heldPile = pileCarry.pile;
       store.send({ t: "release", id: heldPile });
-      store.send({ t: "pileDrop", pile: heldPile, to: { in: "deck", pile: t.pile } });
+      store.send({ t: "pileDrop", pile: heldPile, to: { in: "deck", pile: pt.pile } });
       pileCarry = null; pileFinger = null; pileGrab = null;
     }
-    tabFn?.(t.pile, ev, { lifted: true });
+    tabFn?.(pt.pile, ev, { lifted: true });
     return true;
   }
   function placeLandings(now: number): boolean {
@@ -3725,6 +3791,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     tabHitAt: (x: number, y: number) => hitTab({ clientX: x, clientY: y } as PointerEvent),
     /** Для проверок: подменить часы долгого удержания (мс); `null` — вернуть реальные. */
     holdClock: (ms: number | null) => { holdVirtual = ms; },
+    /** Для проверок: куча карт под пальцем сейчас (или `null`). */
+    heapTarget: () => { const h = holdTargetHeap(); return h ? { top: h.top.id, ids: h.ids } : null; },
+    dragWhere: () => (drag?.where ? { ...drag.where } : null),
     heightOf: (id: string) => cards.get(id)?.group.position.y ?? null,
     airOf: (id: string) => { const o = cards.get(id); return o ? +(o.group.position.y - o.target.pos.y).toFixed(3) : null; },
     shakeInfo: () => ({ active: shake !== null && performance.now() - shake.t0 < SHAKE.ms, count: shakes, slamming: slamming.size, slamTicks, peakPx: Math.round(shakePeakPx) }),
