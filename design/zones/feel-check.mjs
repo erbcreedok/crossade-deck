@@ -78,7 +78,29 @@ console.log("начало звука в записях, с:", JSON.stringify(ons
 // 7. Звук доехал до браузера: записи загружены (в логе голоса есть «drop»).
 const played = await f.evaluate(() => ({ health: window.__sound.health, last: (window.__tableSounds ?? []).length }));
 check("звуковая машина запущена, файлы доехали: звуков сыграно много, молчаливых мало", played.health.state === "running" && played.health.played >= 10 && played.health.silent <= 2, played);
+// По умолчанию звук и вибрация — только у первой сцены.
+{
+  const marks = await f.evaluate(() => ({ top: document.querySelector("#who-top .mute").textContent, first: document.querySelector("#who-first .mute").textContent }));
+  check("по умолчанию звук включён только у первой сцены", marks.top === "🔊" && marks.first === "🔇", marks);
+}
 await browser.close();
+// iPhone в Safari: navigator.vibrate нет — вибрация идёт тиком переключателя `<input switch>`.
+{
+  const b2 = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader"] });
+  const ctx2 = await b2.newContext({ viewport: { width: 430, height: 1000 }, userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1" });
+  await ctx2.addInitScript(() => { Object.defineProperty(navigator, "vibrate", { value: undefined, configurable: true }); });
+  const q = await ctx2.newPage();
+  await q.goto(`http://${host}:9588/card.html`); await q.waitForTimeout(3000);
+  const g = q.frames().find((x) => x.url().includes("card-scenes"));
+  await g.waitForFunction(() => window.__ready && window.__feel, null, { timeout: 60000 });
+  const mode = await g.evaluate(() => window.__feel.vibeMode);
+  await g.evaluate(() => window.__feel.play({ kind: "lay", energy: 1 }));
+  const sw = await g.evaluate(() => { const i = document.querySelector("input[switch]"); return i ? { exists: true, checked: i.checked } : { exists: false }; });
+  await g.evaluate(() => window.__feel.play({ kind: "lay", energy: 1 }));
+  const sw2 = await g.evaluate(() => document.querySelector("input[switch]")?.checked);
+  check("iPhone без navigator.vibrate: режим «ios-switch», тик переключателя щёлкает (состояние меняется)", mode === "ios-switch" && sw.exists && sw.checked !== sw2, { mode, sw, sw2 });
+  await b2.close();
+}
 check("без ошибок страницы", errors.length === 0, errors);
 for (const k of checks) console.log(k.ok ? "ok  " : "FAIL", k.name, k.ok ? "" : JSON.stringify(k.got));
 process.exit(checks.every((k) => k.ok) ? 0 : 1);

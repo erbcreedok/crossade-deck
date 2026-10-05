@@ -151,11 +151,12 @@ for (const f of document.querySelectorAll(".frame")) f.classList.add("ready");
   const { tableFeel, FEEL_KINDS, FEEL_NAMES } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/feel.ts");
   const sound = tableSound(), haptic = tableHaptic(), feel = tableFeel(sound, haptic);
   window.__feel = feel; window.__sound = sound;
-  const live = { top: true, first: true };
+  // По умолчанию звук и вибрация — только у первой сцены: две сцены сразу звучали бы вдвое.
+  const live = { top: true, first: false };
   top.onFeel((e) => { if (live.top) feel.play(e); });
   first.onFeel((e) => { if (live.first) feel.play(e); });
   for (const which of ["top", "first"]) {
-    const b = document.createElement("button"); b.className = "mute"; b.textContent = "🔊"; b.title = "звук и вибрация этой сцены";
+    const b = document.createElement("button"); b.className = "mute"; b.textContent = live[which] ? "🔊" : "🔇"; b.title = "звук и вибрация этой сцены";
     b.style.cssText = "width:22px;height:22px;border:0;padding:0;background:#3a2a1d;color:#f5ead0;box-shadow:0 0 0 2px #0b0704;cursor:pointer;font-size:12px";
     b.onclick = () => { live[which] = !live[which]; b.textContent = live[which] ? "🔊" : "🔇"; };
     $("who-" + which).append(b);
@@ -175,6 +176,9 @@ for (const f of document.querySelectorAll(".frame")) f.classList.add("ready");
   const rst = document.createElement("button"); rst.textContent = "Сбросить всё"; rst.onclick = () => { feel.reset(); feel.save(); render(); };
   head.append(copy, rst);
   body.append(head);
+  const MODES = { telegram: "Telegram (готовые стили)", vibrate: "navigator.vibrate (рисунок в мс)", "ios-switch": "iPhone: тик переключателя Safari (один тик на толчок, только от касания и отпускания)", none: "вибрации на этом устройстве нет" };
+  const note = document.createElement("div"); note.style.cssText = "margin:0 0 12px;font-size:12px;color:#cdbf9d;line-height:1.3"; note.textContent = "Вибрация: " + MODES[feel.vibeMode];
+  body.append(note);
   const list = document.createElement("div"); body.append(list);
   const slider = (label, min, max, step, get, set, fmt) => {
     const l = document.createElement("div"); l.className = "fs"; l.innerHTML = `<span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}"><b></b>`;

@@ -67,6 +67,35 @@ export const FEEL_DEFAULT: Record<FeelKind, FeelSpec> = {
 
 const KEY = "crossade.feel.v1";
 
+type VibeMode = "telegram" | "vibrate" | "ios-switch" | "none";
+
+/**
+ * ВИБРАЦИЯ БЕЗ TELEGRAM. Android и Chrome: `navigator.vibrate(рисунок)`. iPhone в Safari его не знает; единственный путь — тик, который Safari 17.4+ даёт, когда
+ * переключается `<input type="checkbox" switch>`: скрытый переключатель щёлкаем через его подпись. Сила и длительность не настраиваются (один тик на толчок),
+ * и работает только внутри жеста пальца (отпускание, касание), а не из таймера или движения.
+ */
+const isIOS = (): boolean => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+let switchLabel: HTMLLabelElement | null = null;
+function iosSwitchTick(): void {
+  if (!switchLabel) {
+    const label = document.createElement("label");
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.setAttribute("switch", "");
+    label.style.cssText = "position:fixed;left:-40px;top:-40px;width:30px;height:30px;opacity:0.01;pointer-events:none";
+    label.append(box);
+    document.body.append(label);
+    switchLabel = label;
+  }
+  switchLabel.click();
+}
+function vibeMode(haptic: TableHaptic): VibeMode {
+  if (haptic.supported) return "telegram";
+  if (typeof navigator.vibrate === "function") return "vibrate";
+  return isIOS() ? "ios-switch" : "none";
+}
+
+
 export interface FeelPrefs {
   /** Звук событий включён. */
   sound: boolean;
@@ -94,6 +123,8 @@ export interface TableFeel {
   reset(kind?: FeelKind): void;
   /** Пресет целиком — для переноса в игру. */
   exportPreset(): string;
+  /** Чем здесь вибрирует устройство: Telegram, `navigator.vibrate`, переключатель Safari на iPhone или никак. */
+  readonly vibeMode: VibeMode;
   /** Последние события — для проверок. */
   readonly log: FeelLogged[];
 }
@@ -115,6 +146,7 @@ export function tableFeel(sound: TableSound, haptic: TableHaptic): TableFeel {
     preset,
     prefs,
     log,
+    get vibeMode() { return vibeMode(haptic); },
     play(e) {
       const spec = preset[e.kind], energy = Math.max(0, Math.min(1, e.energy ?? 1));
       const gain = spec.gain * (spec.soft + (1 - spec.soft) * energy);
@@ -127,9 +159,14 @@ export function tableFeel(sound: TableSound, haptic: TableHaptic): TableFeel {
         sound.voice(voice);
       }
       if (vibe.length) {
-        // Telegram умеет только готовые стили; без него — рисунок в миллисекундах там, где есть `navigator.vibrate`.
-        if (haptic.supported) haptic.buzz(spec.style);
-        else try { navigator.vibrate?.(vibe); } catch { /* нет вибрации */ }
+        const mode = vibeMode(haptic);
+        // Telegram умеет только готовые стили; без него — рисунок в миллисекундах там, где есть `navigator.vibrate`; на iPhone — тики переключателя Safari.
+        if (mode === "telegram") haptic.buzz(spec.style);
+        else if (mode === "vibrate") { try { navigator.vibrate(vibe); } catch { /* нет вибрации */ } }
+        else if (mode === "ios-switch") {
+          let at = 0;
+          vibe.forEach((ms, i) => { if (i % 2 === 0) { if (at === 0) iosSwitchTick(); else setTimeout(iosSwitchTick, at); } at += ms; });
+        }
       }
     },
     save() {
