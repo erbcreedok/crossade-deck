@@ -1,0 +1,23 @@
+design/zones/card-scenes.html
+  s_73107c3d804131::t_4d14d4e23b437c 102-104,109,114
+design/zones/piles-scenes.html
+  s_73107c3d804131::t_4d14d4e23b437c 76-78,83,88
+design/zones/card-check.mjs
+  s_73107c3d804131::t_15a9845ebd5c62 53-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2fca6dec86488603e7a657314355502836b37dbe",
+  "prompts": {},
+  "sessions": {
+    "s_73107c3d804131": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e85b33e2-d0a6-4a90-b535-037e1d4326e5",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
