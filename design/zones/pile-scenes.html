@@ -303,6 +303,11 @@ for (const which of ["top", "first"]) {
   r.onclick = () => { (which === "top" ? top : first).home(); };
   box.append(r);
 }
+// ТЯНУТЬ СТОПКУ ЗА ЯЗЫЧОК — тот же жест, что в игре (`pileDrag.ts`): худа на стенде нет, поэтому подключаем его к каждой сцене сами.
+{
+  const { mountPileDrag } = await import("/src/pileDrag.ts");
+  for (const [which, scene, eye] of [["top", top, "eye-top"], ["first", first, "eye-first"]]) scene.onTab(mountPileDrag(scene, asPlayer(views[eye], which), {}, () => views[eye].state.chairs.find((c) => c.owner === eye)?.angle ?? 0));
+}
 const scenes = { top, first };
 window.__top = top; window.__first = first; window.__me = me; window.__alia = alia; window.__ready = true;
 </script>

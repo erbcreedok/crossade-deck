@@ -325,7 +325,7 @@ export interface SceneApi {
   /** Сколько карт на столе сейчас выделено мной. */
   stackPicked(): number;
   /** Язычок стопки — на столе, у нижней кромки её верхней карты: тронули — сообщить, чья стопка (окно, переворот, тяга). */
-  onTab(fn: (pile: string, e: PointerEvent) => void): void;
+  onTab(fn: (pile: string, e: PointerEvent, opts?: { lifted?: boolean }) => void): void;
   /** Какие язычки горят: у кого открыто окно или кого несут. */
   setTabLit(piles: Set<string>): void;
   /** Точка сукна под пальцем. */
@@ -2219,7 +2219,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const liveTab = (t: TabObj): THREE.Mesh => (t.side === 2 ? t.mesh2 : t.mesh);
   const tabs = new Map<string, TabObj>();
   let litTabs = new Set<string>();
-  let tabFn: ((pile: string, e: PointerEvent) => void) | null = null;
+  let tabFn: ((pile: string, e: PointerEvent, opts?: { lifted?: boolean }) => void) | null = null;
   const tabGeom = new THREE.PlaneGeometry(TAB.w, TAB.l), tabHitGeom = new THREE.PlaneGeometry(TAB.w * TAB.hit, TAB.l * 2);
   function drawTab(cv: HTMLCanvasElement, count: number, pin: boolean, lit: boolean): void {
     const c = cv.getContext("2d")!, W = cv.width, H = cv.height, r = H * 0.42, line = H * 0.08;

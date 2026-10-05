@@ -29,6 +29,7 @@ import { tableSound } from "../../server/table-client/sound.js";
 import { tableHaptic } from "../../server/table-client/haptic.js";
 import { FEEL_LIVE, FEEL_OLD, tableFeel, type FeelKind } from "../../server/table-client/feel.js";
 import { tableMotion } from "../../server/table-client/motion.js";
+import { mountPileDrag } from "./pileDrag.js";
 import { mountTalk, type WordAnchor } from "../../server/table-client/talk.js";
 import { HOST } from "../../server/table-client/host.js";
 import type { TableStore } from "../../server/table-client/store.js";
@@ -201,7 +202,6 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     hud: () => { const g = scene.glass(), wide = handWideOf(g); return { left: Math.round((g.w - wide) / 2), width: wide }; },
   });
   let myStickers: string[] = [];
-  let lastGripTap = 0;
   // Окна вещей — панели (`panel.ts`): свой слой поверх экрана и слой CSS3D сцены для тех, что на столе.
   const panelOverlay = document.createElement("div");
   panelOverlay.id = "panels";
@@ -838,48 +838,13 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
    * ЯЗЫЧОК СТОПКИ (лежит на столе, рисует сцена — `scene.onTab`): тянешь — стопка и язычок под пальцем, как несомая карта;
    * отпустил — в руку, в стопку или на сукно; тап — окно, двойной — перевернуть.
    */
-  /** Взяли стопку — она сразу поворачивается лицом ко мне (как ляжет при отпускании): событием стола, поэтому у всех на экранах разом. Зону-круг не трогаем. */
-  function turnPileToMe(pile: string): void {
-    const pl = store.state.piles.find((x) => x.id === pile);
-    if (!pl || pl.zone || pl.pin) return;
-    store.send({ t: "deckMove", pile, x: pl.x, y: pl.y, angle: ((-(myChair()?.angle ?? 0) % 360) + 360) % 360 });
-  }
-  function tabDown(pile: string, e: PointerEvent): void {
-    e.preventDefault();
-    scene.grabPile(pile, { x: e.clientX, y: e.clientY });
-    const pinned = !!store.state.piles.find((x) => x.id === pile)?.pin;
-    // ПРАВИЛА СТОПКИ: двигать нельзя — стопка остаётся на месте и «отказывает» один раз, когда её потянули.
-    const barred: "grip" | "move" | null = scene.pileBarred(pile, "grip") ? "grip" : scene.pileBarred(pile, "move") ? "move" : null;
-    let moved = false, hold = 0, refused = false;
-    follow(e, (ev) => {
-      if (pinned) return;
-      if (barred) { if (!refused && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) >= TAP_PX) { refused = true; scene.denyPile(pile, barred); } return; }
-      if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < TAP_PX) return;
-      if (!moved) { moved = true; local.deckTip = null; local.deckCarry = pile; store.send({ t: "grip", pile }); turnPileToMe(pile); hold = window.setInterval(() => { if (local.deckCarry === pile) store.send({ t: "hold", id: pile }); else clearInterval(hold); }, HOLD_MS); }
-      if (moved && local.deckCarry !== pile) return;
-      scene.carryPile(pile, { x: ev.clientX, y: ev.clientY });
-      draw();
-    }, (ev) => {
-      clearInterval(hold);
-      if (moved && local.deckCarry !== pile) return;
-      if (!moved) {
-        const now = performance.now();
-        if (now - lastGripTap < DOUBLE_TAP_MS) { lastGripTap = 0; const p = store.state.piles.find((x) => x.id === pile); if (p && !p.lock) { if (scene.pileBarred(pile, "flip")) scene.denyPile(pile, "flip"); else store.send({ t: "deckDo", pile, how: "flip" }); } }
-        else { lastGripTap = now; local.deckTip = local.deckTip === pile ? null : pile; }
-        draw();
-        return;
-      }
-      local.deckCarry = null;
-      store.send({ t: "release", id: pile });
-      const a = scene.aim(ev.clientX, ev.clientY, pile);
-      if (a.in === "hand") store.send({ t: "pileDrop", pile, to: a });
-      else if (a.in === "deck") store.send({ t: "pileDrop", pile, to: a });
-      else { const at = scene.pileAt(pile) ?? a; store.send({ t: "deckMove", pile, x: at.x, y: at.y, angle: ((-(myChair()?.angle ?? 0) % 360) + 360) % 360 }); }
-      scene.carryPile(pile, null);
-      draw();
-    });
-  }
-  scene.onTab(tabDown);
+  scene.onTab(mountPileDrag(scene, store, {
+    start: (pile) => { local.deckTip = null; local.deckCarry = pile; },
+    current: (pile) => local.deckCarry === pile,
+    end: () => { local.deckCarry = null; },
+    tap: (pile) => { local.deckTip = local.deckTip === pile ? null : pile; },
+    redraw: () => draw(),
+  }, () => myChair()?.angle ?? 0));
 
   function follow(e: PointerEvent, move: (ev: PointerEvent) => void, up: (ev: PointerEvent) => void): void {
     const m = (ev: PointerEvent) => { if (ev.pointerId === e.pointerId) move(ev); };

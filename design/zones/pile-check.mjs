@@ -29,7 +29,9 @@ await p.mouse.move(box.x + 190, box.y + 150); for (let i = 0; i < 3; i++) { awai
 check("камера включена без тумблера: колесо приближает", (await depth()) < d0 - 1, { d0, d1: await depth() });
 // карту стопки можно взять в любой сцене
 for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
-  const id = await topId();
+  // дождаться, пока карты улягутся: верхняя карта стопки стоит на месте (прошлый перенос ещё мог её двигать)
+  let id = await topId(), prev = null;
+  for (let k = 0; k < 30; k++) { const cur = await f.evaluate(([sc, i]) => window[sc].test.screenOf(i), [scene, id]); if (prev && Math.hypot(cur.x - prev.x, cur.y - prev.y) < 0.3) break; prev = cur; id = await topId(); await p.waitForTimeout(150); }
   const at = await f.evaluate(([s, i]) => window[s].test.screenOf(i), [scene, id]);
   await p.mouse.move(at.x, at.y); await p.mouse.down(); await p.mouse.move(at.x + 12, at.y + 8, { steps: 4 }); await p.waitForTimeout(300);
   const drag = await f.evaluate((s) => window[s].test.draggingId(), scene);
@@ -115,6 +117,18 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
     const tabBelow = (which) => f.evaluate((w) => { const sc = window[w], pl = window.__me.state.piles[0], top = sc.test.screenOf(pl.cards.at(-1).id), tab = sc.test.tabs().find((t) => t.pile === pl.id); return tab ? { tab: tab.y, pile: top.y, count: sc.test.tabs().length } : null; }, which);
     const a = await tabBelow("__top"), b = await tabBelow("__first");
     check("язычок виден в обеих сценах и лежит ниже стопки на экране (ближе к камере), в том числе от первого лица", !!a && !!b && a.tab > a.pile && b.tab > b.pile, { top: a, first: b });
+  }
+  // ЯЗЫЧОК ТЯНЕТСЯ: за него берут всю стопку и переносят (на стенде тот же жест, что в игре)
+  {
+    const before = await f.evaluate(() => { const pl = window.__me.state.piles[0]; return { x: pl.x, y: pl.y, n: pl.cards.length }; });
+    const tab = await f.evaluate(() => window.__top.test.tabs()[0]);
+    await p.mouse.move(tab.x, tab.y); await p.mouse.down(); await p.mouse.move(tab.x + 12, tab.y, { steps: 3 }); await p.mouse.move(tab.x + 70, tab.y - 20, { steps: 8 }); await p.waitForTimeout(300);
+    await p.mouse.up(); await p.waitForTimeout(800);
+    const after = await f.evaluate(() => { const pl = window.__me.state.piles[0]; return { x: pl.x, y: pl.y, n: pl.cards.length }; });
+    check("язычок: потянул за него и отпустил на сукне — вся стопка переехала (карт столько же)", Math.hypot(after.x - before.x, after.y - before.y) > 0.3 && after.n === before.n, { before, after });
+    // вернуть на место
+    await f.evaluate(() => window.__me.send({ t: "deckMove", pile: window.__me.state.piles[0].id, x: 0, y: 0.8, angle: -8 }));
+    await p.waitForTimeout(500);
   }
   // язычок скрыт тому, кому так задано; у остальных на месте
   await setCtl("green");
