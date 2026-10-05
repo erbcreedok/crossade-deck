@@ -122,6 +122,8 @@ export interface TableSound {
   voice(spec: VoiceSpec): void;
   /** Все дорожки, что играет стол: `drop-1`, `gather-1`… */
   readonly tracks: string[];
+  /** Загрузить дорожку (одна загрузка на имя): `true`, когда готова. Для страниц, что грузят по нажатию, а не заранее. */
+  ensure(name: string): Promise<boolean>;
   /** Декодированная запись дорожки (нет — ещё не загружена) и сколько секунд тишины срезается в начале. */
   buffer(name: string): { audio: AudioBuffer; onset: number } | undefined;
   /**
@@ -181,6 +183,10 @@ export interface SoundHealth {
   loaded: number;
   /** Сколько секунд тишины срезано в начале каждой записи. */
   onsets: Record<string, number>;
+  /** Какие дорожки сейчас грузятся. */
+  loading: string[];
+  /** За сколько миллисекунд загрузилась (скачалась и декодировалась) каждая дорожка. */
+  loadMs: Record<string, number>;
 }
 
 /** Где в записи на самом деле начинается звук: первый отсчёт заметнее порога (5% от пика, не меньше 0,5%). Не дальше 120 мс — дальше уже не тишина, а тихое начало самого звука. */
@@ -193,7 +199,7 @@ export function onsetOf(buf: AudioBuffer): number {
   return 0;
 }
 
-export function tableSound(): TableSound {
+export function tableSound(opts: { lazy?: boolean } = {}): TableSound {
   let ctx: AudioContext | null = null;
   const buffers = new Map<string, AudioBuffer>();
   /** Сколько секунд в начале каждой записи тишина (и «разгон» кодека AAC): с неё не играем, звук должен начинаться ровно в момент команды. */
@@ -211,7 +217,7 @@ export function tableSound(): TableSound {
       ctx = new Ctx();
     }
     holdAudio(ctx);
-    for (const [kind, n] of Object.entries(FILES)) for (let i = 1; i <= n; i += 1) load(`${kind}-${i}`);
+    if (!opts.lazy) for (const [kind, n] of Object.entries(FILES)) for (let i = 1; i <= n; i += 1) void load(`${kind}-${i}`);
     return true;
   };
   const wake = () => {
@@ -220,8 +226,14 @@ export function tableSound(): TableSound {
     if (!boot()) return;
     if (ctx!.state === "suspended") void ctx!.resume();
   };
-  const load = (name: string) => {
-    fetch(`${HOST}/table/sounds/${name}.m4a`)
+  /** Дорожка в пути: одна загрузка на имя, сколько бы раз ни просили. */
+  const pending = new Map<string, Promise<boolean>>();
+  const load = (name: string): Promise<boolean> => {
+    const was = pending.get(name);
+    if (was) return was;
+    const t0 = performance.now();
+    health.loading.push(name);
+    const one = fetch(`${HOST}/table/sounds/${name}.m4a`)
       .then((r) => r.arrayBuffer())
       .then((bytes) => ctx!.decodeAudioData(bytes))
       .then((buf) => {
@@ -229,12 +241,17 @@ export function tableSound(): TableSound {
         onsets.set(name, onsetOf(buf));
         health.loaded = buffers.size;
         health.onsets[name] = +onsets.get(name)!.toFixed(4);
+        health.loadMs[name] = Math.round(performance.now() - t0);
+        return true;
       })
-      .catch(() => {});
+      .catch(() => { pending.delete(name); return false; })
+      .finally(() => { health.loading = health.loading.filter((n) => n !== name); });
+    pending.set(name, one);
+    return one;
   };
   addEventListener("pointerdown", wake, { capture: true });
 
-  const health: SoundHealth = { state: "none", asked: 0, played: 0, silent: 0, loaded: 0, onsets: {} };
+  const health: SoundHealth = { state: "none", asked: 0, played: 0, silent: 0, loaded: 0, onsets: {}, loading: [], loadMs: {} };
 
   const sound: TableSound = {
     prefs: readSoundPrefs(),
@@ -251,6 +268,7 @@ export function tableSound(): TableSound {
     // СВОЁ ГОЛОСОВОЕ СЛЫШНО ТИШЕ: чтобы автор знал, что ушло, но не слушал себя в полный голос.
     voiceGain: (mine) => (sound.voiceOn ? (mine ? VOICE_GAIN.mine : VOICE_GAIN.other) * (sound.prefs.voiceVolume / 100) : 0),
     save: () => writeSoundPrefs(sound.prefs),
+    ensure: (name) => (buffers.has(name) ? Promise.resolve(true) : boot() ? load(name) : Promise.resolve(false)),
     tracks: Object.entries(FILES).flatMap(([kind, n]) => Array.from({ length: n }, (_, i) => `${kind}-${i + 1}`)),
     buffer: (name) => { const audio = buffers.get(name); return audio ? { audio, onset: onsets.get(name) ?? 0 } : undefined; },
     voice(spec) {

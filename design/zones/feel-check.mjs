@@ -114,6 +114,7 @@ check("звуковая машина запущена, файлы доехали
   check("движению назначена точная дорожка — играет она", file === "turn-1", file);
   await f.evaluate(() => { window.__feel.reset("lay"); });
 }
+check("на панели написано, что звуки загружены (все 9)", await f.evaluate(() => /все 9 загружены/.test(document.getElementById("feel-load")?.textContent ?? "")), await f.evaluate(() => document.getElementById("feel-load")?.textContent));
 // По умолчанию звук и вибрация — только у первой сцены.
 {
   const marks = await f.evaluate(() => ({ top: document.querySelector("#who-top .mute").textContent, first: document.querySelector("#who-first .mute").textContent }));

@@ -32,6 +32,10 @@
   .sl input[type=range] { flex: 1; min-width: 0; accent-color: var(--gold); height: 28px; }
   .sl b { font-weight: 400; width: 52px; text-align: right; flex: none; }
   .tools { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; }
+  @keyframes slide { from { background-position: 0 0; } to { background-position: 28px 0; } }
+  .loadbar { height: 6px; margin: 0 0 8px; background: repeating-linear-gradient(135deg, var(--gold) 0 7px, #4a3a28 7px 14px); background-size: 28px 100%; animation: slide .6s linear infinite; box-shadow: 0 0 0 2px var(--black); display: none; }
+  .loading .loadbar { display: block; }
+  button[disabled] { opacity: .55; cursor: default; }
   .chk { display: flex; align-items: center; gap: 6px; font-size: 12px; }
 </style>
 </head>
@@ -40,7 +44,7 @@
   <h1>ЗВУКИ ДВИЖЕНИЙ</h1>
   <div class="plate"><div class="head"><div class="n">1</div><div class="t">ДОРОЖКИ</div></div>
     <div class="hint">Все записи, что играет стол. Нажми на волну или ▶ — играет с начала. «Скорость» меняет и скорость, и высоту (как пластинку). Жёлтая черта — где звук на самом деле начинается: тишина до неё в игре срезается.</div>
-    <div class="tools"><label class="chk"><input type="checkbox" id="raw"> без среза тишины</label><label class="chk"><input type="checkbox" id="loop"> по кругу</label><button id="stop">■ стоп</button></div>
+    <div class="tools"><label class="chk"><input type="checkbox" id="raw"> без среза тишины</label><label class="chk"><input type="checkbox" id="loop"> по кругу</label><button id="stop">■ стоп</button><button id="all">Загрузить все</button><span id="count" class="meta" style="color:var(--dim)"></span></div>
     <div id="tracks"></div></div>
   <div class="plate"><div class="head"><div class="n">2</div><div class="t">КАКОЙ ЗВУК НА КАКОЕ ДВИЖЕНИЕ</div></div>
     <div class="hint">Выбери дорожку для движения и подстрой скорость и громкость. ▶ играет движение целиком: дорожка плюс синтез (тик, «бум»). Сохраняется сразу; страница «Карта — база» подхватывает.</div>
@@ -55,10 +59,8 @@ const { tableSound } = await import("/@fs/Users/giyers/Desktop/crossade-deck/ser
 const { tableHaptic } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/haptic.ts");
 const { tableFeel, FEEL_KINDS, FEEL_NAMES } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/feel.ts");
 const $ = (id) => document.getElementById(id);
-const sound = tableSound(), feel = tableFeel(sound, tableHaptic());
+const sound = tableSound({ lazy: true }), feel = tableFeel(sound, tableHaptic());
 window.__sound = sound; window.__feel = feel;
-// Звук будится первым касанием; ждём, пока записи декодируются.
-for (let i = 0; i < 100 && sound.tracks.some((n) => !sound.buffer(n)); i++) await new Promise((r) => setTimeout(r, 100));
 window.__ready = true;
 
 const TRACK_NAMES = { "drop-1": "Стук карты о стол", "hand-1": "Скольжение карты", "turn-1": "Переворот", "merge-1": "Веер / слияние", "shuffle-1": "Тасовка", "sort-1": "Перестановка", "gather-1": "Сбор (1)", "gather-2": "Сбор (2)", "gather-3": "Сбор (3)" };
@@ -90,45 +92,69 @@ function playTrack(name, rate, gain, fromMs) {
   once();
 }
 
-// 1. Дорожки.
+// 1. Дорожки: грузятся по нажатию на ▶ (или кнопкой «Загрузить все»), с полоской загрузки; страница открывается сразу.
+const cards = new Map();
+const refreshCount = () => { $("count").textContent = `загружено ${sound.tracks.filter((n) => sound.buffer(n)).length} из ${sound.tracks.length}`; };
+refreshCount();
+const trackMeta = (name) => { const b = sound.buffer(name); return b ? `${name} · ${b.audio.duration.toFixed(2)} с · тишина в начале ${Math.round(b.onset * 1000)} мс · загружено за ${sound.health.loadMs[name] ?? "?"} мс` : `${name} · не загружена (нажми ▶)`; };
+async function loadTrack(name) {
+  const card = cards.get(name);
+  if (sound.buffer(name)) return true;
+  card.box.classList.add("loading"); card.play.disabled = true; card.play.textContent = "…"; card.meta.textContent = `${name} · загрузка…`;
+  const ok = await sound.ensure(name);
+  card.box.classList.remove("loading"); card.play.disabled = false; card.play.textContent = "▶";
+  card.meta.textContent = ok ? trackMeta(name) : `${name} · не загрузилась (сервер звуков :2591 недоступен?)`;
+  const b = sound.buffer(name);
+  if (b) { wave(card.cv, b.audio, b.onset); card.start.set(Math.round(b.onset * 1000)); }
+  refreshCount();
+  return ok;
+}
 for (const name of sound.tracks) {
-  const b = sound.buffer(name), box = document.createElement("div"); box.className = "track"; box.dataset.track = name;
+  const box = document.createElement("div"); box.className = "track"; box.dataset.track = name;
   const row = document.createElement("div"); row.className = "row";
-  const nm = document.createElement("div"); nm.className = "nm"; nm.innerHTML = `${TRACK_NAMES[name] ?? name}<br><span class="meta">${name} · ${b ? b.audio.duration.toFixed(2) : "?"} с · тишина в начале ${b ? Math.round(b.onset * 1000) : "?"} мс</span>`;
+  const nm = document.createElement("div"); nm.className = "nm"; nm.innerHTML = `${TRACK_NAMES[name] ?? name}<br><span class="meta"></span>`;
+  const meta = nm.querySelector(".meta"); meta.textContent = trackMeta(name);
   const play1 = document.createElement("button"); play1.textContent = "▶";
   row.append(nm, play1);
+  const bar = document.createElement("div"); bar.className = "loadbar";
   const cv = document.createElement("canvas"); cv.className = "wave";
-  const slider = (label, min, max, step, init, fmt) => { const l = document.createElement("div"); l.className = "sl"; l.innerHTML = `<span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}"><b></b>`; const r = l.querySelector("input"), v = l.querySelector("b"); r.value = init; v.textContent = fmt(init); r.oninput = () => { v.textContent = fmt(+r.value); }; l.get = () => +r.value; return l; };
-  const sp = slider("скорость", 0.25, 2.5, 0.01, 1, (v) => v.toFixed(2) + "×"), gn = slider("громкость", 0, 2, 0.05, 1, (v) => v.toFixed(2)), st = slider("начало", 0, 400, 1, Math.round((b?.onset ?? 0) * 1000), (v) => v + " мс");
-  box.append(row, cv, sp, gn, st);
+  const slider = (label, min, max, step, init, fmt) => { const l = document.createElement("div"); l.className = "sl"; l.innerHTML = `<span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}"><b></b>`; const r = l.querySelector("input"), v = l.querySelector("b"); r.value = init; v.textContent = fmt(init); r.oninput = () => { v.textContent = fmt(+r.value); }; l.get = () => +r.value; l.set = (x) => { r.value = x; v.textContent = fmt(x); }; return l; };
+  const sp = slider("скорость", 0.25, 2.5, 0.01, 1, (v) => v.toFixed(2) + "×"), gn = slider("громкость", 0, 2, 0.05, 1, (v) => v.toFixed(2)), st = slider("начало", 0, 400, 1, 0, (v) => v + " мс");
+  box.append(row, bar, cv, sp, gn, st);
   $("tracks").append(box);
-  if (b) requestAnimationFrame(() => wave(cv, b.audio, b.onset));
-  play1.onclick = () => playTrack(name, sp.get(), gn.get(), st.get());
-  cv.onclick = () => playTrack(name, sp.get(), gn.get(), st.get());
+  cards.set(name, { box, play: play1, meta, cv, start: st });
+  const go = async () => { if (await loadTrack(name)) playTrack(name, sp.get(), gn.get(), st.get()); };
+  play1.onclick = go; cv.onclick = go;
+  requestAnimationFrame(() => { const b = sound.buffer(name); if (b) wave(cv, b.audio, b.onset); else { const g = cv.getContext("2d"); cv.width = cv.clientWidth; cv.height = cv.clientHeight; g.fillStyle = "#4a3a28"; g.font = "12px Tiny5, monospace"; g.fillText("волна появится после загрузки", 10, 32); } });
 }
+$("all").onclick = async () => { $("all").disabled = true; await Promise.all(sound.tracks.map((n) => loadTrack(n))); $("all").disabled = false; };
 
 // 2. События.
 const OPTIONS = [["none", "— без записи (только синтез) —"], ...[...new Set(sound.tracks.map((n) => n.replace(/-\d+$/, "")))].map((g) => [`group:${g}`, `группа «${g}»: случайная из своих`]), ...sound.tracks.map((n) => [`track:${n}`, `${TRACK_NAMES[n] ?? n} (${n})`])];
 const valueOf = (spec) => (spec.track ? `track:${spec.track}` : spec.file ? `group:${spec.file}` : "none");
+/** Все дорожки, которые может сыграть движение: выбранная точная или вся группа. */
+const ensureFor = (spec) => Promise.all((spec.track ? [spec.track] : spec.file ? sound.tracks.filter((n) => n.startsWith(spec.file + "-")) : []).map((n) => loadTrack(n)));
 function renderEvents() {
   $("events").replaceChildren();
   for (const kind of FEEL_KINDS) {
     const spec = feel.preset[kind], ev = document.createElement("div"); ev.className = "ev"; ev.dataset.kind = kind;
     const row = document.createElement("div"); row.className = "row";
     const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = FEEL_NAMES[kind];
-    const strong = document.createElement("button"); strong.textContent = "▶ сильно"; strong.onclick = () => feel.play({ kind, energy: 1 });
-    const weak = document.createElement("button"); weak.textContent = "▷ слабо"; weak.onclick = () => feel.play({ kind, energy: 0.2 });
+    const strong = document.createElement("button"), weak = document.createElement("button");
+    strong.textContent = "▶ сильно"; weak.textContent = "▷ слабо";
+    const hear = (energy, btn, label) => async () => { btn.disabled = true; btn.textContent = "загрузка…"; await ensureFor(spec); btn.disabled = false; btn.textContent = label; feel.play({ kind, energy }); };
+    strong.onclick = hear(1, strong, "▶ сильно"); weak.onclick = hear(0.2, weak, "▷ слабо");
     row.append(nm, strong, weak);
     const sel = document.createElement("select");
     for (const [v, label] of OPTIONS) { const o = document.createElement("option"); o.value = v; o.textContent = label; sel.append(o); }
     sel.value = valueOf(spec);
-    sel.onchange = () => {
+    sel.onchange = async () => {
       const v = sel.value;
       if (v === "none") { spec.file = null; spec.track = null; }
       else if (v.startsWith("group:")) { spec.file = v.slice(6); spec.track = null; }
       else { spec.track = v.slice(6); spec.file = spec.track.replace(/-\d+$/, ""); }
       spec.from = null;
-      feel.save(); feel.play({ kind, energy: 1 }); renderEvents();
+      feel.save(); await ensureFor(spec); feel.play({ kind, energy: 1 }); renderEvents();
     };
     const slider = (label, min, max, step, get, set, fmt) => { const l = document.createElement("div"); l.className = "sl"; l.innerHTML = `<span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}"><b></b>`; const r = l.querySelector("input"), v = l.querySelector("b"); r.value = get(); v.textContent = fmt(get()); r.oninput = () => { set(+r.value); v.textContent = fmt(+r.value); feel.save(); }; return l; };
     ev.append(row, sel,

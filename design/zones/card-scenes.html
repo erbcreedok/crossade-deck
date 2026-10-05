@@ -62,6 +62,10 @@
 globalThis.__TABLE_HOST__ = `http://${location.hostname}:2591`;
 if (!crypto.randomUUID) crypto.randomUUID = () => "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16));
 await document.fonts.load("20px Tiny5");
+// ЗВУКИ — ПЕРВЫМ ДЕЛОМ: пока собираются сцены (секунды), записи уже скачиваются и декодируются; к первому касанию они готовы.
+const { tableSound } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/sound.ts");
+const soundEngine = tableSound();
+window.__sound = soundEngine;
 const { mountScene } = await import("/src/scene.ts");
 const { localTable } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/localStore.ts");
 // ИГРОКИ — только управление и доступы: ни места, ни тела на сцене. Сцена смотрит из места «своего» наблюдателя (камера стоит), а двигает карты тот игрок, кого выбрали у сцены.
@@ -146,11 +150,10 @@ for (const f of document.querySelectorAll(".frame")) f.classList.add("ready");
 // ЗВУК И ВИБРАЦИЯ СЦЕН: те же файлы звуков, что у стола в игре, плюс синтез; каждое движение карты озвучено и вибрирует (`feel.ts`). Ручки подбирают звук на слух;
 // переключатель 🔊 у каждой сцены глушит звук и вибрацию этой сцены.
 {
-  const { tableSound } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/sound.ts");
   const { tableHaptic } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/haptic.ts");
   const { tableFeel, FEEL_KINDS, FEEL_NAMES } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/feel.ts");
-  const sound = tableSound(), haptic = tableHaptic(), feel = tableFeel(sound, haptic);
-  window.__feel = feel; window.__sound = sound;
+  const sound = soundEngine, haptic = tableHaptic(), feel = tableFeel(sound, haptic);
+  window.__feel = feel;
   // По умолчанию звук и вибрация — только у первой сцены: две сцены сразу звучали бы вдвое.
   const live = { top: true, first: false };
   top.onFeel((e) => { if (live.top) feel.play(e); });
@@ -179,6 +182,10 @@ for (const f of document.querySelectorAll(".frame")) f.classList.add("ready");
   const MODES = { telegram: "Telegram (готовые стили)", vibrate: "navigator.vibrate (рисунок в мс)", "ios-switch": "iPhone: тик переключателя Safari (один тик на толчок, только от касания и отпускания)", none: "вибрации на этом устройстве нет" };
   const note = document.createElement("div"); note.style.cssText = "margin:0 0 12px;font-size:12px;color:#cdbf9d;line-height:1.3"; note.textContent = "Вибрация: " + MODES[feel.vibeMode];
   body.append(note);
+  const status = document.createElement("div"); status.id = "feel-load"; status.style.cssText = "margin:0 0 12px;font-size:12px;color:#cdbf9d";
+  const paintLoad = () => { const n = sound.tracks.filter((t) => sound.buffer(t)).length, all = sound.tracks.length; status.textContent = n === all ? `Звуки: все ${all} загружены` : `Звуки: загрузка… ${n} из ${all}`; return n === all; };
+  paintLoad(); const poll = setInterval(() => { if (paintLoad()) clearInterval(poll); }, 150);
+  body.append(status);
   const list = document.createElement("div"); body.append(list);
   const slider = (label, min, max, step, get, set, fmt) => {
     const l = document.createElement("div"); l.className = "fs"; l.innerHTML = `<span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}"><b></b>`;
