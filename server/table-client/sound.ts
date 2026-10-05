@@ -120,6 +120,10 @@ export interface TableSound {
   play(kind: CueKind, x: number, z: number, mine: boolean, cutMs?: number): void;
   /** Голос по описанию (`VoiceSpec`): запись и слои синтеза. */
   voice(spec: VoiceSpec): void;
+  /** Все дорожки, что играет стол: `drop-1`, `gather-1`… */
+  readonly tracks: string[];
+  /** Декодированная запись дорожки (нет — ещё не загружена) и сколько секунд тишины срезается в начале. */
+  buffer(name: string): { audio: AudioBuffer; onset: number } | undefined;
   /**
    * ЧТО СО ЗВУКОМ НА САМОМ ДЕЛЕ. Дальше колонки не видно никому, но всё до неё — видно, и «не
    * слышу» почти всегда объясняется именно здесь: браузер не пустил (`state` не `running`, пока
@@ -147,6 +151,12 @@ export interface VoiceLayer {
  */
 export interface VoiceSpec {
   file?: keyof typeof FILES | null;
+  /** Точная дорожка (`drop-1`, `gather-2`…) вместо случайной из группы `file`. */
+  track?: string;
+  /** Играть с самого начала файла, не срезая тишину (чтобы услышать разницу). */
+  raw?: boolean;
+  /** С какой секунды играть запись: перекрывает автоматический срез тишины (`onsetOf`). */
+  from?: number;
   rate?: number;
   gain?: number;
   x?: number;
@@ -241,14 +251,16 @@ export function tableSound(): TableSound {
     // СВОЁ ГОЛОСОВОЕ СЛЫШНО ТИШЕ: чтобы автор знал, что ушло, но не слушал себя в полный голос.
     voiceGain: (mine) => (sound.voiceOn ? (mine ? VOICE_GAIN.mine : VOICE_GAIN.other) * (sound.prefs.voiceVolume / 100) : 0),
     save: () => writeSoundPrefs(sound.prefs),
+    tracks: Object.entries(FILES).flatMap(([kind, n]) => Array.from({ length: n }, (_, i) => `${kind}-${i + 1}`)),
+    buffer: (name) => { const audio = buffers.get(name); return audio ? { audio, onset: onsets.get(name) ?? 0 } : undefined; },
     voice(spec) {
       health.asked += 1;
       if (!sound.on) { health.silent += 1; health.why = "off"; return; }
       const mine = spec.mine !== false;
       const gain = (mine ? GAIN.mine : GAIN.other) * (sound.prefs.volume / 100) * (spec.gain ?? 1);
       const x = sound.prefs.spatial ? (spec.x ?? 0) : 0, z = sound.prefs.spatial ? (spec.z ?? 0) : 0;
-      const file = spec.file ?? null;
-      log.push({ kind: (file ?? "drop") as CueKind, file: file ?? "synth", x: +x.toFixed(2), z: +z.toFixed(2), gain, ...(spec.cutMs ? { cutMs: spec.cutMs } : {}) });
+      const file = spec.file ?? null, exact = spec.track && buffers.has(spec.track) ? spec.track : null;
+      log.push({ kind: (file ?? "drop") as CueKind, file: exact ?? file ?? "synth", x: +x.toFixed(2), z: +z.toFixed(2), gain, ...(spec.cutMs ? { cutMs: spec.cutMs } : {}) });
       if (log.length > 50) log.shift();
       if (!ctx || ctx.state !== "running") { health.silent += 1; health.why = "asleep"; return; }
       const audio = ctx;
@@ -262,15 +274,15 @@ export function tableSound(): TableSound {
         out.connect(pan).connect(audio.destination);
       } else out.connect(audio.destination);
       const t0 = audio.currentTime;
-      if (file) {
-        const pick = `${file}-${1 + Math.floor(Math.random() * FILES[file])}`, buf = buffers.get(pick);
+      if (file || exact) {
+        const pick = exact ?? `${file}-${1 + Math.floor(Math.random() * FILES[file!])}`, buf = buffers.get(pick);
         if (buf) {
           const src = audio.createBufferSource(), vol = audio.createGain();
           src.buffer = buf;
           src.playbackRate.value = spec.rate ?? 1;
           vol.gain.value = gain;
           src.connect(vol).connect(out);
-          src.start(t0, onsets.get(pick) ?? 0);
+          src.start(t0, spec.from ?? (spec.raw ? 0 : onsets.get(pick) ?? 0));
           if (spec.cutMs) {
             const end = t0 + spec.cutMs / 1000;
             vol.gain.setValueAtTime(gain, end - 0.015);

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>Звуки движений (страница)</title>
+<link href="/@fs/Users/giyers/Desktop/crossade-deck/design/zones/fonts/tiny5.css" rel="stylesheet">
+<style>
+  :root { --panel: #3a2a1d; --well: #1c120b; --ink: #f5ead0; --dim: #cdbf9d; --wood: #6b4d2c; --black: #0b0704; --gold: #f2c14e; --goldLight: #f8d885; --goldDark: #b08a26; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  :where(*) { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+  html, body { margin: 0; background: #0d2118; color: var(--ink); font: 400 13px/1.3 'Tiny5', monospace; }
+  .page { width: min(100vw, 480px); margin: 0 auto; padding: 14px 12px 60px; }
+  h1 { margin: 4px 2px 12px; font-weight: 400; font-size: 18px; }
+  .plate { background: linear-gradient(var(--panel), var(--well)); margin: 0 0 22px; padding: 12px 10px 10px;
+    box-shadow: 0 -2px 0 0 var(--black), 0 2px 0 0 var(--black), -2px 0 0 0 var(--black), 2px 0 0 0 var(--black), inset 0 0 0 2px var(--wood), 0 6px 0 0 rgba(11,7,4,.6); }
+  .head { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; }
+  .head .n { width: 22px; height: 22px; background: linear-gradient(var(--goldLight), var(--goldDark)); color: var(--black); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--black); }
+  .head .t { font-size: 15px; letter-spacing: .3px; }
+  .hint { font-size: 12px; color: var(--dim); margin: 0 0 12px; line-height: 1.35; }
+  button { border: 0; padding: 7px 12px; background: #4a3a28; color: var(--ink); box-shadow: 0 0 0 2px var(--black); cursor: pointer; font: 400 13px 'Tiny5', monospace; }
+  button.on { background: var(--gold); color: var(--black); }
+  select { font: 400 13px 'Tiny5', monospace; background: #2a1d12; color: var(--ink); border: 0; box-shadow: 0 0 0 2px var(--black); padding: 7px 6px; width: 100%; }
+  .track, .ev { margin: 0 0 14px; padding: 0 0 12px; border-bottom: 2px solid rgba(11,7,4,.5); }
+  .track:last-child, .ev:last-child { border-bottom: 0; }
+  .row { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; }
+  .row .nm { flex: 1; font-size: 14px; line-height: 1.2; }
+  .row .meta { font-size: 11px; color: var(--dim); }
+  canvas.wave { display: block; width: 100%; height: 56px; background: #130c07; box-shadow: 0 0 0 2px var(--black); margin: 0 0 8px; cursor: pointer; }
+  .sl { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 12px; }
+  .sl > span { width: 74px; flex: none; color: var(--dim); }
+  .sl input[type=range] { flex: 1; min-width: 0; accent-color: var(--gold); height: 28px; }
+  .sl b { font-weight: 400; width: 52px; text-align: right; flex: none; }
+  .tools { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; }
+  .chk { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>ЗВУКИ ДВИЖЕНИЙ</h1>
+  <div class="plate"><div class="head"><div class="n">1</div><div class="t">ДОРОЖКИ</div></div>
+    <div class="hint">Все записи, что играет стол. Нажми на волну или ▶ — играет с начала. «Скорость» меняет и скорость, и высоту (как пластинку). Жёлтая черта — где звук на самом деле начинается: тишина до неё в игре срезается.</div>
+    <div class="tools"><label class="chk"><input type="checkbox" id="raw"> без среза тишины</label><label class="chk"><input type="checkbox" id="loop"> по кругу</label><button id="stop">■ стоп</button></div>
+    <div id="tracks"></div></div>
+  <div class="plate"><div class="head"><div class="n">2</div><div class="t">КАКОЙ ЗВУК НА КАКОЕ ДВИЖЕНИЕ</div></div>
+    <div class="hint">Выбери дорожку для движения и подстрой скорость и громкость. ▶ играет движение целиком: дорожка плюс синтез (тик, «бум»). Сохраняется сразу; страница «Карта — база» подхватывает.</div>
+    <div class="tools"><button id="copy">Копировать пресет</button><button id="reset">Сбросить всё</button></div>
+    <div id="events"></div></div>
+</div>
+<script type="module">
+globalThis.__TABLE_HOST__ = `http://${location.hostname}:2591`;
+if (!crypto.randomUUID) crypto.randomUUID = () => "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16));
+await document.fonts.load("20px Tiny5");
+const { tableSound } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/sound.ts");
+const { tableHaptic } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/haptic.ts");
+const { tableFeel, FEEL_KINDS, FEEL_NAMES } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/feel.ts");
+const $ = (id) => document.getElementById(id);
+const sound = tableSound(), feel = tableFeel(sound, tableHaptic());
+window.__sound = sound; window.__feel = feel;
+// Звук будится первым касанием; ждём, пока записи декодируются.
+for (let i = 0; i < 100 && sound.tracks.some((n) => !sound.buffer(n)); i++) await new Promise((r) => setTimeout(r, 100));
+window.__ready = true;
+
+const TRACK_NAMES = { "drop-1": "Стук карты о стол", "hand-1": "Скольжение карты", "turn-1": "Переворот", "merge-1": "Веер / слияние", "shuffle-1": "Тасовка", "sort-1": "Перестановка", "gather-1": "Сбор (1)", "gather-2": "Сбор (2)", "gather-3": "Сбор (3)" };
+const play = { raw: false, loop: false, timer: 0 };
+$("raw").onchange = (e) => { play.raw = e.target.checked; };
+$("loop").onchange = (e) => { play.loop = e.target.checked; };
+$("stop").onclick = () => { play.loop = false; $("loop").checked = false; clearTimeout(play.timer); };
+
+function wave(canvas, audio, onset) {
+  const dpr = devicePixelRatio || 1, w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const g = canvas.getContext("2d"), d = audio.getChannelData(0), per = Math.max(1, Math.floor(d.length / (w * dpr)));
+  g.fillStyle = "#f2c14e";
+  for (let x = 0; x < w * dpr; x++) {
+    let m = 0;
+    for (let i = x * per; i < Math.min(d.length, (x + 1) * per); i++) m = Math.max(m, Math.abs(d[i]));
+    const hh = Math.max(1, m * h * dpr * 0.46);
+    g.fillRect(x, (h * dpr) / 2 - hh, 1, hh * 2);
+  }
+  g.fillStyle = "#fff"; g.fillRect(Math.round((onset / audio.duration) * w * dpr), 0, Math.max(2, dpr), h * dpr);
+}
+function playTrack(name, rate, gain, fromMs) {
+  clearTimeout(play.timer);
+  const once = () => {
+    sound.voice({ track: name, file: null, rate, gain, raw: play.raw, ...(fromMs !== undefined && !play.raw ? { from: fromMs / 1000 } : {}), layers: [] });
+    const b = sound.buffer(name);
+    if (play.loop && b) play.timer = setTimeout(once, Math.max(120, ((b.audio.duration - (play.raw ? 0 : b.onset)) / rate) * 1000 + 150));
+  };
+  once();
+}
+
+// 1. Дорожки.
+for (const name of sound.tracks) {
+  const b = sound.buffer(name), box = document.createElement("div"); box.className = "track"; box.dataset.track = name;
+  const row = document.createElement("div"); row.className = "row";
+  const nm = document.createElement("div"); nm.className = "nm"; nm.innerHTML = `${TRACK_NAMES[name] ?? name}<br><span class="meta">${name} · ${b ? b.audio.duration.toFixed(2) : "?"} с · тишина в начале ${b ? Math.round(b.onset * 1000) : "?"} мс</span>`;
+  const play1 = document.createElement("button"); play1.textContent = "▶";
+  row.append(nm, play1);
+  const cv = document.createElement("canvas"); cv.className = "wave";
+  const slider = (label, min, max, step, init, fmt) => { const l = document.createElement("div"); l.className = "sl"; l.innerHTML = `<span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}"><b></b>`; const r = l.querySelector("input"), v = l.querySelector("b"); r.value = init; v.textContent = fmt(init); r.oninput = () => { v.textContent = fmt(+r.value); }; l.get = () => +r.value; return l; };
+  const sp = slider("скорость", 0.25, 2.5, 0.01, 1, (v) => v.toFixed(2) + "×"), gn = slider("громкость", 0, 2, 0.05, 1, (v) => v.toFixed(2)), st = slider("начало", 0, 400, 1, Math.round((b?.onset ?? 0) * 1000), (v) => v + " мс");
+  box.append(row, cv, sp, gn, st);
+  $("tracks").append(box);
+  if (b) requestAnimationFrame(() => wave(cv, b.audio, b.onset));
+  play1.onclick = () => playTrack(name, sp.get(), gn.get(), st.get());
+  cv.onclick = () => playTrack(name, sp.get(), gn.get(), st.get());
+}
+
+// 2. События.
+const OPTIONS = [["none", "— без записи (только синтез) —"], ...[...new Set(sound.tracks.map((n) => n.replace(/-\d+$/, "")))].map((g) => [`group:${g}`, `группа «${g}»: случайная из своих`]), ...sound.tracks.map((n) => [`track:${n}`, `${TRACK_NAMES[n] ?? n} (${n})`])];
+const valueOf = (spec) => (spec.track ? `track:${spec.track}` : spec.file ? `group:${spec.file}` : "none");
+function renderEvents() {
+  $("events").replaceChildren();
+  for (const kind of FEEL_KINDS) {
+    const spec = feel.preset[kind], ev = document.createElement("div"); ev.className = "ev"; ev.dataset.kind = kind;
+    const row = document.createElement("div"); row.className = "row";
+    const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = FEEL_NAMES[kind];
+    const strong = document.createElement("button"); strong.textContent = "▶ сильно"; strong.onclick = () => feel.play({ kind, energy: 1 });
+    const weak = document.createElement("button"); weak.textContent = "▷ слабо"; weak.onclick = () => feel.play({ kind, energy: 0.2 });
+    row.append(nm, strong, weak);
+    const sel = document.createElement("select");
+    for (const [v, label] of OPTIONS) { const o = document.createElement("option"); o.value = v; o.textContent = label; sel.append(o); }
+    sel.value = valueOf(spec);
+    sel.onchange = () => {
+      const v = sel.value;
+      if (v === "none") { spec.file = null; spec.track = null; }
+      else if (v.startsWith("group:")) { spec.file = v.slice(6); spec.track = null; }
+      else { spec.track = v.slice(6); spec.file = spec.track.replace(/-\d+$/, ""); }
+      spec.from = null;
+      feel.save(); feel.play({ kind, energy: 1 }); renderEvents();
+    };
+    const slider = (label, min, max, step, get, set, fmt) => { const l = document.createElement("div"); l.className = "sl"; l.innerHTML = `<span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}"><b></b>`; const r = l.querySelector("input"), v = l.querySelector("b"); r.value = get(); v.textContent = fmt(get()); r.oninput = () => { set(+r.value); v.textContent = fmt(+r.value); feel.save(); }; return l; };
+    ev.append(row, sel,
+      slider("скорость", 0.25, 2.5, 0.01, () => spec.rate, (v) => { spec.rate = v; }, (v) => v.toFixed(2) + "×"),
+      slider("громкость", 0, 2, 0.05, () => spec.gain, (v) => { spec.gain = v; }, (v) => v.toFixed(2)),
+      slider("начало", 0, 400, 1, () => spec.from ?? Math.round(((spec.track ? sound.buffer(spec.track)?.onset : spec.file ? sound.buffer(`${spec.file}-1`)?.onset : 0) ?? 0) * 1000), (v) => { spec.from = v; }, (v) => v + " мс"),
+      slider("разброс тона", 0, 0.3, 0.01, () => spec.jitter, (v) => { spec.jitter = v; }, (v) => "±" + Math.round(v * 100) + "%"));
+    $("events").append(ev);
+  }
+}
+renderEvents();
+$("copy").onclick = () => { navigator.clipboard?.writeText(feel.exportPreset()); $("copy").textContent = "Скопировано"; setTimeout(() => ($("copy").textContent = "Копировать пресет"), 1200); };
+$("reset").onclick = () => { feel.reset(); feel.save(); renderEvents(); };
+</script>
+</body>
+</html>

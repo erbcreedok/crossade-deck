@@ -107,6 +107,12 @@ check("звуковая машина запущена, файлы доехали
   check("удар во второй сцене — у первой тоже вздрогнула камера (слабее), и звук «slam» чужого", c1.top > c0.top && log.some((e) => e.k === "slam"), { c0, c1, log });
   check("у сцены, где ударили, камера тоже вздрогнула", c1.first > c0.first, { c0, c1 });
 }
+// Выбранная на странице звуков дорожка играет на сценах: движению назначили точную дорожку — звучит именно она.
+{
+  const file = await f.evaluate(() => { window.__feel.preset.lay.track = "turn-1"; window.__feel.preset.lay.file = "turn"; window.__feel.play({ kind: "lay", energy: 1 }); return (window.__tableSounds ?? []).at(-1)?.file; });
+  check("движению назначена точная дорожка — играет она", file === "turn-1", file);
+  await f.evaluate(() => { window.__feel.reset("lay"); });
+}
 // По умолчанию звук и вибрация — только у первой сцены.
 {
   const marks = await f.evaluate(() => ({ top: document.querySelector("#who-top .mute").textContent, first: document.querySelector("#who-first .mute").textContent }));

@@ -35,6 +35,10 @@ export interface FeelEvent {
 }
 
 export interface FeelSpec {
+  /** Точная дорожка (`drop-1`…) — перекрывает группу `file`; нет — группа играет случайную свою. Выбирается на странице звуков. */
+  track?: string | null;
+  /** С какой миллисекунды играть запись; нет — автоматический срез тишины в начале. Подбирается на странице звуков. */
+  from?: number | null;
   /** Запись стола (`sound.ts`), если нужна. */
   file: "drop" | "hand" | "turn" | "gather" | "merge" | "shuffle" | "sort" | null;
   /** Громкость события при полной силе, 0…2. */
@@ -159,7 +163,7 @@ export function tableFeel(sound: TableSound, haptic: TableHaptic): TableFeel {
       log.push({ kind: e.kind, mine: e.mine !== false, energy: +energy.toFixed(2), gain: prefs.sound ? +gain.toFixed(3) : 0, vibe });
       if (log.length > 60) log.shift();
       if (prefs.sound && gain > 0.001) {
-        const voice: VoiceSpec = { file: spec.file, rate, gain, mine: e.mine !== false, x: e.x ?? 0, z: e.z ?? 0, layers: spec.layers.map((l) => ({ ...l, gain: l.gain * (spec.soft + (1 - spec.soft) * energy) })), ...(spec.cutMs ? { cutMs: spec.cutMs } : {}) };
+        const voice: VoiceSpec = { file: spec.file, ...(spec.track ? { track: spec.track } : {}), ...(typeof spec.from === "number" ? { from: spec.from / 1000 } : {}), rate, gain, mine: e.mine !== false, x: e.x ?? 0, z: e.z ?? 0, layers: spec.layers.map((l) => ({ ...l, gain: l.gain * (spec.soft + (1 - spec.soft) * energy) })), ...(spec.cutMs ? { cutMs: spec.cutMs } : {}) };
         sound.voice(voice);
       }
       if (vibe.length) {
