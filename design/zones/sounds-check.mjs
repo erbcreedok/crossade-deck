@@ -157,6 +157,13 @@ await f.evaluate(() => document.getElementById("reset").click());
     check("«В игру» записало только «Положил» в файл", Object.keys(JSON.parse(readFileSync(file, "utf8"))).join() === "lay", readFileSync(file, "utf8"));
     check("«Положил»: «в игре этот же», сводка 1 из 8, у «Взял» всё ещё прежний", (await badge("lay")) === "в игре этот же" && /1 из 8/.test(await summary()) && (await badge("grab")) === "в игре прежний звук");
     check("«В игру» у совпадающего недоступна, «Убрать из игры» доступна", (await btn("lay", "В игру")) === true && (await btn("lay", "Убрать из игры")) === false);
+    // правка ползунком ПОСЛЕ записи (без перерисовки страницы): статус и кнопка «В игру» оживают сразу, и новое записывается поверх
+    await g.evaluate(() => { const r = [...document.querySelectorAll('.ev[data-kind="lay"] .snd .sl')].find((x) => /скорость/.test(x.textContent)).querySelector("input"); r.value = "1.5"; r.dispatchEvent(new Event("input")); });
+    check("поменял скорость ползунком у записанного в игру: «изменён, в игре прежний», кнопка «В игру» доступна", (await badge("lay")) === "изменён, в игре прежний" && (await btn("lay", "В игру")) === false && (await btn("lay", "Вернуть как в игре")) === false, { b: await badge("lay") });
+    await click("lay", "В игру"); await p.waitForTimeout(900);
+    check("«В игру» записало новое поверх старого: в файле скорость 1.5, статус «в игре этот же»", JSON.parse(readFileSync(file, "utf8")).lay?.rate === 1.5 && (await badge("lay")) === "в игре этот же");
+    await g.evaluate(() => { const r = [...document.querySelectorAll('.ev[data-kind="lay"] .snd .sl')].find((x) => /скорость/.test(x.textContent)).querySelector("input"); r.value = "1"; r.dispatchEvent(new Event("input")); });
+    await click("lay", "В игру"); await p.waitForTimeout(900);
     await g.evaluate(() => { window.__feel.preset.lay.rate = 1.7; window.__renderEvents(); });
     check("правка на стенде после записи: «изменён, в игре прежний»", (await badge("lay")) === "изменён, в игре прежний");
     await g.evaluate(() => { window.__spec = []; const o = window.__sound.voice; window.__sound.voice = (sp) => { window.__spec.push(sp); return o.call(window.__sound, sp); }; });

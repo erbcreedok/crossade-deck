@@ -251,7 +251,11 @@ function commit(spec, list) {
   if (first?.track) spec.file = first.track.replace(/-\d+$/, "");
   if (list.length > 1) spec.extra = list.slice(1); else delete spec.extra;
   feel.save();
+  refreshStates();
 }
+/** Статус, строка «на стенде» и доступность кнопок у каждого действия обновляются сразу после правки, без перерисовки ползунков. */
+const refreshers = new Map();
+function refreshStates() { for (const fn of refreshers.values()) fn(); paintSummary(); }
 const plain = (v) => ({ track: v.track ?? null, from: v.from ?? null, rate: v.rate ?? 1, pitch: v.pitch ?? 0, tie: v.tie !== false, end: v.end ?? 0, vol: v.vol ?? 1, ...(v.dyn !== undefined ? { dyn: v.dyn } : {}) });
 const slider = (label, min, max, step, get, set, fmt) => { const l = document.createElement("div"); l.className = "sl"; l.innerHTML = `<span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}"><b></b>`; const r = l.querySelector("input"), v = l.querySelector("b"); r.value = get(); v.textContent = fmt(get()); r.oninput = () => { set(+r.value); v.textContent = fmt(+r.value); }; return l; };
 /** Звуки, нарисованные сейчас на странице: для бегунков. */
@@ -337,6 +341,7 @@ async function bakeSound(kind, i) {
 function renderEvents() {
   paintSummary();
   boxes = [];
+  refreshers.clear();
   $("events").replaceChildren();
   for (const kind of FEEL_KINDS) {
     const spec = feel.preset[kind], ev = document.createElement("div"); ev.className = "ev"; ev.dataset.kind = kind;
@@ -356,20 +361,25 @@ function renderEvents() {
     synth.title = "синтезированные тик и «бум» поверх записей";
     row.append(nm, strong, weak, synth);
     ev.append(row);
-    const st = stateOf(kind), box0 = document.createElement("div"); box0.className = "state";
-    const ln = (a, b) => { const l = document.createElement("div"); l.className = "ln"; const x = document.createElement("span"), y = document.createElement("span"); x.textContent = a; y.textContent = b; l.append(x, y); box0.append(l); };
+    const box0 = document.createElement("div"); box0.className = "state";
+    const ln = (a, b) => { const l = document.createElement("div"); l.className = "ln"; const x = document.createElement("span"), y = document.createElement("span"); x.textContent = a; y.textContent = b; l.append(x, y); box0.append(l); return y; };
     ln("В игре:", live.has(kind) ? specText(JSON.parse(applied[kind])) : "прежний звук игры — " + FEEL_OLD[kind].text);
-    ln("На стенде:", specText(spec));
-    const badge = document.createElement("span"); badge.className = "badge " + st; badge.textContent = BADGE[st]; box0.append(badge);
+    const standLine = ln("На стенде:", specText(spec));
+    const badge = document.createElement("span"); box0.append(badge);
     ev.append(box0);
     const row2 = document.createElement("div"); row2.className = "row"; row2.style.flexWrap = "wrap";
     const mkb = (text, title, fn, dis) => { const b = document.createElement("button"); b.textContent = text; b.title = title; b.onclick = fn; if (dis) b.disabled = true; row2.append(b); return b; };
-    const canOld = live.has(kind) || FEEL_OLD[kind].cues.length > 0;
     mkb("▶ в игре", "послушать то, что играет игра сейчас", () => { playInGame(kind); });
     mkb("Сравнить", "сначала звук игры, потом звук со стенда", () => { const had = playInGame(kind); setTimeout(() => feel.play({ kind, energy: 1 }), had ? 900 : 0); });
-    mkb("В игру", "записать настройки этого действия в файл заводских: игра будет играть их вместо прежнего звука", () => saveFactory([kind]), st === "same");
-    mkb("Вернуть как в игре", "отбросить правки на стенде: снова как сейчас в игре", () => { feel.preset[kind] = JSON.parse(applied[kind]); feel.save(); renderEvents(); }, st !== "diff");
-    mkb("Убрать из игры", "игра снова играет свой прежний звук для этого действия", () => removeFromGame([kind]), !live.has(kind));
+    const btnGo = mkb("В игру", "записать настройки этого действия в файл заводских: игра будет играть их вместо прежнего звука", () => saveFactory([kind]));
+    const btnBack = mkb("Вернуть как в игре", "отбросить правки на стенде: снова как сейчас в игре", () => { feel.preset[kind] = JSON.parse(applied[kind]); feel.save(); renderEvents(); });
+    const btnOut = mkb("Убрать из игры", "игра снова играет свой прежний звук для этого действия", () => removeFromGame([kind]));
+    const refresh = () => {
+      const st = stateOf(kind);
+      badge.className = "badge " + st; badge.textContent = BADGE[st]; standLine.textContent = specText(feel.preset[kind]);
+      btnGo.disabled = st === "same"; btnBack.disabled = st !== "diff"; btnOut.disabled = !live.has(kind);
+    };
+    refreshers.set(kind, refresh); refresh();
     ev.append(row2);
     if (!list.length) { const none = document.createElement("div"); none.className = "none"; none.textContent = "звуков нет — добавь из списка ниже"; ev.append(none); }
     list.forEach((v, i) => {
