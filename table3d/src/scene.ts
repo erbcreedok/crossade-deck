@@ -54,7 +54,7 @@ const HOLD_PICK_MS = 350;
  */
 /** Несомая в свободном месте карта смотрит на глаз несущего: `face` — доля пути от «лежит плашмя» до «лицом к глазу» (остальное — наклон туда, куда ляжет). */
 const CARRY_TILT = { face: 0.65, floor: 0.12 };
-const SPRING = { k: 170, damp: 0.62 }, SPRING_HELD = { k: 900, damp: 0.9 }, SPRING_SLAM = { k: 2600, damp: 0.8 };
+const SPRING = { k: 170, damp: 0.62 }, SPRING_HELD = { k: 900, damp: 0.9 }, SPRING_SLAM = { k: 12000, damp: 1 };
 /** Над своей рукой несомая карта — выше соседей на эту долю своей высоты, ближе к глазу и чуть крупнее. */
 /** Размер своих карт в руке относительно обычного: предел ползунка в настройках. */
 const HAND_SIZE = { min: 0.5, max: 2 };
@@ -2032,6 +2032,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     return { left, right, top, bottom, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
   }
   function tick(): void {
+    ticks++;
     const w = host.clientWidth, h = host.clientHeight;
     if (renderer.domElement.width !== Math.round(w * renderer.getPixelRatio()) || renderer.domElement.height !== Math.round(h * renderer.getPixelRatio())) {
       renderer.setSize(w, h, false);
@@ -2126,7 +2127,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       // ПРУЖИНА: ускорение к месту, затухание скоростью; поворот догоняет плавно.
       // Мелкими шагами: жёсткая пружина на целом кадре разлетается.
       const sp = drag?.id === id ? SPRING_HELD : slamming.has(id) ? SPRING_SLAM : gathering?.has(id) ? (gather!.fast ? SPRING_HELD : GATHER.spring) : SPRING, c = 2 * Math.sqrt(sp.k) * sp.damp;
-      const v = g.userData.v as THREE.Vector3, steps = Math.ceil(dt * 240), h = dt / steps, d = new THREE.Vector3();
+      const v = g.userData.v as THREE.Vector3, steps = Math.ceil(dt * (sp.k > 5000 ? 960 : 240)), h = dt / steps, d = new THREE.Vector3();
       let sc = g.scale.x, sv = g.userData.sv as number;
       // ПЕРЕВОРОТ НА СТОЛЕ: пока карта наклонена, её край уходит вниз на полширины·sin(наклона) — цель поднята на столько, чтобы край не прошёл сквозь стол.
       const goal = t.pos.clone();
@@ -2155,7 +2156,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       g.scale.setScalar(sc);
       d.copy(t.pos).sub(g.position);
       const ds = t.scale - sc;
-      g.quaternion.slerp(t.quat, 1 - Math.exp(-dt * (drag?.id === id ? 30 : 14)));
+      g.quaternion.slerp(t.quat, 1 - Math.exp(-dt * (drag?.id === id ? 30 : slamming.has(id) ? 90 : 14)));
       // Пол по уже повёрнутой карте: край не может оказаться под столом ни в один кадр, даже если пружина запаздывает за поворотом.
       if (!t.onCamera && t.pos.y < 0.5 && drag?.id !== id) g.position.y = Math.max(g.position.y, t.pos.y + (CARD_W / 2) * Math.sin(Math.acos(Math.min(1, Math.abs(new THREE.Vector3(0, 0, 1).applyQuaternion(g.quaternion).y)))) * g.scale.x);
       if (d.lengthSq() < 1e-6 && v.lengthSq() < 1e-6 && Math.abs(ds) < 1e-4 && g.quaternion.angleTo(t.quat) < 1e-3) { g.position.copy(t.pos); g.quaternion.copy(t.quat); g.scale.setScalar(t.scale); v.set(0, 0, 0); g.userData.sv = 0; }
@@ -2183,7 +2184,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     headsFront();
     // Тряска от удара: камера сдвинута только на время кадра — состояние взгляда (`rig`) она не меняет.
     const jolt = shakeNow(now), keepPos = camera.position.clone(), keepRot = camera.quaternion.clone();
-    if (jolt) { camera.translateX(jolt.x); camera.translateY(jolt.y); camera.rotateZ(jolt.roll); camera.updateMatrixWorld(); }
+    if (jolt) { const reach = camera.position.length(); shakePeakPx = Math.max(shakePeakPx, Math.hypot(jolt.x, jolt.y) / (2 * Math.tan((camera.fov * DEG) / 2)) * h); camera.translateX(jolt.x * reach); camera.translateY(jolt.y * reach); camera.rotateZ(jolt.roll); camera.updateMatrixWorld(); }
     renderer.render(scene, camera);
     renderer.autoClear = false;
     renderer.clearDepth();
@@ -3310,10 +3311,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   // Мышь: левой держишь карту, правую кнопку нажать — удар; или пробел. Телефон: первый палец держит, вторым — двойной тап.
   /** Двойной тап вторым пальцем: касание не дольше `press`, второе не позже `gap` после первого (мс). */
   const SLAM_TAP = { press: 300, gap: 450 };
-  const SHAKE = { ms: 380, pos: 0.16, roll: 0.9 };
+  /** Тряска от удара: сдвиг камеры — доля её расстояния до стола (`rel`, тогда виден и сверху, и вблизи), крен в градусах. Трясётся весь кадр: стол, карты, всё. */
+  const SHAKE = { ms: 420, rel: 0.024, roll: 1.4 };
   let shake: { t0: number; amp: number } | null = null, shakes = 0;
   const slamming = new Map<string, number>();
-  let slamForce = false;
+  let slamForce = false, ticks = 0, slamTick0 = 0, slamTicks = -1, shakePeakPx = 0;
   function shakeCamera(amp = 1): void {
     shake = { t0: performance.now(), amp };
     shakes++;
@@ -3325,8 +3327,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (age >= SHAKE.ms) { shake = null; return null; }
     const k = (1 - age / SHAKE.ms) ** 2 * shake.amp;
     return {
-      x: (Math.sin(age * 0.19) + 0.6 * Math.sin(age * 0.43 + 1)) * SHAKE.pos * k,
-      y: (Math.sin(age * 0.23 + 2) + 0.6 * Math.sin(age * 0.37)) * SHAKE.pos * k,
+      x: (Math.sin(age * 0.19) + 0.6 * Math.sin(age * 0.43 + 1)) * SHAKE.rel * k,
+      y: (Math.sin(age * 0.23 + 2) + 0.6 * Math.sin(age * 0.37)) * SHAKE.rel * k,
       roll: (Math.sin(age * 0.29 + 3) + 0.5 * Math.sin(age * 0.51)) * SHAKE.roll * DEG * k,
     };
   }
@@ -3338,6 +3340,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     slamForce = true;
     try { end({ pointerId: dragPid, clientX: lastFinger.x, clientY: lastFinger.y, type: "pointerup" } as PointerEvent); } finally { slamForce = false; }
     slamming.set(d.id, performance.now() + 800);
+    slamTick0 = ticks; slamTicks = -1; shakePeakPx = 0;
     feel("slam", d.id, 1);
   }
   /** Каждый кадр: упавшая после удара карта — тряска камеры; не упала за 0,8 с — отбой без тряски. */
@@ -3345,7 +3348,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     for (const [id, until] of [...slamming]) {
       const o = cards.get(id);
       if (!o || now > until) { slamming.delete(id); continue; }
-      if (o.group.position.y - o.target.pos.y < 0.08) { slamming.delete(id); shakeCamera(); }
+      if (o.group.position.y - o.target.pos.y < 0.08) { slamming.delete(id); slamTicks = ticks - slamTick0; shakeCamera(); }
     }
     return slamming.size > 0 || shake !== null;
   }
@@ -3591,8 +3594,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     cardQuat: (id: string) => { const o = cards.get(id); return o ? new THREE.Euler().setFromQuaternion(o.target.quat, "ZXY").toArray().slice(0, 3).map((v) => Math.round(((v as number) * 180) / Math.PI * 10) / 10) : null; },
     dropShadow: (id: string) => { const d = dropShadows.get(id); if (!d || !d.mesh.visible) return { on: false }; const a = d.pos; return { on: true, x: (a.getX(0) + a.getX(1) + a.getX(2) + a.getX(3)) / 4, z: (a.getZ(0) + a.getZ(1) + a.getZ(2) + a.getZ(3)) / 4 }; },
     ruleInfo: (id: string) => ({ shaking: denies.has(id), ring: cards.get(id)?.ring.visible === true, home: homeMark.visible, lift: cardRule(id, "lift"), move: cardRule(id, "move"), turn: cardRule(id, "turn"), notice: { lift: cardNotice(id, "lift"), move: cardNotice(id, "move"), turn: cardNotice(id, "turn"), rotate: cardNotice(id, "rotate") }, rotate: cardRule(id, "rotate") }),
-    shakeInfo: () => ({ active: shake !== null && performance.now() - shake.t0 < SHAKE.ms, count: shakes, slamming: slamming.size }),
+    shakeInfo: () => ({ active: shake !== null && performance.now() - shake.t0 < SHAKE.ms, count: shakes, slamming: slamming.size, slamTicks, peakPx: Math.round(shakePeakPx) }),
     setThrow: (o: Partial<typeof THROW>) => { Object.assign(THROW, o); },
+    cardGap: (id: string) => { const o = cards.get(id); return o ? +(o.group.position.y - o.target.pos.y).toFixed(3) : null; },
     setNeckFree: (on: boolean) => { neckFree = on; },
     panInfo: () => ({ x: rig.panX, z: rig.panZ }),
     lookBy: (dyaw: number, dpitch: number) => lookBy(dyaw, dpitch),

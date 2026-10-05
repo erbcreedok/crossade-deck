@@ -36,6 +36,9 @@ for (const cam of ["head", "top"]) {
     const f = await felt();
     check(`${cam}/мышь: левая держит, правая — удар: карта отпущена`, dragNow === null, dragNow);
     check(`${cam}/мышь: камера вздрогнула`, r.seen && r.grew === 1, r);
+    const si = await p.evaluate(() => window.__t3d.shakeInfo());
+    check(`${cam}/мышь: карта ложится почти мгновенно (не больше 3 кадров от команды до касания)`, si.slamTicks >= 0 && si.slamTicks <= 3, si);
+    check(`${cam}/мышь: трясётся весь кадр, а не только карта (сдвиг изображения не меньше 8 px)`, si.peakPx >= 8, si);
     check(`${cam}/мышь: упала строго вниз, туда где висела`, f && Math.hypot(f.x - held[0], f.y - held[2]) < 0.35, { held, f });
     await p.mouse.up({ button: "right" }); await p.mouse.up();
     await p.close();
