@@ -25,6 +25,13 @@ check("после нажатия ▶ показана загрузка (поло
 await f.waitForFunction(() => !!window.__sound.buffer("drop-1") && window.__spec?.length, null, { timeout: 15000 });
 const spec = await f.evaluate(() => window.__spec?.at(-1));
 check("после загрузки играет именно эту дорожку на выбранной скорости", spec && spec.track === "drop-1" && Math.abs(spec.rate - 0.5) < 0.01, spec);
+// Ползунок «начало» двигает черту начала на волне в реальном времени (и притемняет левее неё).
+const mk = () => f.evaluate(() => { const t = document.querySelector('.track[data-track="drop-1"]'), w = t.querySelector(".wavebox").getBoundingClientRect().width, sm = t.querySelector(".sm"), dim = t.querySelector(".dim"); return { left: parseFloat(sm.style.left), dim: parseFloat(dim.style.width), px: sm.getBoundingClientRect().left - t.querySelector(".wavebox").getBoundingClientRect().left, w }; });
+const m0 = await mk();
+await f.evaluate(() => { const r = [...document.querySelectorAll('.track[data-track="drop-1"] input[type=range]')].at(-1); r.value = 300; r.dispatchEvent(new Event("input")); });
+const m1 = await mk();
+await f.evaluate(() => { const r = [...document.querySelectorAll('.track[data-track="drop-1"] input[type=range]')].at(-1); r.value = 111; r.dispatchEvent(new Event("input")); });
+check("«начало» двигает черту начала на волне сразу: 111 мс → 300 мс сдвигает вправо, левее притемнено", m1.left > m0.left + 10 && Math.abs(m1.dim - m1.left) < 0.5, { m0, m1 });
 const ph1 = await f.evaluate(() => { const e = document.querySelector('.track[data-track="drop-1"] .ph'); return { shown: e.style.display, left: parseFloat(e.style.left) }; });
 await p.waitForTimeout(250);
 const ph2 = await f.evaluate(() => { const e = document.querySelector('.track[data-track="drop-1"] .ph'); return { shown: e.style.display, left: parseFloat(e.style.left) }; });

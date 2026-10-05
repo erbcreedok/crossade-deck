@@ -28,6 +28,8 @@
   .row .meta { font-size: 11px; color: var(--dim); }
   .wavebox { position: relative; margin: 0 0 8px; }
   .wavebox canvas.wave { margin: 0; }
+  .sm { position: absolute; top: 0; bottom: 0; left: 0; width: 3px; margin-left: -1px; background: var(--gold); box-shadow: 0 0 6px var(--gold); pointer-events: none; }
+  .dim { position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: rgba(11,7,4,.62); pointer-events: none; }
   .ph { position: absolute; top: 0; bottom: 0; left: 0; width: 3px; margin-left: -1px; background: #fff; box-shadow: 0 0 6px #fff; display: none; pointer-events: none; will-change: left; }
   canvas.wave { display: block; width: 100%; height: 56px; background: #130c07; box-shadow: 0 0 0 2px var(--black); margin: 0 0 8px; cursor: pointer; }
   .sl { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 12px; }
@@ -99,7 +101,6 @@ function wave(canvas, audio, onset) {
     const hh = Math.max(1, m * h * dpr * 0.46);
     g.fillRect(x, (h * dpr) / 2 - hh, 1, hh * 2);
   }
-  g.fillStyle = "#fff"; g.fillRect(Math.round((onset / audio.duration) * w * dpr), 0, Math.max(2, dpr), h * dpr);
 }
 /** Бегунок по волне: от места, с которого играет, до конца — за столько же времени, сколько звучит (с учётом скорости). */
 let phTimer = 0;
@@ -146,7 +147,7 @@ async function loadTrack(name) {
   card.box.classList.remove("loading"); card.play.disabled = false; card.play.textContent = "▶";
   card.meta.textContent = ok === true ? trackMeta(name) : ok === "timeout" ? `${name} · не загрузилась за 15 с (аудио: ${window.__sound.health.state}); смотри строку «сервер звуков» вверху` : `${name} · не загрузилась (сервер звуков :2591 недоступен или не отдаёт файл)`;
   const b = sound.buffer(name);
-  if (b) { wave(card.cv, b.audio, b.onset); card.start.set(Math.round(b.onset * 1000)); }
+  if (b) { wave(card.cv, b.audio, b.onset); card.start.set(Math.round(b.onset * 1000)); card.moveStart(); }
   refreshCount();
   return ok === true;
 }
@@ -163,10 +164,16 @@ for (const name of sound.tracks) {
   const sp = slider("скорость", 0.25, 2.5, 0.01, 1, (v) => v.toFixed(2) + "×"), gn = slider("громкость", 0, 2, 0.05, 1, (v) => v.toFixed(2)), st = slider("начало", 0, 400, 1, 0, (v) => v + " мс");
   const wrap = document.createElement("div"); wrap.className = "wavebox";
   const ph = document.createElement("div"); ph.className = "ph";
-  wrap.append(cv, ph);
+  const dim = document.createElement("div"); dim.className = "dim";
+  const sm = document.createElement("div"); sm.className = "sm";
+  wrap.append(cv, dim, sm, ph);
   box.append(row, bar, wrap, sp, gn, st);
   $("tracks").append(box);
   cards.set(name, { box, play: play1, meta, cv, start: st, ph });
+  // Черта начала двигается за ползунком «начало» в реальном времени; всё левее неё притемнено — это не играет.
+  const moveStart = () => { const b = sound.buffer(name); if (!b) return; const f = Math.min(1, st.get() / 1000 / b.audio.duration) * 100; sm.style.left = f + "%"; dim.style.width = f + "%"; };
+  st.querySelector("input").addEventListener("input", moveStart);
+  cards.get(name).moveStart = moveStart;
   let busy = false, last = 0;
   const go = async () => {
     // Касание даёт и `pointerup`, и `click` — второй в пределах 400 мс гасим, иначе звук сыграет дважды.
