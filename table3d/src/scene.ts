@@ -2044,8 +2044,6 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const now = performance.now(), dt = Math.min(0.05, Math.max(0.001, (now - lastTick) / 1000));
     const sinceMs = Math.min(250, now - lastTick);
     lastTick = now;
-    // Несу быстро — карта шелестит по воздуху; тише и реже, чем стук.
-    if (drag?.moved && dragPid !== null) { const sw = throwWeight(); if (sw > 0.15 && now - lastCarryFeel > 260) { lastCarryFeel = now; feel("carry", drag.id, sw); } }
     // КРАЙ ЭКРАНА ПРИ ПЕРЕНОСЕ: палец с картой у верха, левого или правого края — камера едет, а карта остаётся под пальцем.
     if (drag?.moved && dragPid !== null && !camLocked && (camMode === "top" || camMode === "head")) {
       const r = visibleRect(), b = EDGE_SCROLL.band, ch = myChair(), handOn = !!ch && !ch.reject;
@@ -2607,7 +2605,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   };
   /** `group` — несут выделенное лассо: отпустил — все выделенные туда же (`moveMany`), одним намерением. */
   /** Что слышно от чужих пальцев (`hearOthers`). */
-  const heard = new Map<string, { up: boolean | undefined; angle: number; tick: number; fx: boolean; x: number; y: number; at: number; swish: number }>();
+  const heard = new Map<string, { up: boolean | undefined; angle: number; tick: number; fx: boolean }>();
   let spin: { id: string; pid: number; cx: number; cy: number; a0: number; base: number; x0: number; y0: number; moved: boolean; angle: number } | null = null;
   let drag: { id: string; x: number; y: number; moved: boolean; hold: number; up: boolean; angle: number; rot: number; gap: number | null; place: Place | null; where: Where | null; spot: { x: number; y: number; w: number; angle: number } | null; zone: { pile?: string; chair?: string; i: number } | null; fingerHand: boolean; latch0: string | null; scrubbed: boolean } | null = null;
   let zoneFn: Parameters<SceneApi["setZone"]>[0] = null;
@@ -3275,29 +3273,26 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const c = id ? screenOf(id) : null, r = renderer.domElement.getBoundingClientRect();
     feelFn({ kind, energy, mine, x: c ? ((c.x - r.left) / r.width - 0.5) * 2 : 0, z: c ? ((c.y - r.top) / r.height - 0.5) * 2 : 0 });
   }
-  let lastCarryFeel = 0, lastRotTick = 0, lastSpinTick = 0;
+  let lastRotTick = 0, lastSpinTick = 0;
   /**
    * ЧУЖИЕ ДЕЙСТВИЯ СЛЫШНЫ И ВИДНЫ: что несёт другой палец, читается из потока «несу» (`store.carries`) — взял, шелест, перевернул, тики поворота, положил,
    * а удар (`fx: slam`) приходит прямо в потоке. Звучит тише своего (`mine: false`), удар встряхивает и мою камеру (слабее).
    */
   function hearOthers(): void {
     if (store.replay?.on) return;
-    const now = performance.now(), live = new Set<string>();
+    const live = new Set<string>();
     for (const c of store.carries) {
       if (c.by === store.me.key || !cards.has(c.id)) continue;
       live.add(c.id);
-      const o = c.over, here = o.in === "felt" ? { x: o.x, y: o.y } : { x: 0, y: 0 };
+      const o = c.over;
       let h = heard.get(c.id);
       if (!h) {
-        h = { up: o.in === "felt" ? o.up : undefined, angle: o.in === "felt" ? o.angle : 0, tick: o.in === "felt" ? o.angle : 0, fx: false, x: here.x, y: here.y, at: now, swish: 0 };
+        h = { up: o.in === "felt" ? o.up : undefined, angle: o.in === "felt" ? o.angle : 0, tick: o.in === "felt" ? o.angle : 0, fx: false };
         heard.set(c.id, h);
         feel("grab", c.id, 1, false);
       } else if (o.in === "felt") {
         if (h.up !== undefined && o.up !== h.up) { h.up = o.up; feel("flip", c.id, 1, false); }
         if (Math.abs((((o.angle - h.tick) % 360) + 540) % 360 - 180) >= 15) { h.tick = o.angle; feel("spin", c.id, 1, false); }
-        const speed = Math.hypot(here.x - h.x, here.y - h.y) / Math.max(0.016, (now - h.at) / 1000);
-        if (speed > 5 && now - h.swish > 260) { h.swish = now; feel("carry", c.id, Math.min(1, speed / 20), false); }
-        h.x = here.x; h.y = here.y; h.at = now;
       }
       if (c.fx === "slam" && !h.fx) { h.fx = true; feel("slam", c.id, 1, false); shakeCamera(0.55); }
     }

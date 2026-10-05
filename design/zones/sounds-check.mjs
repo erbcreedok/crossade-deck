@@ -148,14 +148,14 @@ await f.evaluate(() => document.getElementById("reset").click());
     const click = (k, t) => g.evaluate(([kk, tt]) => [...document.querySelectorAll(`.ev[data-kind="${kk}"] > .row button`)].find((x) => x.textContent === tt).click(), [k, t]);
     const summary = () => g.evaluate(() => document.getElementById("summary").textContent);
     check("в игре пока ничего: у «Положил» «в игре прежний звук» и сказано какой", (await badge("lay")) === "в игре прежний звук" && await g.evaluate(() => /прежний звук игры — стук карты о стол/.test(document.querySelector('.ev[data-kind="lay"] .state').textContent)));
-    check("сводка: в игре 0 из 9", /В игре новые звуки: 0 из 9/.test(await summary()), await summary());
+    check("сводка: в игре 0 из 8", /В игре новые звуки: 0 из 8/.test(await summary()), await summary());
     check("«Убрать из игры», «Вернуть как в игре», «В игру» (совпадает) — «Убрать» и «Вернуть» недоступны, пока нечего", (await btn("lay", "Убрать из игры")) === true && (await btn("lay", "Вернуть как в игре")) === true && (await btn("lay", "В игру")) === false);
     await g.evaluate(() => { window.__old = []; const o = window.__sound.play; window.__sound.play = (...a) => { window.__old.push(a[0]); return o.apply(window.__sound, a); }; });
     await click("lay", "▶ в игре");
     check("«▶ в игре» у не переведённого действия играет прежний звук игры (повод drop)", await g.evaluate(() => window.__old.at(-1) === "drop"));
     await click("lay", "В игру"); await p.waitForTimeout(900);
     check("«В игру» записало только «Положил» в файл", Object.keys(JSON.parse(readFileSync(file, "utf8"))).join() === "lay", readFileSync(file, "utf8"));
-    check("«Положил»: «в игре этот же», сводка 1 из 9, у «Взял» всё ещё прежний", (await badge("lay")) === "в игре этот же" && /1 из 9/.test(await summary()) && (await badge("grab")) === "в игре прежний звук");
+    check("«Положил»: «в игре этот же», сводка 1 из 8, у «Взял» всё ещё прежний", (await badge("lay")) === "в игре этот же" && /1 из 8/.test(await summary()) && (await badge("grab")) === "в игре прежний звук");
     check("«В игру» у совпадающего недоступна, «Убрать из игры» доступна", (await btn("lay", "В игру")) === true && (await btn("lay", "Убрать из игры")) === false);
     await g.evaluate(() => { window.__feel.preset.lay.rate = 1.7; window.__renderEvents(); });
     check("правка на стенде после записи: «изменён, в игре прежний»", (await badge("lay")) === "изменён, в игре прежний");
@@ -166,7 +166,7 @@ await f.evaluate(() => document.getElementById("reset").click());
     await click("lay", "Вернуть как в игре");
     check("«Вернуть как в игре»: правка отброшена, снова «в игре этот же»", (await badge("lay")) === "в игре этот же" && await g.evaluate(() => window.__feel.preset.lay.rate < 1.3));
     await click("lay", "Убрать из игры"); await p.waitForTimeout(900);
-    check("«Убрать из игры»: действия нет в файле, снова прежний звук, сводка 0 из 9", !("lay" in JSON.parse(readFileSync(file, "utf8"))) && (await badge("lay")) === "в игре прежний звук" && /0 из 9/.test(await summary()));
+    check("«Убрать из игры»: действия нет в файле, снова прежний звук, сводка 0 из 8", !("lay" in JSON.parse(readFileSync(file, "utf8"))) && (await badge("lay")) === "в игре прежний звук" && /0 из 8/.test(await summary()));
   } finally { writeFileSync(file, was); }
 }
 // «Добавить звук из файла»: файл сжимается в m4a, ложится в папку звуков, вписывается в список своих и появляется в галерее.

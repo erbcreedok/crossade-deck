@@ -121,8 +121,7 @@ check("на панели написано, что звуки загружены 
   const marks = await f.evaluate(() => ({ top: document.querySelector("#who-top .mute").textContent, first: document.querySelector("#who-first .mute").textContent }));
   check("по умолчанию звук включён только у первой сцены", marks.top === "🔊" && marks.first === "🔇", marks);
 }
-await f.evaluate(() => { window.__tableSounds.length = 0; window.__feel.play({ kind: "carry", energy: 1 }); });
-check("«Несу (шелест)» без звука: ни записи, ни синтеза, ни вибрации", await f.evaluate(() => { const l = window.__feel.log.at(-1), s = window.__feel.preset.carry; return { last: l?.kind, vibe: l?.vibe, track: s.track, extra: s.extra?.length ?? 0, layers: s.layers.length, sounds: window.__tableSounds.length }; }).then((r) => (global.__r = r, r.last === "carry" && r.vibe.length === 0 && !r.track && !r.extra && r.layers === 0 && r.sounds === 0)), global.__r);
+check("действия «Несу (шелест)» на стенде нет совсем", await f.evaluate(() => !("carry" in window.__feel.preset) && ![...document.querySelectorAll(".fev")].some((e) => e.dataset.kind === "carry" || /Несу/.test(e.textContent))));
 await browser.close();
 // iPhone в Safari: navigator.vibrate нет — вибрация идёт тиком переключателя `<input switch>`.
 {

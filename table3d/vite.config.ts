@@ -12,7 +12,7 @@ const build = (() => { try { return execSync("git rev-list --count HEAD").toStri
 // ЗАВОДСКИЕ ЗВУКИ И ВИБРАЦИИ ИЗ СТЕНДА: страница звуков (`design/zones/sounds-page.html`) кнопкой «Сделать заводским» шлёт сюда настройки действия, а мы дописываем их в
 // `server/table-client/feelPreset.json` — тот же файл читает и стенд, и (по мере подключения) игра. Только для dev-сервера; всё, что пришло, чистится: известные поля, числа в пределах.
 const PRESET_FILE = fileURLToPath(new URL("../server/table-client/feelPreset.json", import.meta.url));
-const KINDS = ["grab", "carry", "lay", "throw", "slam", "flip", "spin", "deny", "home"];
+const KINDS = ["grab", "lay", "throw", "slam", "flip", "spin", "deny", "home"];
 const num = (v: unknown, lo: number, hi: number): number | undefined => (typeof v === "number" && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : undefined);
 const track = (v: unknown): string | null | undefined => (v === null ? null : typeof v === "string" && /^[a-z]+-\d$/.test(v) ? v : undefined);
 function cleanVariant(raw: Record<string, unknown>): Record<string, unknown> {

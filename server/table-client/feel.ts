@@ -8,13 +8,12 @@ import type { Haptic, TableHaptic } from "./haptic.js";
 import type { TableSound, VoiceLayer, VoiceSpec } from "./sound.js";
 import overrides from "./feelPreset.json";
 
-export const FEEL_KINDS = ["grab", "carry", "lay", "throw", "slam", "flip", "spin", "deny", "home"] as const;
+export const FEEL_KINDS = ["grab", "lay", "throw", "slam", "flip", "spin", "deny", "home"] as const;
 export type FeelKind = (typeof FEEL_KINDS)[number];
 
 /** Русские названия событий — для стенда. */
 export const FEEL_NAMES: Record<FeelKind, string> = {
   grab: "Взял карту",
-  carry: "Несу (шелест)",
   lay: "Положил",
   throw: "Бросил на скорости",
   slam: "Удар об стол",
@@ -97,7 +96,6 @@ export interface FeelSpec {
 /** Заводские значения в коде; поверх них — то, что владелец сделал заводским на странице звуков (`feelPreset.json`). */
 const FEEL_BASE: Record<FeelKind, FeelSpec> = {
   grab: { file: "drop", track: "drop-1", from: 90, end: 150, dyn: 1, gain: 0.5, rate: 1, jitter: 0.06, soft: 1, cutMs: 0, layers: [{ kind: "tick", from: 900, to: 500, ms: 25, gain: 0.2 }], vibe: [8], style: "light" },
-  carry: { file: null, gain: 1, rate: 1, jitter: 0, soft: 1, cutMs: 0, layers: [], vibe: [], style: "soft" },
   lay: { file: "hand", track: "hand-1", from: 113, gain: 0.8, rate: 0.96, jitter: 0.06, soft: 0.45, cutMs: 0, layers: [], vibe: [14], style: "medium" },
   throw: { file: "hand", track: "hand-1", from: 113, gain: 1.1, rate: 0.82, jitter: 0.05, soft: 0.6, cutMs: 0, layers: [{ kind: "boom", from: 110, to: 60, ms: 90, gain: 0.35 }], vibe: [22], style: "rigid" },
   slam: { file: "drop", track: "drop-1", gain: 1.8, rate: 0.72, jitter: 0.03, soft: 1, cutMs: 0, layers: [{ kind: "boom", from: 95, to: 42, ms: 140, gain: 0.9 }, { kind: "noise", from: 180, ms: 90, gain: 0.5, q: 0.8 }], vibe: [40, 30, 60], style: "heavy" },
@@ -121,7 +119,6 @@ export const FEEL_LIVE: ReadonlySet<FeelKind> = new Set(FEEL_KINDS.filter((k) =>
  */
 export const FEEL_OLD: Record<FeelKind, { cues: string[]; text: string }> = {
   grab: { cues: [], text: "без звука (только лёгкая вибрация)" },
-  carry: { cues: [], text: "без звука" },
   lay: { cues: ["drop", "out", "hand"], text: "стук карты о стол (drop-1)" },
   throw: { cues: ["drop", "out"], text: "стук карты о стол (drop-1), как при обычном «положил»" },
   slam: { cues: ["slam"], text: "стук drop-1 ниже и громче, с басом" },
