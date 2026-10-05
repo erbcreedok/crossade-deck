@@ -1,0 +1,21 @@
+design/zones/feel-check.mjs
+  s_d1074c8bc76056::t_a7e04b4fcae007 35
+server/table-client/feel.ts
+  s_d1074c8bc76056::t_78aeefb7a4efaf 58-63,97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b55b8ec923458f4f47bec01bbd99ee390f3d4f41",
+  "prompts": {},
+  "sessions": {
+    "s_d1074c8bc76056": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "badbded6-896c-42c7-bfbf-fb2e63e12d3e",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
