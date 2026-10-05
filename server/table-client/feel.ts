@@ -55,6 +55,12 @@ export interface Variant {
 }
 
 export interface FeelSpec {
+  /** Где основной звук кончается в записи, мс (0 или нет — до конца файла); см. `Variant.end`. */
+  end?: number | null;
+  /** Громкость основного звука внутри действия; см. `Variant.vol`. */
+  vol?: number;
+  /** Насколько сила действия меняет громкость основного звука (0…1); см. `Variant.dyn`. */
+  dyn?: number;
   /** Играть слои синтеза (тик, «бум») вместе со звуками; нет — только записи. */
   synth?: boolean;
   /** ЕЩЁ ЗВУКИ СОБСТВЕННОГО НАБОРА: к основному (его поля `track`, `from`, `rate`, `pitch`, `tie` ниже) добавлены эти; при каждом событии играет случайный из всех, каждый со своими настройками. */
@@ -88,7 +94,7 @@ export interface FeelSpec {
 }
 
 export const FEEL_DEFAULT: Record<FeelKind, FeelSpec> = {
-  grab: { file: "hand", track: "hand-1", gain: 0.5, rate: 1.25, jitter: 0.06, soft: 1, cutMs: 120, layers: [{ kind: "tick", from: 900, to: 500, ms: 25, gain: 0.2 }], vibe: [8], style: "light" },
+  grab: { file: "drop", track: "drop-1", from: 90, end: 150, dyn: 1, gain: 0.5, rate: 1, jitter: 0.06, soft: 1, cutMs: 0, layers: [{ kind: "tick", from: 900, to: 500, ms: 25, gain: 0.2 }], vibe: [8], style: "light" },
   carry: { file: "hand", track: "hand-1", gain: 0.25, rate: 1.5, jitter: 0.1, soft: 0.2, cutMs: 90, layers: [], vibe: [], style: "soft" },
   lay: { file: "hand", track: "hand-1", from: 113, gain: 0.8, rate: 0.96, jitter: 0.06, soft: 0.45, cutMs: 0, layers: [], vibe: [14], style: "medium" },
   throw: { file: "hand", track: "hand-1", from: 113, gain: 1.1, rate: 0.82, jitter: 0.05, soft: 0.6, cutMs: 0, layers: [{ kind: "boom", from: 110, to: 60, ms: 90, gain: 0.35 }], vibe: [22], style: "rigid" },

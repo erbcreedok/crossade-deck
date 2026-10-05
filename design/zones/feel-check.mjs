@@ -32,6 +32,7 @@ check("взял карту — «grab»", (await kinds()).includes("grab"), awai
 await p.mouse.up(); await p.waitForTimeout(120);
 check("положил — «lay» с вибрацией, и звук уже в момент отпускания (не после падения)", (await kinds()).includes("lay") && (await f.evaluate(() => window.__buzz.length)) > 0, { k: await kinds(), buzz: await f.evaluate(() => window.__buzz) });
 check("«Положил» играет дорожку hand-1 с началом 113 мс на 0,96× (вместо drop-1)", await f.evaluate(() => { const l = window.__feel.preset.lay; return l.track === "hand-1" && l.from === 113 && Math.abs(l.rate - 0.96) < 1e-6 && (window.__tableSounds ?? []).some((e) => e.file === "hand-1"); }), await f.evaluate(() => ({ lay: window.__feel.preset.lay, log: (window.__tableSounds ?? []).map((e) => e.file) })));
+check("«Взял карту» по умолчанию: звук drop-1, отрезок 0,09–0,15 с, «от силы» 100%", await f.evaluate(() => { const g = window.__feel.preset.grab; return g.track === "drop-1" && g.from === 90 && g.end === 150 && g.dyn === 1; }), await f.evaluate(() => window.__feel.preset.grab));
 // 2. Бросил на скорости → «throw».
 await recenter(); await clear();
 c = await settle(); await p.mouse.move(c.x, c.y); await p.mouse.down(); await p.mouse.move(c.x + 5, c.y - 5, { steps: 2 }); await p.waitForTimeout(150);
