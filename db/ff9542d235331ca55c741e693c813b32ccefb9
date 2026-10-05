@@ -1,0 +1,39 @@
+design/zones/sounds-page.html
+  s_73107c3d804131::t_0606c62e683672 225-284,347-349
+  s_73107c3d804131::t_a2377ae384e398 96,103,116-118,156-158,165-166,169,181-182,188,311,354
+table3d/vite.config.ts
+  s_73107c3d804131::t_e8e794cb9f8713 66-71,84-86
+  s_73107c3d804131::t_00c3e29be34901 1-4,58-65,72-83,87-99,103
+server/table-client/soundsCustom.json
+  s_73107c3d804131::t_dd832e435e6e40 1
+server/table-client/feel.ts
+  s_73107c3d804131::t_31363e4afffc83 183-198
+server/table-client/sound.ts
+  s_73107c3d804131::t_c5702bb0fb5ce7 329-330
+  s_73107c3d804131::t_dd832e435e6e40 11,23,134-135,319
+  s_73107c3d804131::t_e8e794cb9f8713 282,284-285
+server/src/table/client.ts
+  s_73107c3d804131::t_dd832e435e6e40 134-135
+design/zones/card-scenes.html
+  s_73107c3d804131::t_31363e4afffc83 67-69,71-72,190
+design/zones/feel-check.mjs
+  s_73107c3d804131::t_31363e4afffc83 89,91,118
+design/zones/sounds-check.mjs
+  s_73107c3d804131::t_c8f40741ed73be 113-135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dbff9542d235331ca55c741e693c813b32ccefb9",
+  "prompts": {},
+  "sessions": {
+    "s_73107c3d804131": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e85b33e2-d0a6-4a90-b535-037e1d4326e5",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
