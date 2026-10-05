@@ -50,6 +50,26 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
   await p.mouse.up(); await p.waitForTimeout(700);
   check("отпустил — свечение погасло", !(await halo("__first")).on);
 }
+// Цвет свечения — цвет того, КОГО выбрали у несущей сцены, в том числе когда в соседней сцене смотрят с его же места (красный сверху, а нижняя сцена стоит на месте красного).
+{
+  const id = await f.evaluate(() => window.__me.state.felt[0].id);
+  const ink = (k) => f.evaluate((kk) => window.__me.state.people.find((x) => x.key === kk).ink.replace("#", "").toLowerCase(), k);
+  for (const [who, mover, viewer] of [["top", "__top", "__first"]]) {
+    for (const key of ["red", "blue", "green", "yellow"]) {
+      await f.evaluate(([w, k]) => document.querySelector(`#who-${w} [data-k="${k}"]`).click(), [who, key]);
+      const at = await f.evaluate(([w, i]) => window[w].test.screenOf(i), [mover, id]);
+      await p.mouse.move(at.x, at.y); await p.mouse.down(); await p.mouse.move(at.x + 14, at.y - 9, { steps: 4 });
+      for (let i = 0; i < 8; i++) { await p.mouse.move(at.x + 14 + (i % 2) * 6, at.y - 9, { steps: 2 }); await p.waitForTimeout(60); }
+      const h = await f.evaluate(([w, i]) => window[w].test.haloInfo(i), [viewer, id]);
+      await p.mouse.up(); await p.waitForTimeout(600);
+      check(`двигаю карту в сцене «${who}» за ${key}: в соседней светится ${key}`, h && h.on && h.color === (await ink(key)), { h, want: await ink(key) });
+    }
+    await f.evaluate((w) => document.querySelector(`#who-${w} [data-k="blue"]`).click(), who);
+  }
+  // карту возвращаем на прежнее место: дальше проверки считают от него
+  await f.evaluate((i) => { window.__me.send({ t: "grab", id: i }); window.__me.send({ t: "drop", id: i, to: { in: "felt", x: 0, y: 0.8, up: true, angle: -8 } }); window.__me.send({ t: "unpick", id: i }); }, id);
+  await p.waitForTimeout(1200);
+}
 // Наклон несомой карты у зрителя — тот, что у несущего: несут сверху — у зрителя плашмя; несут от первого лица — наклонена.
 {
   const id = await f.evaluate(() => window.__me.state.felt[0].id);
