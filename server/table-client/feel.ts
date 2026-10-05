@@ -30,6 +30,8 @@ export interface FeelEvent {
   /** Где на экране, в долях от середины (−1 слева … 1 справа; −1 вверху … 1 внизу). */
   x?: number;
   z?: number;
+  /** Своё действие или чужое: чужое звучит тише (`GAIN.other`) и не вибрирует. По умолчанию своё. */
+  mine?: boolean;
 }
 
 export interface FeelSpec {
@@ -105,6 +107,8 @@ export interface FeelPrefs {
 
 export interface FeelLogged {
   kind: FeelKind;
+  /** Своё действие или чужое. */
+  mine: boolean;
   energy: number;
   /** Что ушло: звук (и каким gain), вибрация (рисунок). */
   gain: number;
@@ -151,11 +155,11 @@ export function tableFeel(sound: TableSound, haptic: TableHaptic): TableFeel {
       const spec = preset[e.kind], energy = Math.max(0, Math.min(1, e.energy ?? 1));
       const gain = spec.gain * (spec.soft + (1 - spec.soft) * energy);
       const rate = spec.rate * (1 + (Math.random() * 2 - 1) * spec.jitter);
-      const vibe = prefs.vibe && spec.vibe.length ? spec.vibe.map((ms) => Math.max(1, Math.round(ms * (0.5 + 0.5 * energy)))) : [];
-      log.push({ kind: e.kind, energy: +energy.toFixed(2), gain: prefs.sound ? +gain.toFixed(3) : 0, vibe });
+      const vibe = e.mine !== false && prefs.vibe && spec.vibe.length ? spec.vibe.map((ms) => Math.max(1, Math.round(ms * (0.5 + 0.5 * energy)))) : [];
+      log.push({ kind: e.kind, mine: e.mine !== false, energy: +energy.toFixed(2), gain: prefs.sound ? +gain.toFixed(3) : 0, vibe });
       if (log.length > 60) log.shift();
       if (prefs.sound && gain > 0.001) {
-        const voice: VoiceSpec = { file: spec.file, rate, gain, x: e.x ?? 0, z: e.z ?? 0, layers: spec.layers.map((l) => ({ ...l, gain: l.gain * (spec.soft + (1 - spec.soft) * energy) })), ...(spec.cutMs ? { cutMs: spec.cutMs } : {}) };
+        const voice: VoiceSpec = { file: spec.file, rate, gain, mine: e.mine !== false, x: e.x ?? 0, z: e.z ?? 0, layers: spec.layers.map((l) => ({ ...l, gain: l.gain * (spec.soft + (1 - spec.soft) * energy) })), ...(spec.cutMs ? { cutMs: spec.cutMs } : {}) };
         sound.voice(voice);
       }
       if (vibe.length) {

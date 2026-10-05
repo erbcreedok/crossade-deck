@@ -78,6 +78,22 @@ console.log("начало звука в записях, с:", JSON.stringify(ons
 // 7. Звук доехал до браузера: записи загружены (в логе голоса есть «drop»).
 const played = await f.evaluate(() => ({ health: window.__sound.health, last: (window.__tableSounds ?? []).length }));
 check("звуковая машина запущена, файлы доехали: звуков сыграно много, молчаливых мало", played.health.state === "running" && played.health.played >= 10 && played.health.silent <= 2, played);
+// Чужие действия слышны и видны: первая сцена (звук включён) слышит, как карту двигают во второй (тише, «mine: false»); удар встряхивает обе камеры.
+{
+  await f.evaluate(() => { window.__top.home(); window.__first.home(); });
+  await clear();
+  const fid = await f.evaluate(() => window.__me.state.felt[0].id);
+  const a = await f.evaluate((i) => window.__first.test.screenOf(i), fid);
+  const c0 = await f.evaluate(() => ({ top: window.__top.test.shakeInfo().count, first: window.__first.test.shakeInfo().count }));
+  await p.mouse.move(a.x, a.y); await p.mouse.down(); await p.mouse.move(a.x + 20, a.y - 20, { steps: 4 }); await p.waitForTimeout(500);
+  const heardGrab = await f.evaluate(() => window.__feel.log.filter((e) => e.mine === false).map((e) => e.kind));
+  check("двигаю карту во второй сцене — первая слышит «grab» чужого (тише)", heardGrab.includes("grab"), heardGrab);
+  await p.mouse.down({ button: "right" }); await p.waitForTimeout(1200); await p.mouse.up({ button: "right" }); await p.mouse.up(); await p.waitForTimeout(400);
+  const c1 = await f.evaluate(() => ({ top: window.__top.test.shakeInfo().count, first: window.__first.test.shakeInfo().count }));
+  const log = await f.evaluate(() => window.__feel.log.filter((e) => e.mine === false).map((e) => ({ k: e.kind, g: e.gain })));
+  check("удар во второй сцене — у первой тоже вздрогнула камера (слабее), и звук «slam» чужого", c1.top > c0.top && log.some((e) => e.k === "slam"), { c0, c1, log });
+  check("у сцены, где ударили, камера тоже вздрогнула", c1.first > c0.first, { c0, c1 });
+}
 // По умолчанию звук и вибрация — только у первой сцены.
 {
   const marks = await f.evaluate(() => ({ top: document.querySelector("#who-top .mute").textContent, first: document.querySelector("#who-first .mute").textContent }));

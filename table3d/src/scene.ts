@@ -1793,6 +1793,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   }
   const pileAngle = (p: Pile) => (p as Pile & { angle?: number }).angle ?? 0;
   function layout(s: Snapshot): void {
+    hearOthers();
     syncSeatAngle();
     drawBodies(s);
     const seen = new Set<string>();
@@ -2604,6 +2605,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     return f.in === "felt" || (f.in === "pile" && f.top) || (f.in === "hand" && (f.mine || !store.state.chairs.find((c) => c.id === f.chair)?.owner));
   };
   /** `group` — несут выделенное лассо: отпустил — все выделенные туда же (`moveMany`), одним намерением. */
+  /** Что слышно от чужих пальцев (`hearOthers`). */
+  const heard = new Map<string, { up: boolean | undefined; angle: number; tick: number; fx: boolean; x: number; y: number; at: number; swish: number }>();
   let spin: { id: string; pid: number; cx: number; cy: number; a0: number; base: number; x0: number; y0: number; moved: boolean; angle: number } | null = null;
   let drag: { id: string; x: number; y: number; moved: boolean; hold: number; up: boolean; angle: number; rot: number; gap: number | null; place: Place | null; where: Where | null; spot: { x: number; y: number; w: number; angle: number } | null; zone: { pile?: string; chair?: string; i: number } | null; fingerHand: boolean; latch0: string | null; scrubbed: boolean } | null = null;
   let zoneFn: Parameters<SceneApi["setZone"]>[0] = null;
@@ -3266,12 +3269,43 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    */
   // ——— ОЩУЩЕНИЕ: звук и вибрация на каждое движение карты (`feel.ts`); сцена только сообщает, что случилось и с какой силой ———
   let feelFn: ((e: FeelEvent) => void) | null = null;
-  function feel(kind: FeelKind, id: string | null, energy = 1): void {
+  function feel(kind: FeelKind, id: string | null, energy = 1, mine = true): void {
     if (!feelFn) return;
     const c = id ? screenOf(id) : null, r = renderer.domElement.getBoundingClientRect();
-    feelFn({ kind, energy, x: c ? ((c.x - r.left) / r.width - 0.5) * 2 : 0, z: c ? ((c.y - r.top) / r.height - 0.5) * 2 : 0 });
+    feelFn({ kind, energy, mine, x: c ? ((c.x - r.left) / r.width - 0.5) * 2 : 0, z: c ? ((c.y - r.top) / r.height - 0.5) * 2 : 0 });
   }
   let lastCarryFeel = 0, lastRotTick = 0, lastSpinTick = 0;
+  /**
+   * ЧУЖИЕ ДЕЙСТВИЯ СЛЫШНЫ И ВИДНЫ: что несёт другой палец, читается из потока «несу» (`store.carries`) — взял, шелест, перевернул, тики поворота, положил,
+   * а удар (`fx: slam`) приходит прямо в потоке. Звучит тише своего (`mine: false`), удар встряхивает и мою камеру (слабее).
+   */
+  function hearOthers(): void {
+    if (store.replay?.on) return;
+    const now = performance.now(), live = new Set<string>();
+    for (const c of store.carries) {
+      if (c.by === store.me.key || !cards.has(c.id)) continue;
+      live.add(c.id);
+      const o = c.over, here = o.in === "felt" ? { x: o.x, y: o.y } : { x: 0, y: 0 };
+      let h = heard.get(c.id);
+      if (!h) {
+        h = { up: o.in === "felt" ? o.up : undefined, angle: o.in === "felt" ? o.angle : 0, tick: o.in === "felt" ? o.angle : 0, fx: false, x: here.x, y: here.y, at: now, swish: 0 };
+        heard.set(c.id, h);
+        feel("grab", c.id, 1, false);
+      } else if (o.in === "felt") {
+        if (h.up !== undefined && o.up !== h.up) { h.up = o.up; feel("flip", c.id, 1, false); }
+        if (Math.abs((((o.angle - h.tick) % 360) + 540) % 360 - 180) >= 15) { h.tick = o.angle; feel("spin", c.id, 1, false); }
+        const speed = Math.hypot(here.x - h.x, here.y - h.y) / Math.max(0.016, (now - h.at) / 1000);
+        if (speed > 5 && now - h.swish > 260) { h.swish = now; feel("carry", c.id, Math.min(1, speed / 20), false); }
+        h.x = here.x; h.y = here.y; h.at = now;
+      }
+      if (c.fx === "slam" && !h.fx) { h.fx = true; feel("slam", c.id, 1, false); shakeCamera(0.55); }
+    }
+    for (const [id, h] of heard) {
+      if (live.has(id)) continue;
+      heard.delete(id);
+      if (!h.fx && cards.has(id)) feel("lay", id, 0.6, false);
+    }
+  }
   // ——— УДАР КАРТОЙ ОБ СТОЛ: несомая карта падает вниз сразу, жёстко, и камера вздрагивает от удара ———
   // Мышь: левой держишь карту, правую кнопку нажать — удар; или пробел. Телефон: первый палец держит, вторым — двойной тап.
   /** Двойной тап вторым пальцем: касание не дольше `press`, второе не позже `gap` после первого (мс). */
@@ -3300,6 +3334,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   function slam(): void {
     if (!drag?.moved || dragPid === null) return;
     const d = drag;
+    if (d.where) store.carry({ id: d.id, over: d.where, fx: "slam" });
     slamForce = true;
     try { end({ pointerId: dragPid, clientX: lastFinger.x, clientY: lastFinger.y, type: "pointerup" } as PointerEvent); } finally { slamForce = false; }
     slamming.set(d.id, performance.now() + 800);

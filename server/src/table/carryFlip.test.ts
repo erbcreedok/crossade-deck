@@ -45,4 +45,13 @@ describe("carry.tilt", () => {
     t.carry("a", { id, over: felt }, 4);
     expect(t.carriesSeenBy("b")[0]!.tilt).toBeUndefined();
   });
+  it("удар (fx slam) виден остальным, чужое значение отбрасывается", () => {
+    const t = seated();
+    const id = t.seenBy("a").piles[0]!.cards.at(-1)!.id;
+    t.act("a", { t: "grab", id }, 0);
+    t.carry("a", { id, over: felt, fx: "slam" }, 1);
+    expect(t.carriesSeenBy("b")[0]!.fx).toBe("slam");
+    t.carry("a", { id, over: felt, fx: "boom" as unknown as "slam" }, 2);
+    expect(t.carriesSeenBy("b")[0]!.fx).toBeUndefined();
+  });
 });

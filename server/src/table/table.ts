@@ -158,7 +158,7 @@ export class Table {
   /** Правила отдельных карт (`Snapshot.cardRules`). */
   private cardRules = new Map<string, CardRules>();
   /** Последнее «над чем карта», пока её держат. Живёт не дольше блокировки (`carriesSeenBy`). */
-  private carries = new Map<string, { by: string; over: Where; auto?: true; with?: string[]; whole?: string; flip?: number; tilt?: number }>();
+  private carries = new Map<string, { by: string; over: Where; auto?: true; with?: string[]; whole?: string; flip?: number; tilt?: number; fx?: "slam" }>();
   private rules: TableRules = { ...DEFAULT_RULES };
   private trails = new Map<string, Trail>();
   /** Перевёрнутые карты в колоде и в руках. У карты на сукне сторона лежит в ней самой (`felt[].up`). */
@@ -720,7 +720,7 @@ export class Table {
       : [];
     const flip = typeof out.flip === "number" && Number.isFinite(out.flip) ? Math.max(-180, Math.min(180, Math.round(out.flip))) : 0;
     const tilt = typeof out.tilt === "number" && Number.isFinite(out.tilt) ? Math.max(0, Math.min(90, Math.round(out.tilt))) : 0;
-    this.carries.set(out.id, { by, over, ...(auto ? { auto: true as const } : {}), ...(flock.length ? { with: flock } : {}), ...(flip ? { flip } : {}), ...(tilt ? { tilt } : {}) });
+    this.carries.set(out.id, { by, over, ...(auto ? { auto: true as const } : {}), ...(flock.length ? { with: flock } : {}), ...(flip ? { flip } : {}), ...(tilt ? { tilt } : {}), ...(out.fx === "slam" ? { fx: "slam" as const } : {}) });
     return { ok: true };
   }
 
@@ -779,7 +779,7 @@ export class Table {
         const at = this.picks.get(one) === c.by ? this.whereIs(one) : null;
         return at ? [{ card: this.seen(one, viewer, at), from: at }] : [];
       });
-      out.push({ id, by: c.by, over: c.over, from, card: this.seen(id, viewer, from), ...(c.auto ? { auto: true as const } : {}), ...(flock.length ? { with: flock } : {}), ...(c.flip ? { flip: c.flip } : {}), ...(c.tilt ? { tilt: c.tilt } : {}) });
+      out.push({ id, by: c.by, over: c.over, from, card: this.seen(id, viewer, from), ...(c.auto ? { auto: true as const } : {}), ...(flock.length ? { with: flock } : {}), ...(c.flip ? { flip: c.flip } : {}), ...(c.tilt ? { tilt: c.tilt } : {}), ...(c.fx ? { fx: c.fx } : {}) });
     }
     return out;
   }
