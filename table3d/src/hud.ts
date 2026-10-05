@@ -714,7 +714,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     else if (q("[data-dev-cam]")) { scene.setCamMode(CAM_MODES[(CAM_MODES.indexOf(scene.camMode()) + 1) % CAM_MODES.length]!); draw(); }
     else if (q("[data-dev-peek]")) { dev?.peek.onToggle(); draw(); }
     else if ((b = q("[data-sit]"))) { store.send({ t: "sit", chair: b.dataset.sit! }); local.tip = null; }
-    else if ((b = q("[data-deck-do]")) && local.deckTip) store.send({ t: "deckDo", pile: local.deckTip, how: b.dataset.deckDo as "shuffle" | "sort" | "flip" });
+    else if ((b = q("[data-deck-do]")) && local.deckTip) { const how = b.dataset.deckDo as "shuffle" | "sort" | "flip"; if (scene.pileBarred(local.deckTip, how)) scene.denyPile(local.deckTip, how); else store.send({ t: "deckDo", pile: local.deckTip, how }); }
     else if (q("[data-deck-shut]")) local.deckTip = null;
     else if ((b = q("[data-deck-pin]")) && local.deckTip) { const p = s.piles.find((x) => x.id === local.deckTip); if (p) store.send({ t: "deckPin", pile: p.id, on: !p.pin }); }
     else if ((b = q("[data-deck-forever]")) && local.deckTip) { const p = s.piles.find((x) => x.id === local.deckTip); if (p) store.send({ t: "deckForever", pile: p.id, on: !p.forever }); }
@@ -848,9 +848,12 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     e.preventDefault();
     scene.grabPile(pile, { x: e.clientX, y: e.clientY });
     const pinned = !!store.state.piles.find((x) => x.id === pile)?.pin;
-    let moved = false, hold = 0;
+    // ПРАВИЛА СТОПКИ: двигать нельзя — стопка остаётся на месте и «отказывает» один раз, когда её потянули.
+    const barred: "grip" | "move" | null = scene.pileBarred(pile, "grip") ? "grip" : scene.pileBarred(pile, "move") ? "move" : null;
+    let moved = false, hold = 0, refused = false;
     follow(e, (ev) => {
       if (pinned) return;
+      if (barred) { if (!refused && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) >= TAP_PX) { refused = true; scene.denyPile(pile, barred); } return; }
       if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < TAP_PX) return;
       if (!moved) { moved = true; local.deckTip = null; local.deckCarry = pile; store.send({ t: "grip", pile }); turnPileToMe(pile); hold = window.setInterval(() => { if (local.deckCarry === pile) store.send({ t: "hold", id: pile }); else clearInterval(hold); }, HOLD_MS); }
       if (moved && local.deckCarry !== pile) return;
@@ -861,7 +864,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
       if (moved && local.deckCarry !== pile) return;
       if (!moved) {
         const now = performance.now();
-        if (now - lastGripTap < DOUBLE_TAP_MS) { lastGripTap = 0; const p = store.state.piles.find((x) => x.id === pile); if (p && !p.lock) store.send({ t: "deckDo", pile, how: "flip" }); }
+        if (now - lastGripTap < DOUBLE_TAP_MS) { lastGripTap = 0; const p = store.state.piles.find((x) => x.id === pile); if (p && !p.lock) { if (scene.pileBarred(pile, "flip")) scene.denyPile(pile, "flip"); else store.send({ t: "deckDo", pile, how: "flip" }); } }
         else { lastGripTap = now; local.deckTip = local.deckTip === pile ? null : pile; }
         draw();
         return;

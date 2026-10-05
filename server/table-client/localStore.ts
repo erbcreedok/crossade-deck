@@ -9,8 +9,8 @@ import { applyPatch } from "../src/table/patch.js";
 import { Table } from "../src/table/table.js";
 import type { TableStore } from "./store.js";
 
-function deal(): { id: string; face: Face }[] {
-  const ranks = ["6", "7", "8", "9", "10", "J", "Q", "K", "A"];
+function deal(full = false): { id: string; face: Face }[] {
+  const ranks = full ? ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"] : ["6", "7", "8", "9", "10", "J", "Q", "K", "A"];
   const suits: Suit[] = ["s", "h", "d", "c"];
   const cards = suits.flatMap((suit) => ranks.map((rank) => ({ id: crypto.randomUUID().slice(0, 8), face: { rank, suit } })));
   for (let i = cards.length - 1; i > 0; i -= 1) {
@@ -35,8 +35,10 @@ export interface LocalOpts {
   standing?: string[];
   /** Админ стола (по умолчанию первый из `players`). */
   admin?: string;
-  /** Сколько карт в колоде (по умолчанию вся: 36). */
+  /** Сколько карт в колоде (по умолчанию вся: 36 или 52). */
   cards?: number;
+  /** Колода на 52 (с двойки) вместо 36 (с шестёрки). */
+  deck?: 36 | 52;
 }
 
 /**
@@ -48,7 +50,7 @@ export function localTable(opts: LocalOpts = {}): { view(key: string): TableStor
   const me: Person = { key: "me", name: "Ye", ink: "#f2c14e", door: "guest" };
   // На стенде админ — я: иначе флаги чужих стульев не проверить.
   const roster: Person[] = opts.players ? opts.players.map((p) => ({ ...p, door: "guest" as const })) : [];
-  const table = new Table(opts.cards ? deal().slice(0, opts.cards) : deal(), opts.admin ?? roster[0]?.key ?? me.key);
+  const table = new Table(opts.cards ? deal(opts.deck === 52).slice(0, opts.cards) : deal(opts.deck === 52), opts.admin ?? roster[0]?.key ?? me.key);
   const bots: Person[] = [
     { key: "alia", name: "Алия", ink: "#7fd1b9", door: "guest" },
     { key: "timur", name: "Тимур", ink: "#e08b3f", door: "guest" },

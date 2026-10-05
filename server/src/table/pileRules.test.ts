@@ -1,0 +1,120 @@
+// ПРАВИЛА СТОПКИ: не снять верхнюю / не положить / не сдвинуть / не перевернуть / не перемешать / не отсортировать — каждое для выбранных людей; предел карт и сторона укладки.
+
+import { describe, expect, it } from "vitest";
+import { deal } from "./deal.js";
+import { Table } from "./table.js";
+import { MAIN_PILE, type Person } from "./contract.js";
+
+const person = (key: string): Person => ({ key, name: key, ink: "#fff", door: "guest" });
+const seated = () => { const t = new Table(deal().slice(0, 10), "a"); t.join(person("a")); t.join(person("b")); return t; };
+const rule = (t: Table, by: string, intent: Record<string, unknown>) => t.act(by, { t: "pileRule", pile: MAIN_PILE, ...intent } as never, 1);
+const pile = (t: Table) => t.seenBy("a").piles.find((p) => p.id === MAIN_PILE)!;
+const top = (t: Table) => pile(t).cards.at(-1)!.id;
+const felt = { in: "felt", x: 1, y: 2, up: true, angle: 0 } as const;
+
+describe("правила стопки", () => {
+  it("не снять верхнюю — отказ тому, кому нельзя, остальным можно", () => {
+    const t = seated();
+    expect(rule(t, "a", { rule: "take", who: "b", on: true })).toMatchObject({ ops: expect.any(Array) });
+    expect(t.act("b", { t: "grab", id: top(t) }, 2)).toEqual({ refused: "pinned" });
+    expect(t.act("a", { t: "grab", id: top(t) }, 3)).toMatchObject({ ops: expect.any(Array) });
+  });
+  it("не положить — отказ; карту, взятую из этой же стопки, вернуть можно", () => {
+    const t = seated();
+    const mine = top(t);
+    t.act("b", { t: "grab", id: mine }, 1);
+    rule(t, "a", { rule: "put", who: "b", on: true });
+    expect(t.act("b", { t: "drop", id: mine, to: { in: "deck", pile: MAIN_PILE } }, 2)).toMatchObject({ ops: expect.any(Array) });
+    const other = top(t);
+    t.act("a", { t: "grab", id: other }, 3);
+    t.act("a", { t: "drop", id: other, to: felt }, 4);
+    t.act("b", { t: "grab", id: other }, 5);
+    expect(t.act("b", { t: "drop", id: other, to: { in: "deck", pile: MAIN_PILE } }, 6)).toMatchObject({ refused: "pinned" });
+  });
+  it("не сдвинуть — deckMove отказывает тому, кому нельзя", () => {
+    const t = seated();
+    rule(t, "a", { rule: "move", who: "b", on: true });
+    expect(t.act("b", { t: "deckMove", pile: MAIN_PILE, x: 2, y: 2 }, 2)).toEqual({ refused: "pinned" });
+    expect(t.act("a", { t: "deckMove", pile: MAIN_PILE, x: 2, y: 2 }, 3)).toMatchObject({ ops: expect.any(Array) });
+  });
+  it("не брать за язычок: grip отказывает тому, кому нельзя; язычок скрыт (tab) — правило хранится и видно в снимке", () => {
+    const t = seated();
+    rule(t, "a", { rule: "grip", who: "b", on: true });
+    rule(t, "a", { rule: "tab", who: "b", on: true });
+    expect(t.act("b", { t: "grip", pile: MAIN_PILE }, 2)).toEqual({ refused: "pinned" });
+    expect(t.act("a", { t: "grip", pile: MAIN_PILE }, 3)).toMatchObject({ ops: expect.any(Array) });
+    expect(t.seenBy("b").pileRules?.[MAIN_PILE]?.tab).toEqual(["b"]);
+  });
+  it("не перевернуть, не перемешать, не отсортировать — по одному", () => {
+    const t = seated();
+    for (const how of ["flip", "shuffle", "sort"] as const) {
+      rule(t, "a", { rule: how, who: "b", on: true });
+      expect(t.act("b", { t: "deckDo", pile: MAIN_PILE, how }, 2)).toEqual({ refused: "pinned" });
+      expect(t.act("a", { t: "deckDo", pile: MAIN_PILE, how }, 3)).toMatchObject({ ops: expect.any(Array) });
+    }
+  });
+  it("предел карт: в полную стопку класть нельзя («full»), под пределом можно", () => {
+    const t = seated();
+    const id = top(t);
+    t.act("a", { t: "grab", id }, 1);
+    t.act("a", { t: "drop", id, to: felt }, 2);
+    expect(pile(t).cards.length).toBe(9);
+    rule(t, "a", { rule: "limit", value: 9 });
+    t.act("b", { t: "grab", id }, 3);
+    expect(t.act("b", { t: "drop", id, to: { in: "deck", pile: MAIN_PILE } }, 4)).toMatchObject({ refused: "full" });
+    rule(t, "a", { rule: "limit", value: 10 });
+    t.act("b", { t: "grab", id }, 4.5);
+    expect(t.act("b", { t: "drop", id, to: { in: "deck", pile: MAIN_PILE } }, 5)).toMatchObject({ ops: expect.any(Array) });
+    expect(pile(t).cards.length).toBe(10);
+  });
+  it("сторона укладки: всегда лицом вверх / рубашкой вверх / как несли", () => {
+    const t = seated();
+    const id = top(t);
+    t.act("a", { t: "grab", id }, 1);
+    t.act("a", { t: "drop", id, to: felt }, 2);
+    rule(t, "a", { rule: "side", value: "up" });
+    t.act("a", { t: "grab", id }, 3);
+    t.act("a", { t: "drop", id, to: { in: "deck", pile: MAIN_PILE } }, 4);
+    expect(pile(t).cards.at(-1)).toMatchObject({ id, up: true });
+    rule(t, "a", { rule: "side", value: "down" });
+    t.act("a", { t: "grab", id }, 5);
+    t.act("a", { t: "drop", id, to: { in: "deck", pile: MAIN_PILE } }, 6);
+    expect(pile(t).cards.at(-1)?.up).not.toBe(true);
+  });
+  it("целую стопку в другую стопку: «put» и предел цели", () => {
+    const t = seated();
+    const a = top(t);
+    t.act("a", { t: "grab", id: a }, 1);
+    t.act("a", { t: "drop", id: a, to: felt }, 2);
+    const b = top(t);
+    t.act("a", { t: "grab", id: b }, 3);
+    t.act("a", { t: "drop", id: b, to: { in: "felt", x: -2, y: 1, up: true, angle: 0 } }, 4);
+    t.act("a", { t: "gather", ids: [a, b], side: "keep", to: { x: 3, y: 3, angle: 0 } }, 5);
+    const other = t.seenBy("a").piles.find((p) => p.id !== MAIN_PILE);
+    expect(other, "вторая стопка собралась").toBeTruthy();
+    rule(t, "a", { rule: "put", who: "b", on: true });
+    expect(t.act("b", { t: "pileDrop", pile: other!.id, to: { in: "deck", pile: MAIN_PILE } } as never, 4)).toMatchObject({ refused: "pinned" });
+    rule(t, "a", { rule: "put", who: "b", on: false });
+    rule(t, "a", { rule: "limit", value: 8 });
+    expect(t.act("b", { t: "pileDrop", pile: other!.id, to: { in: "deck", pile: MAIN_PILE } } as never, 5)).toMatchObject({ refused: "full" });
+  });
+  it("правила видны в снимке и снимаются; пустые — стопка без правил", () => {
+    const t = seated();
+    rule(t, "a", { rule: "take", who: "b", on: true });
+    rule(t, "a", { rule: "notice", who: "put", on: true });
+    rule(t, "a", { rule: "limit", value: 5 });
+    rule(t, "a", { rule: "side", value: "down" });
+    expect(t.seenBy("b").pileRules?.[MAIN_PILE]).toEqual({ take: ["b"], put: [], move: [], grip: [], tab: [], flip: [], shuffle: [], sort: [], notice: { take: false, put: true, move: false, grip: false, tab: false, flip: false, shuffle: false, sort: false }, limit: 5, side: "down" });
+    rule(t, "a", { rule: "take", who: "b", on: false });
+    rule(t, "a", { rule: "notice", who: "put", on: false });
+    rule(t, "a", { rule: "limit", value: 0 });
+    rule(t, "a", { rule: "side", value: "keep" });
+    expect(t.seenBy("b").pileRules?.[MAIN_PILE]).toBeUndefined();
+  });
+  it("ставит только админ, лишнее и неверное — отказ", () => {
+    const t = seated();
+    expect(rule(t, "b", { rule: "take", who: "a", on: true })).toEqual({ refused: "not-yours" });
+    expect(rule(t, "a", { rule: "limit", value: 1000 })).toEqual({ refused: "bad" });
+    expect(rule(t, "a", { rule: "side", value: "sideways" })).toEqual({ refused: "bad" });
+  });
+});

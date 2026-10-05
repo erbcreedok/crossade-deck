@@ -52,6 +52,11 @@ import {
   CARD_FACES,
   FELT_REACH,
   NO_CARD_RULES,
+  NO_PILE_RULES,
+  PILE_LIMIT_MAX,
+  PILE_RULES,
+  type PileRule,
+  type PileRules,
   CARD_RULES,
   type CardRule,
   type CardRules,
@@ -157,6 +162,8 @@ export class Table {
   private picks = new Map<string, string>();
   /** Правила отдельных карт (`Snapshot.cardRules`). */
   private cardRules = new Map<string, CardRules>();
+  /** Правила отдельных стопок (`Snapshot.pileRules`). */
+  private pileRules = new Map<string, PileRules>();
   /** Последнее «над чем карта», пока её держат. Живёт не дольше блокировки (`carriesSeenBy`). */
   private carries = new Map<string, { by: string; over: Where; auto?: true; with?: string[]; whole?: string; flip?: number; tilt?: number; spin?: number; fx?: "slam" }>();
   private rules: TableRules = { ...DEFAULT_RULES };
@@ -631,11 +638,12 @@ export class Table {
       case "flag":
         return this.flag(by, intent.chair, intent.flag, intent.on);
       case "deckMove":
-        return this.deckMove(intent.pile, intent.x, intent.y, intent.angle);
+        return this.deckMove(by, intent.pile, intent.x, intent.y, intent.angle);
       case "deckDo":
         return this.deckDo(by, intent.pile, intent.how);
       case "spin": return this.spin(by, intent.id, intent.angle, now);
       case "cardRule": return this.cardRule(by, intent.id, intent.rule, intent.who, intent.on);
+      case "pileRule": return this.pileRule(by, intent.pile, intent.rule, intent.who, intent.on, intent.value);
       case "deckForever": {
         const pile = this.piles.get(intent.pile);
         if (!pile) return { refused: "gone" };
@@ -815,6 +823,7 @@ export class Table {
    */
   private grip(by: string, pile: string, now: number): Result {
     if (!this.piles.has(pile)) return { refused: "gone" };
+    if (this.pileBarred(by, pile, "grip")) return { refused: "pinned" };
     const lock = this.locks.get(pile);
     if (lock && lock.by !== by) return { refused: "locked" };
     this.locks.set(pile, { by, until: now + LOCK_TTL_MS });
@@ -846,6 +855,32 @@ export class Table {
     if (clear) this.cardRules.delete(id); else this.cardRules.set(id, next);
     return { ops: this.commit([{ t: "cardRules", id, rules: clear ? null : next }]) };
   }
+  /** Нельзя ли этому человеку это со стопкой (`PileRules`). */
+  private pileBarred(by: string, pile: string, rule: PileRule): boolean {
+    return this.pileRules.get(pile)?.[rule].includes(by) ?? false;
+  }
+  private pileRule(by: string, pile: unknown, rule: unknown, who: unknown, on: unknown, value: unknown): Result {
+    if (!this.may(by, "pile.guard")) return { refused: "not-yours" };
+    if (typeof pile !== "string" || !this.piles.has(pile)) return { refused: "gone" };
+    const now = this.pileRules.get(pile) ?? NO_PILE_RULES;
+    const next: PileRules = { ...now, ...Object.fromEntries(PILE_RULES.map((one) => [one, [...now[one]]])), notice: { ...now.notice } };
+    const named = (x: unknown): x is PileRule => (PILE_RULES as readonly unknown[]).includes(x);
+    if (rule === "limit") {
+      if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > PILE_LIMIT_MAX) return { refused: "bad" };
+      next.limit = value;
+    } else if (rule === "side") {
+      if (value !== "keep" && value !== "down" && value !== "up") return { refused: "bad" };
+      next.side = value;
+    } else if (typeof on !== "boolean") return { refused: "bad" };
+    else if (rule === "notice" && named(who)) next.notice[who] = on;
+    else if (named(rule) && typeof who === "string") {
+      const list = next[rule].filter((key) => key !== who);
+      next[rule] = on ? [...list, who] : list;
+    } else return { refused: "bad" };
+    const clear = PILE_RULES.every((one) => !next[one].length && !next.notice[one]) && next.limit === 0 && next.side === "keep";
+    if (clear) this.pileRules.delete(pile); else this.pileRules.set(pile, next);
+    return { ops: this.commit([{ t: "pileRules", pile, rules: clear ? null : next }]) };
+  }
   /** ПОВЕРНУТЬ НА МЕСТЕ: карта на сукне ложится туда же с новым углом. Не «поднять» и не «переместить», поэтому этих запретов не касается; свой — `rotate`. */
   private spin(by: string, id: unknown, angle: unknown, now: number): Result {
     if (typeof id !== "string" || typeof angle !== "number" || !Number.isFinite(angle)) return { refused: "bad" };
@@ -862,6 +897,7 @@ export class Table {
     const may = this.touchable(by, id);
     if ("refused" in may) return may;
     if (may.at.in === "deck" && this.piles.get(may.at.pile)!.spot.shut && !auto) return { refused: "locked" };
+    if (may.at.in === "deck" && !auto && this.pileBarred(by, may.at.pile, "take")) return { refused: "pinned" };
     const lock = this.locks.get(id);
     this.locks.set(id, { by, until: now + LOCK_TTL_MS });
     return { ops: lock ? [] : this.commit([{ t: "lock", id, by }]) };
@@ -893,6 +929,13 @@ export class Table {
     const into = target.in === "deck" ? this.piles.get(target.pile) : undefined;
     if (target.in === "deck" && !into) return { refused: "gone" };
     if (into?.spot.shut || into?.spot.seal) return { refused: "locked" };
+    // ПРАВИЛА СТОПКИ: целиком унести («move» и «take» исходной) или положить в стопку-цель («put», предел карт).
+    if (this.pileBarred(by, id, "move") || this.pileBarred(by, id, "take") || this.pileBarred(by, id, "grip")) return { refused: "pinned" };
+    if (into && target.in === "deck") {
+      if (this.pileBarred(by, target.pile, "put")) return { refused: "pinned" };
+      const limit = this.pileRules.get(target.pile)?.limit ?? 0;
+      if (limit > 0 && into.cards.length + source.cards.length > limit) return { refused: "full" };
+    }
     // ВЕЧНАЯ, ПЕРЕЛОЖЕННАЯ ЦЕЛИКОМ, — больше не стопка: вечность снята, опустевшая уйдёт.
     //
     // ЗОНА — НЕ СТОПКА. Очерченное место рода стола (круг хода и прочие) не уносят: его ВЫСЫПАЮТ, и
@@ -1057,11 +1100,18 @@ export class Table {
     if (target.in === "deck" && !auto && into && (into.spot.shut || (into.spot.lock && from.in === "deck" && from.pile === target.pile))) return { refused: "locked" };
     // В СТОПКУ, КОТОРУЮ НЕСУТ, НЕ ПОЛОЖИТЬ: она сейчас в чужих руках.
     if (target.in === "deck" && !auto && this.gripped(target.pile, by)) return { refused: "locked" };
+    // ПРАВИЛА СТОПКИ: класть нельзя, или в ней уже предельное число карт. Вернуть в неё же карту, взятую отсюда, можно.
+    if (target.in === "deck" && !auto && into && !(from.in === "deck" && from.pile === target.pile)) {
+      if (this.pileBarred(by, target.pile, "put")) return { refused: "pinned" };
+      const limit = this.pileRules.get(target.pile)?.limit ?? 0;
+      if (limit > 0 && into.cards.length >= limit) return { refused: "full" };
+    }
     const born = target.in === "deck" && !into ? this.ensureDeck() : [];
     // В СТОПКУ — стороной стопки, если все её карты лежат одинаково; вперемешку или пустая — как нёс.
     const pack = into && !auto ? into.cards.filter((one) => one !== id).map((one) => this.turned.has(one)) : [];
     const packSide = pack.length > 0 && pack.every((up) => up === pack[0]) ? pack[0] : undefined;
-    const faceUp = auto && target.in === "felt" ? target.up : (packSide ?? this.sideOf(by, id, from));
+    const pileSide = into && !auto && target.in === "deck" ? this.pileRules.get(target.pile)?.side : undefined;
+    const faceUp = pileSide === "up" || pileSide === "down" ? pileSide === "up" : auto && target.in === "felt" ? target.up : (packSide ?? this.sideOf(by, id, from));
     if (target.in === "felt") target.up = faceUp;
     this.turned.delete(id);
     if (target.in === "deck" && faceUp && !auto) this.turned.add(id);
@@ -1211,10 +1261,11 @@ export class Table {
   // ── КОЛОДА ─────────────────────────────────────────────────────────────────────────────────
 
   /** Переставить стопку по сукну. Мимо стола не поставить — встанет на кромку, как карта. */
-  private deckMove(id: string, x: number, y: number, angle = 0): Result {
+  private deckMove(by: string, id: string, x: number, y: number, angle = 0): Result {
     const pile = this.piles.get(id);
     if (!pile) return { refused: "gone" };
     if (pile.spot.pin) return { refused: "locked" };
+    if (this.pileBarred(by, id, "move")) return { refused: "pinned" };
     if (![x, y, angle].every(Number.isFinite)) return { refused: "bad" };
     // ПОД СТУЛ СТОПКУ НЕ ПРЯЧУТ. Место стула накрыто его аркой и рукой: стопка, поставленная туда,
     // пропадает с глаз — игрок отпустил её у себя и больше не находит. Отказ честнее пропажи, а
@@ -1273,6 +1324,7 @@ export class Table {
     const pile = this.piles.get(id);
     if (!pile) return { refused: "gone" };
     if (pile.spot.lock || pile.cards.some((one) => this.locks.has(one) || (this.picks.has(one) && this.picks.get(one) !== by))) return { refused: "locked" };
+    if (this.pileBarred(by, id, how)) return { refused: "pinned" };
     if (how === "shuffle") return { ops: this.shuffleDeck(Math.random, id) };
     if (how === "sort") pile.cards = arranged(pile.cards, "suit", (one) => this.faces.get(one))!;
     else {
@@ -1298,6 +1350,7 @@ export class Table {
       const pile = this.piles.get(dest.pile);
       if (!pile) return { refused: "gone" };
       if (pile.spot.shut) return { refused: "locked" };
+      if (this.pileBarred(by, dest.pile, "put")) return { refused: "pinned" };
       pileId = dest.pile;
     } else {
       if (![dest.x, dest.y, dest.angle].every((n) => typeof n === "number" && Number.isFinite(n))) return { refused: "bad" };
@@ -1980,6 +2033,7 @@ export class Table {
       locks: Object.fromEntries([...this.locks].map(([id, lock]) => [id, lock.by])),
       picks: Object.fromEntries(this.picks),
       cardRules: Object.fromEntries(this.cardRules),
+      pileRules: Object.fromEntries(this.pileRules),
       rules: { ...this.rules },
       admin: this.admin,
       dealer: this.dealerKey,

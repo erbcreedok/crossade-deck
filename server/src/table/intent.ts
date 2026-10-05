@@ -6,7 +6,7 @@
 //
 // Чистый модуль: ни комнаты, ни сети. Кто бы ни принимал намерения — принимает их через эту дверь.
 
-import { BOT_ACTS, CARD_BACKS, CARD_FACES, DECK_DOS, GATHER_SIDES, PILE_GUARDS, type Arrange, type BotAct, type ChairFlag, type HandPose, type Intent, type TableRules, type Where } from "./contract.js";
+import { BOT_ACTS, CARD_BACKS, CARD_FACES, DECK_DOS, GATHER_SIDES, PILE_GUARDS, PILE_LIMIT_MAX, PILE_RULES, type Arrange, type BotAct, type ChairFlag, type HandPose, type Intent, type TableRules, type Where } from "./contract.js";
 
 /** Имя карты, стопки, стула, человека, дела — короткая строка. */
 const NAME_MAX = 120;
@@ -121,6 +121,14 @@ const READERS: { [K in Intent["t"]]: (raw: Raw) => Extract<Intent, { t: K }> | n
   deckDo: (r) => (name(r.pile) && oneOf(DECK_DOS, r.how) ? { t: "deckDo", pile: r.pile, how: r.how } : null),
   spin: (r) => (name(r.id) && typeof r.angle === "number" && Number.isFinite(r.angle) ? { t: "spin", id: r.id, angle: r.angle } : null),
   cardRule: (r) => (name(r.id) && bool(r.on) && (r.rule === "notice" ? RULE_NAMES.includes(r.who as string) : RULE_NAMES.includes(r.rule as string) && name(r.who)) ? { t: "cardRule", id: r.id, rule: r.rule as "lift" | "move" | "turn" | "rotate" | "slam" | "notice", who: r.who as string, on: r.on } : null),
+  pileRule: (r) => {
+    if (!name(r.pile)) return null;
+    if (r.rule === "limit") return typeof r.value === "number" && Number.isInteger(r.value) && r.value >= 0 && r.value <= PILE_LIMIT_MAX ? { t: "pileRule", pile: r.pile, rule: "limit", value: r.value } : null;
+    if (r.rule === "side") return oneOf(GATHER_SIDES, r.value) ? { t: "pileRule", pile: r.pile, rule: "side", value: r.value } : null;
+    if (!bool(r.on)) return null;
+    if (r.rule === "notice") return oneOf(PILE_RULES, r.who) ? { t: "pileRule", pile: r.pile, rule: "notice", who: r.who, on: r.on } : null;
+    return oneOf(PILE_RULES, r.rule) && name(r.who) ? { t: "pileRule", pile: r.pile, rule: r.rule, who: r.who, on: r.on } : null;
+  },
   deckForever: (r) => (name(r.pile) && bool(r.on) ? { t: "deckForever", pile: r.pile, on: r.on } : null),
   deckPin: (r) => (name(r.pile) && bool(r.on) ? { t: "deckPin", pile: r.pile, on: r.on } : null),
   deckGuard: (r) => (name(r.pile) && oneOf(PILE_GUARDS, r.guard) && bool(r.on) ? { t: "deckGuard", pile: r.pile, guard: r.guard, on: r.on } : null),

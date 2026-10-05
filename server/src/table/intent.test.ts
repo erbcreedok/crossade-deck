@@ -19,7 +19,18 @@ function table(): Table {
 
 describe("readIntent — намерение читается целиком или не читается", () => {
   it("знает каждое намерение контракта", () => {
-    expect(INTENT_KINDS.size).toBe(32);
+    expect(INTENT_KINDS.size).toBe(33);
+  });
+
+  it("правило стопки (pileRule): запрет с человеком и флагом, notice по правилу, предел числом, сторона из списка; остальное — null", () => {
+    expect(readIntent({ t: "pileRule", pile: "deck", rule: "take", who: "b", on: true })).toEqual({ t: "pileRule", pile: "deck", rule: "take", who: "b", on: true });
+    expect(readIntent({ t: "pileRule", pile: "deck", rule: "notice", who: "put", on: false })).toEqual({ t: "pileRule", pile: "deck", rule: "notice", who: "put", on: false });
+    expect(readIntent({ t: "pileRule", pile: "deck", rule: "limit", value: 12 })).toEqual({ t: "pileRule", pile: "deck", rule: "limit", value: 12 });
+    expect(readIntent({ t: "pileRule", pile: "deck", rule: "side", value: "down" })).toEqual({ t: "pileRule", pile: "deck", rule: "side", value: "down" });
+    expect(readIntent({ t: "pileRule", pile: "deck", rule: "limit", value: 1000 })).toBeNull();
+    expect(readIntent({ t: "pileRule", pile: "deck", rule: "side", value: "bok" })).toBeNull();
+    expect(readIntent({ t: "pileRule", pile: "deck", rule: "dance", who: "b", on: true })).toBeNull();
+    expect(readIntent({ t: "pileRule", pile: "deck", rule: "take", who: "b" })).toBeNull();
   });
 
   it("пересесть (reseat): угол читается числом по кругу, не число — null; сидящий двигает свой стул, стоящий — нет", () => {

@@ -287,6 +287,19 @@ export type CardRule = (typeof CARD_RULES)[number];
 export interface CardRules { lift: string[]; move: string[]; turn: string[]; rotate: string[]; slam: string[]; notice: Record<CardRule, boolean> }
 export const NO_CARD_RULES: CardRules = { lift: [], move: [], turn: [], rotate: [], slam: [], notice: { lift: false, move: false, turn: false, rotate: false, slam: false } };
 
+/**
+ * ПРАВИЛА СТОПКИ — что с ней нельзя делать, и кому (каждое — список key людей, пусто — можно всем): `take` не снять верхнюю карту, `put` не положить в неё карту (вернуть
+ * её же, взятую отсюда, можно), `move` не сдвинуть по сукну, `grip` не брать за язычок и не тянуть вообще (ни сдвинуть, ни унести в руку или в другую стопку), `tab` — язычок скрыт (его не видно, окно стопки не открыть), `flip` не перевернуть, `shuffle` не перемешать, `sort` не отсортировать. `notice` — показывать ли отказ по каждому правилу
+ * («нельзя» видно) или он тихий. Две настройки, не запреты: `limit` — сколько карт в стопке не больше (0 — без предела), `side` — какой стороной карты ложатся в неё (`keep` — как несли,
+ * `down` — всегда рубашкой вверх, `up` — всегда лицом вверх). Это не замки админа `lock`/`shut`/`seal`/`pin`: те действуют на всех, эти — на выбранных.
+ */
+export const PILE_RULES = ["take", "put", "move", "grip", "tab", "flip", "shuffle", "sort"] as const;
+export type PileRule = (typeof PILE_RULES)[number];
+export interface PileRules { take: string[]; put: string[]; move: string[]; grip: string[]; tab: string[]; flip: string[]; shuffle: string[]; sort: string[]; notice: Record<PileRule, boolean>; limit: number; side: GatherSide }
+export const NO_PILE_RULES: PileRules = { take: [], put: [], move: [], grip: [], tab: [], flip: [], shuffle: [], sort: [], notice: { take: false, put: false, move: false, grip: false, tab: false, flip: false, shuffle: false, sort: false }, limit: 0, side: "keep" };
+/** Предел карт в стопке, который можно задать. */
+export const PILE_LIMIT_MAX = 99;
+
 /** Колода стола — стопка команд бота. Остальные стопки собирают игроки (`gather`), и они не вечные. */
 export const MAIN_PILE = "deck";
 
@@ -421,6 +434,8 @@ export interface Snapshot {
   rules: TableRules;
   /** Правила отдельных карт (`CardRules`) — только у тех, кому их ставили. */
   cardRules?: Record<string, CardRules>;
+  /** Правила отдельных стопок (`PileRules`) — только у тех, кому их ставили. */
+  pileRules?: Record<string, PileRules>;
   /** Кто админ — создатель комнаты, пока он за столом. `null` — его нет. */
   admin: string | null;
   /** Кто раздающий этой сессии. `null` — роль никому не выдана. */
@@ -532,6 +547,8 @@ export type Intent =
   | { t: "deckForever"; pile: string; on: boolean }
   /** Правило карты: `rule` — `lift`/`move`/`turn` для человека `who`, или `notice` — показывать ли отказ по запрету `who` (`lift`/`move`/`turn`), для всех. Ставит админ. */
   | { t: "cardRule"; id: string; rule: CardRule | "notice"; who?: string; on: boolean }
+  /** Правило стопки: `rule` — одно из `PileRule` для человека `who`, или `notice` (показывать отказ) по правилу `who`, или `limit` / `side` со значением `value`. Ставит админ. */
+  | { t: "pileRule"; pile: string; rule: PileRule | "notice" | "limit" | "side"; who?: string; on?: boolean; value?: number | string }
   /** Повернуть карту на сукне на месте: новый угол по часовой, градусы. Брать и переносить её для этого не нужно. */
   | { t: "spin"; id: string; angle: number }
   /** Приколоть стопку — любой; открепить — только админ. */
@@ -600,6 +617,8 @@ export type Op =
   | { t: "pick"; ids: string[]; by: string | null }
   /** Правила карты поменялись; `null` — сняты все. */
   | { t: "cardRules"; id: string; rules: CardRules | null }
+  /** Правила стопки поменялись; `null` — сняты все. */
+  | { t: "pileRules"; pile: string; rules: PileRules | null }
   | { t: "rules"; rules: TableRules }
   | { t: "admin"; key: string | null; rights: string[] }
   /** Роль раздающего перешла. Права зрителя едут вместе с ней: их считает стол, а не экран. */

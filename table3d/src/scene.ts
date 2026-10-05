@@ -16,7 +16,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS3DObject, CSS3DRenderer } from "three/addons/renderers/CSS3DRenderer.js";
 import type { PanelWorld, WorldPlace } from "./panel.js";
-import type { CardRule, Carry, Chair, Pile, SeenCard, Snapshot, Where } from "../../server/src/table/contract.js";
+import type { CardRule, Carry, PileRule, Chair, Pile, SeenCard, Snapshot, Where } from "../../server/src/table/contract.js";
 import { CARRY_EVERY_MS, FELT_REACH } from "../../server/src/table/contract.js";
 import { SEAT_PULL, AWAY_DEG, awayOf, BODY_EVERY_MS, gazeOf, HEAD, headOf, leftHandOf, NECK, NECK_LEN, restHead, SHOULDER_H, sideOf, shoulders3, type Body, type Point3 } from "../../server/src/table/bodies.js";
 import { HAND_CEIL, STRAIN, BACK, PEEK, peekShift, peekTight, CAM, headAt, neckNew, neckStep, pitchToCentre, TOP, topHeight, wrap, type CamMode } from "./camera.js";
@@ -346,6 +346,10 @@ export interface SceneApi {
   carryPile(pile: string, screen: { x: number; y: number } | null): void;
   /** Взялись за язычок стопки в точке экрана: запомнить, где палец относительно стопки — дальше её несут за это же место. */
   grabPile(pile: string, screen: { x: number; y: number }): void;
+  /** Нельзя ли тому, кто действует с этого экрана, это со стопкой (`PileRules`). */
+  pileBarred(pile: string, rule: PileRule): boolean;
+  /** Стопка «отказывает»: верхняя карта кивает в сторону и звучит отказ — только если у этого запрета включено «показывать». */
+  denyPile(pile: string, rule: PileRule): void;
   /** Где несомая стопка лежит на сукне, если отпустить (в пределах борта); не несут — `null`. */
   pileAt(pile: string): { x: number; y: number } | null;
   /** Куда ляжет то, что отпустят здесь: в мою руку (на место `i`), в стопку, на сукно. */
@@ -2210,7 +2214,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   let pileGrab: { pile: string; dx: number; dy: number } | null = null;
   /** Ближайшая к точке `q` точка сукна: за борт стопку положить нельзя (как карту, `aim`). */
   const seatOnFelt = (q: { x: number; y: number }) => { const len = Math.hypot(q.x, q.y), max = R - 0.8, k = len > max ? max / len : 1; return { x: q.x * k, y: q.y * k }; };
-  interface TabObj { mesh: THREE.Mesh; hit: THREE.Mesh; cv: HTMLCanvasElement; tex: THREE.CanvasTexture; key: string }
+  /** Язычок стопки с ДВУХ сторон (`mesh` — у нижней кромки, `mesh2` — у верхней, перевёрнут): виден тот, что ближе к камере (`side`); с другой стороны он не прячется за стопкой. */
+  interface TabObj { mesh: THREE.Mesh; hit: THREE.Mesh; mesh2: THREE.Mesh; hit2: THREE.Mesh; side: 1 | 2; cv: HTMLCanvasElement; tex: THREE.CanvasTexture; key: string }
+  const liveTab = (t: TabObj): THREE.Mesh => (t.side === 2 ? t.mesh2 : t.mesh);
   const tabs = new Map<string, TabObj>();
   let litTabs = new Set<string>();
   let tabFn: ((pile: string, e: PointerEvent) => void) | null = null;
@@ -2243,12 +2249,17 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     cv.width = 340; cv.height = Math.round(340 * (TAB.l / TAB.w));
     const tex = new THREE.CanvasTexture(cv);
     tex.colorSpace = THREE.SRGBColorSpace;
-    const mesh = new THREE.Mesh(tabGeom, new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.05 }));
-    const hit = new THREE.Mesh(tabHitGeom, new THREE.MeshBasicMaterial({ visible: false }));
-    hit.position.y = -TAB.l * 0.25;
-    mesh.add(hit);
-    scene.add(mesh);
-    return { mesh, hit, cv, tex, key: "" };
+    const face = (): { mesh: THREE.Mesh; hit: THREE.Mesh } => {
+      const mesh = new THREE.Mesh(tabGeom, new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.05 }));
+      const hit = new THREE.Mesh(tabHitGeom, new THREE.MeshBasicMaterial({ visible: false }));
+      hit.position.y = -TAB.l * 0.25;
+      mesh.add(hit);
+      scene.add(mesh);
+      return { mesh, hit };
+    };
+    const one = face(), two = face();
+    two.mesh.visible = false;
+    return { mesh: one.mesh, hit: one.hit, mesh2: two.mesh, hit2: two.hit, side: 1, cv, tex, key: "" };
   }
   // ——— ТЕНЬ НЕСОМОЙ КАРТЫ: свет строго сверху, только для неё — под картой, вертикально, всегда (и в полёте, и пока падает) ———
   // Косое солнце у несомой карты выключено: тень одна — та, что показывает, куда карта упадёт, если её выпустить из руки.
@@ -2318,20 +2329,30 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       // Язычок — стопки, а не верхней карты: торчит из нижней, лежит на столе; верхнюю потянули — он остался.
       const base = p.pose === "ring" ? undefined : cards.get(p.cards[0]?.id ?? "");
       if (!base || !base.group.visible || (drag?.moved && drag.id === p.cards[0]!.id)) continue;
+      // Язычок скрыт для тех, кому так задано правилом стопки (`PileRules.tab`): его нет ни на экране, ни под пальцем.
+      if (pileBarred(p.id, "tab")) continue;
       seen.add(p.id);
       let t = tabs.get(p.id);
-      if (!t) { t = makeTab(); t.hit.userData.pile = p.id; tabs.set(p.id, t); }
+      if (!t) { t = makeTab(); t.hit.userData.pile = p.id; t.hit2.userData.pile = p.id; tabs.set(p.id, t); }
       const key = `${p.cards.length}|${p.pin}|${litTabs.has(p.id)}`;
       if (t.key !== key) { t.key = key; drawTab(t.cv, p.cards.length, !!p.pin, litTabs.has(p.id)); t.tex.needsUpdate = true; }
       base.group.updateMatrixWorld(true);
       const at = base.group.getWorldPosition(new THREE.Vector3()), k = base.group.scale.x, a = -pileAngle(p) * DEG, d = k * (CARD_H / 2 + TAB.l / 2);
-      const tx = at.x + d * Math.sin(a), tz = at.z + d * Math.cos(a);
-      // Язычок не тонет под картами, что легли рядом на сукно: он выше самой высокой из них, лежащей под ним.
-      let ty = at.y + 0.004;
-      store.state.felt.forEach((fc, i) => { if (Math.hypot(fc.x - tx, fc.y - tz) < CARD_H / 2 + CARD_W / 2 + TAB.w * k) ty = Math.max(ty, 0.01 + i * FELT_STEP + 0.006); });
-      t.mesh.position.set(tx, ty, tz);
-      t.mesh.rotation.set(-Math.PI / 2, a, 0, "YXZ");
-      t.mesh.scale.setScalar(k);
+      const put = (m: THREE.Mesh, sign: 1 | -1): void => {
+        const tx = at.x + sign * d * Math.sin(a), tz = at.z + sign * d * Math.cos(a);
+        // Язычок не тонет под картами, что легли рядом на сукно: он выше самой высокой из них, лежащей под ним.
+        let ty = at.y + 0.004;
+        store.state.felt.forEach((fc, i) => { if (Math.hypot(fc.x - tx, fc.y - tz) < CARD_H / 2 + CARD_W / 2 + TAB.w * k) ty = Math.max(ty, 0.01 + i * FELT_STEP + 0.006); });
+        m.position.set(tx, ty, tz);
+        m.rotation.set(-Math.PI / 2, a + (sign < 0 ? Math.PI : 0), 0, "YXZ");
+        m.scale.setScalar(k);
+      };
+      put(t.mesh, 1); put(t.mesh2, -1);
+      // Виден тот язычок, что ниже на экране (ближе к камере); с запасом, чтобы не мигали на равном расстоянии.
+      t.mesh.updateMatrixWorld(); t.mesh2.updateMatrixWorld();
+      const y1 = t.mesh.position.clone().project(camera).y, y2 = t.mesh2.position.clone().project(camera).y;
+      if (t.side === 1 && y2 < y1 - 0.02) t.side = 2; else if (t.side === 2 && y1 < y2 - 0.02) t.side = 1;
+      t.mesh.visible = t.side === 1; t.mesh2.visible = t.side === 2;
     }
     // Язычок и у стопки бесхозного стула: потянул — вся стопка под палец (ключ `chair:<id>`).
     for (const ch of store.state.chairs) {
@@ -2353,7 +2374,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       t.mesh.rotation.set(-Math.PI / 2, a, 0, "YXZ");
       t.mesh.scale.setScalar(k);
     }
-    for (const [id, t] of tabs) if (!seen.has(id)) { scene.remove(t.mesh); (t.mesh.material as THREE.Material).dispose(); t.tex.dispose(); tabs.delete(id); }
+    for (const [id, t] of tabs) if (!seen.has(id)) { scene.remove(t.mesh, t.mesh2); (t.mesh.material as THREE.Material).dispose(); (t.mesh2.material as THREE.Material).dispose(); t.tex.dispose(); tabs.delete(id); }
   }
 
   // ——— моё тело: то же, что видят другие; голова — камера, поэтому кружок с именем только когда камера ушла на другую сторону стола ———
@@ -2544,7 +2565,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   };
   const hitTab = (e: PointerEvent): string | null => {
     ray.setFromCamera(ndc(e), camera);
-    const hit = ray.intersectObjects([...tabs.values()].map((t) => t.hit), false)[0];
+    const hit = ray.intersectObjects([...tabs.values()].map((t) => (t.side === 2 ? t.hit2 : t.hit)), false)[0];
     return (hit?.object.userData.pile as string | undefined) ?? null;
   };
   const onFelt = (e: { clientX: number; clientY: number }): THREE.Vector3 | null => { ray.setFromCamera(ndc(e), camera); return ray.ray.intersectPlane(feltPlane, new THREE.Vector3()); };
@@ -2554,6 +2575,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const actorKey = (): string => (store as { actor?: { key: string } }).actor?.key ?? store.me.key;
   const cardRule = (id: string, rule: CardRule): boolean => store.state.cardRules?.[id]?.[rule].includes(actorKey()) ?? false;
   const cardNotice = (id: string, rule: CardRule): boolean => store.state.cardRules?.[id]?.notice[rule] === true;
+  const pileBarred = (pile: string, rule: PileRule): boolean => store.state.pileRules?.[pile]?.[rule].includes(actorKey()) ?? false;
+  const pileNotice = (pile: string, rule: PileRule): boolean => store.state.pileRules?.[pile]?.notice[rule] === true;
   /** Карта «отказывает»: кивает в сторону (тряска) — только если у этого запрета включено «показывать». */
   const denies = new Map<string, number>();
   const DENY = { ms: 450, shake: 0.12, hz: 16 };
@@ -2561,6 +2584,15 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!cardNotice(id, rule) || !cards.has(id)) return;
     denies.set(id, performance.now());
     feel("deny", id, 1);
+    draw();
+  }
+  /** Стопка отказывает: кивает её верхняя карта. */
+  function denyPile(pile: string, rule: PileRule): void {
+    if (!pileNotice(pile, rule)) return;
+    const top = store.state.piles.find((p) => p.id === pile)?.cards.at(-1)?.id;
+    if (!top || !cards.has(top)) return;
+    denies.set(top, performance.now());
+    feel("deny", top, 1);
     draw();
   }
   /** Тряска отказавших карт; по окончании всё возвращается, как было. */
@@ -2945,6 +2977,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (pile) { e.stopImmediatePropagation(); tabFn!(pile, e); return; }
     const id = hitCard(e);
     if (id && cardRule(id, "lift")) { deny(id, "lift"); return; }
+    { const from = id ? fromOf.get(id) : undefined; if (id && from?.in === "pile" && pileBarred(from.pile, "take")) { denyPile(from.pile, "take"); return; } }
     if (!id || !takeable(id)) { if (liftedId) { liftedId = null; layout(store.state); } return; }
     // Свободная камера: моя рука — стопка на столе, и тянуть из неё можно только верхнюю карту.
     if (camMode === "orbit") { const from = fromOf.get(id); if (from?.in === "hand" && from.mine && id !== myChair()?.hand.at(-1)?.id) return; }
@@ -3110,6 +3143,16 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     // Легла — ждёт ответа стола там, куда её положили (над сукном — опускается на сукно, в руку — в щель).
     const o = cards.get(d.id), to = target(e, d);
+    // ПРАВИЛА СТОПКИ: в эту стопку класть нельзя или она полна — карта остаётся там, откуда её подняли (вернуть в ту же стопку, откуда взяли, можно).
+    if (to.in === "deck") {
+      const was = fromOf.get(d.id), into = store.state.piles.find((p) => p.id === to.pile), limit = store.state.pileRules?.[to.pile]?.limit ?? 0;
+      if (into && !(was?.in === "pile" && was.pile === to.pile) && (pileBarred(to.pile, "put") || (limit > 0 && into.cards.length >= limit))) {
+        denyPile(to.pile, "put");
+        store.send({ t: "release", id: d.id });
+        layout(store.state); draw();
+        return;
+      }
+    }
     // ЗВУК — В МОМЕНТ, КОГДА КАРТА ПАДАЕТ НА СТОЛ (`onLand`), а не когда палец отпустил; в руку и в стопку — сразу.
     if (!slamForce) {
       if (to.in === "felt") {
@@ -3487,7 +3530,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     /** Чем нарисовано лицо каждой карты: адрес картинки или `finger:<оттенок>` — скрытая лицом ко мне. */
     arts: () => [...cards.entries()].map(([id, o]) => ({ id, face: o.faceUrl })),
     /** Язычки на экране: чья стопка, середина и размер, сколько карт, приколота ли. */
-    tabs: () => [...tabs.entries()].map(([pile, t]) => {
+    tabs: () => [...tabs.entries()].map(([pile, tab]) => {
+      const t = { mesh: liveTab(tab) };
       const c = project(t.mesh.position), w = new THREE.Vector3(TAB.w / 2 * t.mesh.scale.x, 0, 0).applyQuaternion(t.mesh.quaternion), e = project(t.mesh.position.clone().add(w));
       const p = store.state.piles.find((x) => x.id === pile);
       return { pile, x: c.x, y: c.y, w: 2 * Math.hypot(e.x - c.x, e.y - c.y), h: (2 * Math.hypot(e.x - c.x, e.y - c.y) * TAB.l) / TAB.w, count: p?.cards.length ?? 0, pin: !!p?.pin, y3: t.mesh.position.y, at: { x: t.mesh.position.x, y: t.mesh.position.z } };
@@ -3553,7 +3597,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     fillHand: (n: number) => { const ch = myChair(); if (!ch) return; const deck = store.state.piles[0]; for (const c of deck.cards.slice(-n)) { store.send({ t: "grab", id: c.id }); store.send({ t: "drop", id: c.id, to: { in: "hand", chair: ch.id, i: ch.hand.length } }); } },
     cardAt: (x: number, y: number) => hitCard({ clientX: x, clientY: y } as PointerEvent),
     dropFeltAt: (id: string, x: number, y: number) => { store.send({ t: "grab", id }); store.send({ t: "drop", id, to: { in: "felt", x, y, angle: 0, up: false } }); },
-    tabInfo: (pile: string) => { const t = tabs.get(pile); return t ? { y: t.mesh.position.y, x: t.mesh.position.x, z: t.mesh.position.z, screen: project(t.mesh.position.clone()) } : null; },
+    tabInfo: (pile: string) => { const tab = tabs.get(pile), t = tab ? { mesh: liveTab(tab) } : null; return t ? { y: t.mesh.position.y, x: t.mesh.position.x, z: t.mesh.position.z, screen: project(t.mesh.position.clone()) } : null; },
     shadeCount: () => [...cards.values()].filter((o) => o.shades.every((m) => m.receiveShadow && m.material instanceof THREE.ShadowMaterial)).length,
     cardBend: (id: string) => (cards.get(id)?.group.userData.bend as number | undefined) ?? 0,
     handCurl: () => handCurl,
@@ -3609,6 +3653,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     ruleInfo: (id: string) => ({ shaking: denies.has(id), ring: cards.get(id)?.ring.visible === true, home: homeMark.visible, lift: cardRule(id, "lift"), move: cardRule(id, "move"), turn: cardRule(id, "turn"), notice: { lift: cardNotice(id, "lift"), move: cardNotice(id, "move"), turn: cardNotice(id, "turn"), rotate: cardNotice(id, "rotate"), slam: cardNotice(id, "slam") }, rotate: cardRule(id, "rotate"), slam: cardRule(id, "slam") }),
     /** Для проверок: подать «чужой поток несу» напрямую (стенд один на странице и чужих потоков не видит). */
     hearFake: (list: readonly Carry[]) => hearOthers(list),
+    /** Для проверок: кивает ли сейчас верхняя карта стопки (отказ по правилу стопки). */
+    pileShaking: (pile: string) => { const top = store.state.piles.find((p) => p.id === pile)?.cards.at(-1)?.id; return !!top && denies.has(top); },
     heightOf: (id: string) => cards.get(id)?.group.position.y ?? null,
     airOf: (id: string) => { const o = cards.get(id); return o ? +(o.group.position.y - o.target.pos.y).toFixed(3) : null; },
     shakeInfo: () => ({ active: shake !== null && performance.now() - shake.t0 < SHAKE.ms, count: shakes, slamming: slamming.size, slamTicks, peakPx: Math.round(shakePeakPx) }),
@@ -3852,6 +3898,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     onFrame: (fn) => void frameHeard.push(fn),
     carry(id, e) { if (fromOf.has(id)) startDrag(id, e); },
     carrying: () => (drag?.moved ? drag.id : null),
+    pileBarred,
+    denyPile,
     grabPile(pile, screen) {
       const p = store.state.piles.find((x) => x.id === pile), base = p && cards.get(p.cards[0]?.id ?? "");
       if (!p || !base) return;
