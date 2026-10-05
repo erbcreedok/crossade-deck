@@ -71,6 +71,22 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
   await f.evaluate((i) => { window.__me.send({ t: "grab", id: i }); window.__me.send({ t: "drop", id: i, to: { in: "felt", x: 0, y: 0.8, up: true, angle: -8 } }); window.__me.send({ t: "unpick", id: i }); }, id);
   await p.waitForTimeout(1200);
 }
+// Пинг и дрожание: ползунки меняют задержку сцены (раньше не были подключены и всегда оставались 0).
+{
+  const set = (id, v) => f.evaluate(([i, vv]) => { const e = document.getElementById(i); e.value = String(vv); e.dispatchEvent(new Event("input")); return document.getElementById(i.replace("lag-", "lagv-").replace("jit-", "jitv-")).textContent; }, [id, v]);
+  const t1 = await set("lag-top", 500), t2 = await set("jit-top", 100);
+  check("ползунки пинга и дрожания двигают задержку сцены и показывают значение", (await f.evaluate(() => window.__lag.lat.top === 500 && window.__lag.jit.top === 100)) && t1 === "500 мс" && t2 === "100 мс", { t1, t2 });
+  const id = await f.evaluate(() => window.__me.state.felt[0].id);
+  const at = await f.evaluate((i) => window.__top.test.screenOf(i), id);
+  await p.mouse.move(at.x, at.y); await p.mouse.down(); await p.mouse.move(at.x + 14, at.y - 9, { steps: 3 });
+  const t0 = Date.now(); let seenAt = null;
+  for (let i = 0; i < 40 && seenAt === null; i++) { await p.mouse.move(at.x + 14 + (i % 2) * 6, at.y - 9, { steps: 2 }); await p.waitForTimeout(40); if ((await f.evaluate((ii) => window.__first.test.haloInfo(ii)?.on, id)) === true) seenAt = Date.now() - t0; }
+  await p.mouse.up(); await p.waitForTimeout(1500);
+  await set("lag-top", 0); await set("jit-top", 0);
+  await f.evaluate((i) => { window.__me.send({ t: "grab", id: i }); window.__me.send({ t: "drop", id: i, to: { in: "felt", x: 0, y: 0.8, up: true, angle: -8 } }); window.__me.send({ t: "unpick", id: i }); }, id);
+  await p.waitForTimeout(1200);
+  check("при пинге 500 мс соседняя сцена видит карту не раньше, чем через ~0,5 с", seenAt !== null && seenAt >= 450, { seenAt });
+}
 // Наклон несомой карты у зрителя — тот, что у несущего: несут сверху — у зрителя плашмя; несут от первого лица — наклонена.
 {
   const id = await f.evaluate(() => window.__me.state.felt[0].id);

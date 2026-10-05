@@ -250,6 +250,9 @@ for (const f of document.querySelectorAll(".frame")) f.classList.add("ready");
   me.onChange(paint); paint();
 }
 // Камера включена всегда: ничего не блокируется.
+// ПИНГ И ДРОЖАНИЕ каждой сцены: ползунки задают задержку (мс), с которой её слова доходят до стола и до соседней сцены, и случайный разброс поверх неё.
+for (const which of ["top", "first"]) { const ej = $("jit-" + which); ej.oninput = () => { jit[which] = Number(ej.value); $("jitv-" + which).textContent = ej.value + " мс"; }; const el = $("lag-" + which); el.oninput = () => { lat[which] = Number(el.value); $("lagv-" + which).textContent = el.value + " мс"; }; }
+window.__lag = { lat, jit };
 // ВЫБОР ИГРОКА У КАЖДОЙ СЦЕНЫ: по умолчанию синий; смена не трогает камеру.
 for (const which of ["top", "first"]) {
   const box = $("who-" + which);
