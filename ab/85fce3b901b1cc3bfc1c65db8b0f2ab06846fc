@@ -1,0 +1,22 @@
+design/zones/sounds-check.mjs
+  s_73107c3d804131::t_41d0bcdc0a3675 160-164
+  s_73107c3d804131::t_9f4c7c6f9dfcf7 165-166
+design/zones/sounds-page.html
+  s_73107c3d804131::t_e7e809d32cb957 254,256-258,344,364-365,367-368,374-382
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ab85fce3b901b1cc3bfc1c65db8b0f2ab06846fc",
+  "prompts": {},
+  "sessions": {
+    "s_73107c3d804131": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e85b33e2-d0a6-4a90-b535-037e1d4326e5",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
