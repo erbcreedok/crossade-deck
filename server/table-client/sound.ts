@@ -169,11 +169,25 @@ export interface SoundHealth {
   why?: "off" | "asleep" | "no-file";
   /** Сколько записей уже декодировано и готово играть. */
   loaded: number;
+  /** Сколько секунд тишины срезано в начале каждой записи. */
+  onsets: Record<string, number>;
+}
+
+/** Где в записи на самом деле начинается звук: первый отсчёт заметнее порога (5% от пика, не меньше 0,5%). Не дальше 120 мс — дальше уже не тишина, а тихое начало самого звука. */
+export function onsetOf(buf: AudioBuffer): number {
+  const data = buf.getChannelData(0);
+  let peak = 0;
+  for (let i = 0; i < data.length; i += 1) peak = Math.max(peak, Math.abs(data[i]!));
+  const limit = Math.max(0.005, peak * 0.05), cap = Math.floor(buf.sampleRate * 0.12);
+  for (let i = 0; i < Math.min(data.length, cap); i += 1) if (Math.abs(data[i]!) >= limit) return i / buf.sampleRate;
+  return 0;
 }
 
 export function tableSound(): TableSound {
   let ctx: AudioContext | null = null;
   const buffers = new Map<string, AudioBuffer>();
+  /** Сколько секунд в начале каждой записи тишина (и «разгон» кодека AAC): с неё не играем, звук должен начинаться ровно в момент команды. */
+  const onsets = new Map<string, number>();
   const log: Played[] = ((globalThis as { __tableSounds?: Played[] }).__tableSounds = []);
 
   /** Создать звуковую машину и загрузить записи — до первого касания: контекст спит, но файлы уже декодируются, и первый звук не ждёт загрузки. */
@@ -200,12 +214,17 @@ export function tableSound(): TableSound {
     fetch(`${HOST}/table/sounds/${name}.m4a`)
       .then((r) => r.arrayBuffer())
       .then((bytes) => ctx!.decodeAudioData(bytes))
-      .then((buf) => { buffers.set(name, buf); health.loaded = buffers.size; })
+      .then((buf) => {
+        buffers.set(name, buf);
+        onsets.set(name, onsetOf(buf));
+        health.loaded = buffers.size;
+        health.onsets[name] = +onsets.get(name)!.toFixed(4);
+      })
       .catch(() => {});
   };
   addEventListener("pointerdown", wake, { capture: true });
 
-  const health: SoundHealth = { state: "none", asked: 0, played: 0, silent: 0, loaded: 0 };
+  const health: SoundHealth = { state: "none", asked: 0, played: 0, silent: 0, loaded: 0, onsets: {} };
 
   const sound: TableSound = {
     prefs: readSoundPrefs(),
@@ -244,14 +263,14 @@ export function tableSound(): TableSound {
       } else out.connect(audio.destination);
       const t0 = audio.currentTime;
       if (file) {
-        const buf = buffers.get(`${file}-${1 + Math.floor(Math.random() * FILES[file])}`);
+        const pick = `${file}-${1 + Math.floor(Math.random() * FILES[file])}`, buf = buffers.get(pick);
         if (buf) {
           const src = audio.createBufferSource(), vol = audio.createGain();
           src.buffer = buf;
           src.playbackRate.value = spec.rate ?? 1;
           vol.gain.value = gain;
           src.connect(vol).connect(out);
-          src.start(t0);
+          src.start(t0, onsets.get(pick) ?? 0);
           if (spec.cutMs) {
             const end = t0 + spec.cutMs / 1000;
             vol.gain.setValueAtTime(gain, end - 0.015);
@@ -296,7 +315,7 @@ export function tableSound(): TableSound {
       const file = SOUND_OF[kind];
       log.push({ kind, file, x: +x.toFixed(2), z: +z.toFixed(2), gain, ...(cutMs ? { cutMs } : {}) });
       if (log.length > 50) log.shift();
-      const buf = buffers.get(`${file}-${1 + Math.floor(Math.random() * FILES[file])}`);
+      const pick = `${file}-${1 + Math.floor(Math.random() * FILES[file])}`, buf = buffers.get(pick);
       if (!ctx || !buf || ctx.state !== "running") {
         health.silent += 1;
         health.why = !buf ? "no-file" : "asleep";
@@ -337,7 +356,7 @@ export function tableSound(): TableSound {
       } else pan.setPosition(px, 0, pz);
       if (sound.prefs.spatial) src.connect(vol).connect(pan).connect(ctx.destination);
       else src.connect(vol).connect(ctx.destination);
-      src.start();
+      src.start(0, onsets.get(pick) ?? 0);
       if (cutMs) {
         // Обрыв с хвостом в 15 мс — без щелчка.
         const end = ctx.currentTime + cutMs / 1000;

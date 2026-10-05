@@ -29,8 +29,8 @@ const grabAt = async () => { const c = await settle(); await p.mouse.move(c.x, c
 await clear();
 let c = await grabAt();
 check("взял карту — «grab»", (await kinds()).includes("grab"), await kinds());
-await p.mouse.up(); await p.waitForTimeout(900);
-check("положил — «lay» с вибрацией", (await kinds()).includes("lay") && (await f.evaluate(() => window.__buzz.length)) > 0, { k: await kinds(), buzz: await f.evaluate(() => window.__buzz) });
+await p.mouse.up(); await p.waitForTimeout(120);
+check("положил — «lay» с вибрацией, и звук уже в момент отпускания (не после падения)", (await kinds()).includes("lay") && (await f.evaluate(() => window.__buzz.length)) > 0, { k: await kinds(), buzz: await f.evaluate(() => window.__buzz) });
 // 2. Бросил на скорости → «throw».
 await recenter(); await clear();
 c = await settle(); await p.mouse.move(c.x, c.y); await p.mouse.down(); await p.mouse.move(c.x + 5, c.y - 5, { steps: 2 }); await p.waitForTimeout(150);
@@ -72,6 +72,9 @@ check("🔊 выключен у сцены — тишина и без вибра
 await f.evaluate(() => document.querySelector("#who-top .mute").click());
 // 6б. Записи декодируются сразу при загрузке страницы, до первого касания (первый звук не ждёт загрузки и не опаздывает).
 check("записи звуков загружены заранее, до первого касания (не меньше 7 из 9 уже декодированы)", early.loaded >= 7, early);
+const onsets = await f.evaluate(() => window.__sound.health.onsets);
+check("тишина в начале записей срезана: у каждой записи посчитано начало звука (не дольше 120 мс)", Object.keys(onsets).length >= 7 && Object.values(onsets).every((v) => v >= 0 && v <= 0.12), onsets);
+console.log("начало звука в записях, с:", JSON.stringify(onsets));
 // 7. Звук доехал до браузера: записи загружены (в логе голоса есть «drop»).
 const played = await f.evaluate(() => ({ health: window.__sound.health, last: (window.__tableSounds ?? []).length }));
 check("звуковая машина запущена, файлы доехали: звуков сыграно много, молчаливых мало", played.health.state === "running" && played.health.played >= 10 && played.health.silent <= 2, played);

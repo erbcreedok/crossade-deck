@@ -54,7 +54,7 @@ const HOLD_PICK_MS = 350;
  */
 /** Несомая в свободном месте карта смотрит на глаз несущего: `face` — доля пути от «лежит плашмя» до «лицом к глазу» (остальное — наклон туда, куда ляжет). */
 const CARRY_TILT = { face: 0.65, floor: 0.12 };
-const SPRING = { k: 170, damp: 0.62 }, SPRING_HELD = { k: 900, damp: 0.9 }, SPRING_SLAM = { k: 2600, damp: 0.8 }, SPRING_DROP = { k: 650, damp: 0.85 };
+const SPRING = { k: 170, damp: 0.62 }, SPRING_HELD = { k: 900, damp: 0.9 }, SPRING_SLAM = { k: 2600, damp: 0.8 };
 /** Над своей рукой несомая карта — выше соседей на эту долю своей высоты, ближе к глазу и чуть крупнее. */
 /** Размер своих карт в руке относительно обычного: предел ползунка в настройках. */
 const HAND_SIZE = { min: 0.5, max: 2 };
@@ -2124,7 +2124,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       if (!g.userData.placed) { g.position.copy(t.pos); g.quaternion.copy(t.quat); g.scale.setScalar(t.scale); g.userData.placed = true; g.userData.v = new THREE.Vector3(); g.userData.sv = 0; continue; }
       // ПРУЖИНА: ускорение к месту, затухание скоростью; поворот догоняет плавно.
       // Мелкими шагами: жёсткая пружина на целом кадре разлетается.
-      const sp = drag?.id === id ? SPRING_HELD : slamming.has(id) ? SPRING_SLAM : impacts.has(id) ? SPRING_DROP : gathering?.has(id) ? (gather!.fast ? SPRING_HELD : GATHER.spring) : SPRING, c = 2 * Math.sqrt(sp.k) * sp.damp;
+      const sp = drag?.id === id ? SPRING_HELD : slamming.has(id) ? SPRING_SLAM : gathering?.has(id) ? (gather!.fast ? SPRING_HELD : GATHER.spring) : SPRING, c = 2 * Math.sqrt(sp.k) * sp.damp;
       const v = g.userData.v as THREE.Vector3, steps = Math.ceil(dt * 240), h = dt / steps, d = new THREE.Vector3();
       let sc = g.scale.x, sv = g.userData.sv as number;
       // ПЕРЕВОРОТ НА СТОЛЕ: пока карта наклонена, её край уходит вниз на полширины·sin(наклона) — цель поднята на столько, чтобы край не прошёл сквозь стол.
@@ -3106,12 +3106,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     // Легла — ждёт ответа стола там, куда её положили (над сукном — опускается на сукно, в руку — в щель).
     const o = cards.get(d.id), to = target(e, d);
-    // ЗВУК КАСАНИЯ: положил, бросил на скорости или карта возвращается на своё место — прозвучит, когда карта действительно коснётся стола.
-    if (to.in === "felt") {
-      const homeBack = cardRule(d.id, "move"), fall = Math.min(1, Math.max(0, (o?.group.position.y ?? 0) / 2.5));
-      if (homeBack) { if (cardNotice(d.id, "move")) impacts.set(d.id, { kind: "home", energy: 1, until: performance.now() + 900 }); }
-      else impacts.set(d.id, { kind: lastThrow > 0.5 ? "throw" : "lay", energy: lastThrow > 0.5 ? lastThrow : fall, until: performance.now() + 900 });
-    } else feel("lay", d.id, 0.4);
+    // ЗВУК — В МОМЕНТ ОТПУСКАНИЯ, а не когда карта доехала: палец отпустил — слышно сразу (удар об стол звучит от самого удара, `slam`).
+    if (!slamForce) {
+      if (to.in === "felt") {
+        const fall = Math.min(1, Math.max(0, (o?.group.position.y ?? 0) / 2.5));
+        if (cardRule(d.id, "move")) { if (cardNotice(d.id, "move")) feel("home", d.id, 1); }
+        else feel(lastThrow > 0.5 ? "throw" : "lay", d.id, lastThrow > 0.5 ? lastThrow : fall);
+      } else feel("lay", d.id, 0.4);
+    }
     if (o && to.in === "felt") landing = { id: d.id, place: lying(to.x, to.y, 0.01 + store.state.felt.length * FELT_STEP, to.angle, to.up), key: fromKey(d.id), until: performance.now() + 1500 };
     // В свою руку (из руки, с сукна, из стопки) — в щель. В стопку и в круг — туда, где карта ляжет: ответ стола даст то же место.
     const now = performance.now();
@@ -3269,8 +3271,6 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const c = id ? screenOf(id) : null, r = renderer.domElement.getBoundingClientRect();
     feelFn({ kind, energy, x: c ? ((c.x - r.left) / r.width - 0.5) * 2 : 0, z: c ? ((c.y - r.top) / r.height - 0.5) * 2 : 0 });
   }
-  /** Что должно прозвучать, когда карта коснётся стола: упала, брошена, удар, вернулась на место. */
-  const impacts = new Map<string, { kind: FeelKind; energy: number; until: number }>();
   let lastCarryFeel = 0, lastRotTick = 0, lastSpinTick = 0;
   // ——— УДАР КАРТОЙ ОБ СТОЛ: несомая карта падает вниз сразу, жёстко, и камера вздрагивает от удара ———
   // Мышь: левой держишь карту, правую кнопку нажать — удар; или пробел. Телефон: первый палец держит, вторым — двойной тап.
@@ -3303,20 +3303,16 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     slamForce = true;
     try { end({ pointerId: dragPid, clientX: lastFinger.x, clientY: lastFinger.y, type: "pointerup" } as PointerEvent); } finally { slamForce = false; }
     slamming.set(d.id, performance.now() + 800);
+    feel("slam", d.id, 1);
   }
-  /** Каждый кадр: упавшая карта — удар (тряска); не упала за 0,8 с — отбой без тряски. */
+  /** Каждый кадр: упавшая после удара карта — тряска камеры; не упала за 0,8 с — отбой без тряски. */
   function placeSlams(now: number): boolean {
     for (const [id, until] of [...slamming]) {
       const o = cards.get(id);
       if (!o || now > until) { slamming.delete(id); continue; }
-      if (o.group.position.y - o.target.pos.y < 0.08) { slamming.delete(id); impacts.delete(id); shakeCamera(); feel("slam", id, 1); }
+      if (o.group.position.y - o.target.pos.y < 0.08) { slamming.delete(id); shakeCamera(); }
     }
-    for (const [id, one] of [...impacts]) {
-      const o = cards.get(id);
-      if (!o || now > one.until) { impacts.delete(id); continue; }
-      if (o.group.position.y - o.target.pos.y < 0.06) { impacts.delete(id); feel(one.kind, id, one.energy); }
-    }
-    return slamming.size > 0 || impacts.size > 0 || shake !== null;
+    return slamming.size > 0 || shake !== null;
   }
   /** Вращение рукой: градусов на пиксель движения (мышь с Ctrl/Cmd, второй палец по вертикали, правая кнопка — по углу, там не нужно). */
   const SPIN = { perPx: 0.45, dead: 10 };
