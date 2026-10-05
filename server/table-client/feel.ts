@@ -180,6 +180,22 @@ export interface TableFeel {
   readonly log: FeelLogged[];
 }
 
+/**
+ * КАКИЕ ДОРОЖКИ НУЖНЫ НА САМОМ ДЕЛЕ: те, что назначены действиям (заводской пресет плюс то, что поменяли на этом устройстве). Остальные не загружаются — экономит трафик и память;
+ * чем меньше звуков назначено и чем короче собранные отрывки, тем легче страница.
+ */
+export function feelUsedTracks(): string[] {
+  const used = new Set<string>();
+  const merged: Record<string, FeelSpec> = {};
+  for (const k of FEEL_KINDS) merged[k] = { ...FEEL_DEFAULT[k] };
+  try {
+    const raw = JSON.parse(localStorage.getItem(KEY) ?? "null") as { preset?: Partial<Record<FeelKind, Partial<FeelSpec>>> } | null;
+    for (const k of FEEL_KINDS) if (raw?.preset?.[k]) Object.assign(merged[k]!, raw.preset[k]);
+  } catch { /* нет хранилища — заводской */ }
+  for (const k of FEEL_KINDS) { const spec = merged[k]!; if (spec.track) used.add(spec.track); for (const v of spec.extra ?? []) if (v.track) used.add(v.track); }
+  return [...used];
+}
+
 const clone = (spec: FeelSpec): FeelSpec => ({ ...spec, ...(spec.extra ? { extra: spec.extra.map((v) => ({ ...v })) } : {}), layers: spec.layers.map((l) => ({ ...l })), vibe: [...spec.vibe] });
 
 /** Один пресет на страницу: звук и вибрация — те, что уже держит экран (`tableSound`, `tableHaptic`). */

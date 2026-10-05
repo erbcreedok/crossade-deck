@@ -110,6 +110,29 @@ await f.evaluate(() => document.getElementById("reset").click());
     check("на странице написано, что записано", await f.evaluate(() => /Записано как заводское: Взял карту/.test(document.getElementById("saved").textContent)));
   } finally { writeFileSync(file, was); }
 }
+// «Сохранить как новый звук»: вырезается отрезок со скоростью и тоном в отдельный маленький файл; в действии звук заменяется на него (скорость 1, тон 0, начало и конец — как у файла).
+{
+  const { readFileSync, writeFileSync, existsSync, statSync, rmSync } = await import("fs");
+  const custom = new URL("../../server/table-client/soundsCustom.json", import.meta.url), file = new URL("../../server/table-client/sounds/zz-test-bake.m4a", import.meta.url), was = readFileSync(custom, "utf8");
+  p.on("dialog", (d) => d.accept("zz-test-bake"));
+  try {
+    await f.evaluate(() => document.getElementById("reset").click());
+    await p.waitForTimeout(200);
+    await f.evaluate(() => { const sel = document.querySelector('.ev[data-kind="flip"] .snd select'); sel.value = "gather-1"; sel.dispatchEvent(new Event("change")); });
+    await f.waitForFunction(() => window.__feel.preset.flip.track === "gather-1", null, { timeout: 5000 });
+    await f.evaluate(() => { const box = document.querySelector('.ev[data-kind="flip"] .snd'); const set = (l, v) => { const r = [...box.querySelectorAll(".sl")].find((x) => x.querySelector("span").textContent === l).querySelector("input"); r.value = v; r.dispatchEvent(new Event("input")); }; set("начало", 100); set("конец", 500); set("скорость", 2); });
+    await f.evaluate(() => [...document.querySelectorAll('.ev[data-kind="flip"] .snd button')].find((b) => /новый звук/.test(b.textContent)).click());
+    await f.waitForFunction(() => window.__feel.preset.flip.track === "zz-test-bake", null, { timeout: 20000 });
+    await p.waitForTimeout(500);
+    const info = await f.evaluate(() => { const fl = window.__feel.preset.flip, b = window.__sound.buffer("zz-test-bake"); return { track: fl.track, rate: fl.rate, pitch: fl.pitch ?? 0, from: fl.from ?? null, end: fl.end ?? 0, dur: b?.audio.duration ?? 0, tile: !!document.querySelector('#gal .tile[data-track="zz-test-bake"]'), tracks: window.__sound.tracks.includes("zz-test-bake"), msg: document.getElementById("saved").textContent }; });
+    check("новый звук собран: действие играет файл zz-test-bake со скоростью 1, тоном 0, без начала/конца", info.track === "zz-test-bake" && info.rate === 1 && info.pitch === 0 && info.from === null && !info.end, info);
+    check("отрезок 0,1–0,5 с на скорости ×2 стал файлом ≈ 0,2 с (а не 0,77 с), он в галерее и в списке", Math.abs(info.dur - 0.2) < 0.06 && info.tile && info.tracks, info);
+    const bytes = existsSync(file) ? statSync(file).size : 0;
+    check("файл записан в папку звуков и меньше исходного (gather-1 — 7,4 КБ)", bytes > 500 && bytes < 7424, bytes);
+    check("в списке своих звуков он записан", JSON.parse(readFileSync(custom, "utf8")).names.includes("zz-test-bake"));
+    check("на странице написан размер и что файл нужно закоммитить", /КБ/.test(info.msg) && /закоммитить/.test(info.msg), info.msg);
+  } finally { rmSync(file, { force: true }); writeFileSync(custom, was); await f.evaluate(() => document.getElementById("reset").click()); }
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const k of checks) console.log(k.ok ? "ok  " : "FAIL", k.name, k.ok ? "" : JSON.stringify(k.got));

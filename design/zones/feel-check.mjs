@@ -86,9 +86,9 @@ c = await grabAt(); await p.mouse.up(); await p.waitForTimeout(900);
 check("🔊 выключен у сцены — тишина и без вибрации", (await kinds()).length === 0 && (await f.evaluate(() => window.__buzz.length)) === 0, { k: await kinds(), buzz: await f.evaluate(() => window.__buzz) });
 await f.evaluate(() => document.querySelector("#who-top .mute").click());
 // 6б. Записи декодируются сразу при загрузке страницы, до первого касания (первый звук не ждёт загрузки и не опаздывает).
-check("записи звуков загружены заранее, до первого касания (не меньше 7 из 9 уже декодированы)", early.loaded >= 7, early);
+check("нужные звуки (назначенные действиям) загружены заранее, до первого касания, а ненужные не грузились", await f.evaluate(() => { const used = window.__used, h = window.__sound.health; return used.length >= 3 && used.every((t) => window.__sound.buffer(t)) && h.loaded === used.length && h.loaded < window.__sound.tracks.length; }), { early, used: await f.evaluate(() => window.__used), tracks: await f.evaluate(() => window.__sound.tracks.length) });
 const onsets = await f.evaluate(() => window.__sound.health.onsets);
-check("тишина в начале записей срезана: у каждой записи посчитано начало звука (не дольше 120 мс)", Object.keys(onsets).length >= 7 && Object.values(onsets).every((v) => v >= 0 && v <= 0.12), onsets);
+check("тишина в начале записей срезана: у каждой записи посчитано начало звука (не дольше 120 мс)", Object.keys(onsets).length >= 3 && Object.values(onsets).every((v) => v >= 0 && v <= 0.12), onsets);
 console.log("начало звука в записях, с:", JSON.stringify(onsets));
 // 7. Звук доехал до браузера: записи загружены (в логе голоса есть «drop»).
 const played = await f.evaluate(() => ({ health: window.__sound.health, last: (window.__tableSounds ?? []).length }));
@@ -115,7 +115,7 @@ check("звуковая машина запущена, файлы доехали
   check("движению назначена точная дорожка — играет она", file === "turn-1", file);
   await f.evaluate(() => { window.__feel.reset("lay"); });
 }
-check("на панели написано, что звуки загружены (все)", await f.evaluate(() => /все \d+ загружены/.test(document.getElementById("feel-load")?.textContent ?? "")), await f.evaluate(() => document.getElementById("feel-load")?.textContent));
+check("на панели написано, что звуки загружены (все)", await f.evaluate(() => /загружены все нужные/.test(document.getElementById("feel-load")?.textContent ?? "")), await f.evaluate(() => document.getElementById("feel-load")?.textContent));
 // По умолчанию звук и вибрация — только у первой сцены.
 {
   const marks = await f.evaluate(() => ({ top: document.querySelector("#who-top .mute").textContent, first: document.querySelector("#who-first .mute").textContent }));

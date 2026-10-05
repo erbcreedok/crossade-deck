@@ -93,14 +93,14 @@ addEventListener("unhandledrejection", (ev) => showError("Ошибка (promise)
 globalThis.__TABLE_HOST__ = `http://${location.hostname}:2591`;
 if (!crypto.randomUUID) crypto.randomUUID = () => "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16));
 await document.fonts.load("20px Tiny5");
-const { tableSound } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/sound.ts");
+const { tableSound, stretchBuffer } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/sound.ts");
 const { tableHaptic } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/haptic.ts");
 const { tableFeel, FEEL_KINDS, FEEL_NAMES } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/feel.ts");
 const $ = (id) => document.getElementById(id);
 const sound = tableSound({ lazy: true }), feel = tableFeel(sound, tableHaptic());
 /** Порядок в галерее и в списках: семьями — стук, скольжение, переворот, веер, сбор, тасовка, перестановка. */
 const FAMILY = ["drop", "hand", "turn", "merge", "gather", "shuffle", "sort"];
-const TRACKS = [...sound.tracks].sort((a, b) => FAMILY.indexOf(a.replace(/-\d+$/, "")) - FAMILY.indexOf(b.replace(/-\d+$/, "")) || a.localeCompare(b));
+const sortedTracks = () => [...sound.tracks].sort((a, b) => FAMILY.indexOf(a.replace(/-\d+$/, "")) - FAMILY.indexOf(b.replace(/-\d+$/, "")) || a.localeCompare(b));
 window.__sound = sound; window.__feel = feel;
 window.__ready = true;
 {
@@ -113,6 +113,9 @@ const TRACK_NAMES = { "drop-2": "Стук карты (2)", "drop-3": "Стук �
 const nameOf = (t) => TRACK_NAMES[t] ?? t;
 
 // ——— 1. ГАЛЕРЕЯ: плитка на звук, нажал — играет целиком с самого начала файла ———
+/** Какие действия сейчас играют этот звук (по настройкам на странице). */
+const tracksOfSpec = (spec) => [...(spec.track ? [spec.track] : []), ...(spec.extra ?? []).map((x) => x.track).filter(Boolean)];
+const usersOf = (name) => FEEL_KINDS.filter((k) => tracksOfSpec(feel.preset[k]).includes(name)).map((k) => FEEL_NAMES[k]);
 const tiles = new Map();
 let phTimer = 0;
 const refreshCount = () => { $("count").textContent = `Загружено ${sound.tracks.filter((n) => sound.buffer(n)).length} из ${sound.tracks.length}.`; };
@@ -150,16 +153,20 @@ function runPlayhead(name, ms) {
   const step = () => { const f = (performance.now() - t0) / ms; if (f >= 1) { t.ph.style.display = "none"; t.el.classList.remove("playing"); return; } t.ph.style.left = f * 100 + "%"; phTimer = requestAnimationFrame(step); };
   step();
 }
-for (const name of TRACKS) {
+function renderGallery() {
+  $("gal").replaceChildren(); tiles.clear();
+for (const name of sortedTracks()) {
   const el = document.createElement("div"); el.className = "tile"; el.dataset.track = name;
   const tn = document.createElement("div"); tn.className = "tn"; tn.textContent = nameOf(name);
   const info = document.createElement("div"); info.className = "tf"; info.textContent = name;
   const cv = document.createElement("canvas");
   const ph = document.createElement("div"); ph.className = "tph";
   const bar = document.createElement("div"); bar.className = "tbar";
-  el.append(tn, info, cv, ph, bar);
+  const users = usersOf(name), use = document.createElement("div"); use.className = "tf"; use.style.cssText = "margin:6px 0 0;color:" + (users.length ? "#8fd18f" : "#a98"); use.textContent = users.length ? "в действиях: " + users.join(", ") : "нигде не используется (не грузится)";
+  el.append(tn, info, cv, use, ph, bar);
   $("gal").append(el);
   tiles.set(name, { el, cv, ph, info });
+  { const b = sound.buffer(name); if (b) requestAnimationFrame(() => { wave(cv, b.audio); info.textContent = `${name} · ${b.audio.duration.toFixed(2)} с`; }); }
   let last = 0;
   const go = async () => {
     if (performance.now() - last < 400) return;
@@ -171,12 +178,14 @@ for (const name of TRACKS) {
   el.addEventListener("pointerup", (e) => { if (e.pointerType !== "mouse") go(); });
   el.addEventListener("click", go);
 }
+}
+renderGallery();
 refreshCount();
 // Всё скачивается сразу при открытии страницы (файлы маленькие): к нажатию звук обычно уже готов.
 await Promise.all(sound.tracks.map((n) => loadTrack(n)));
 
 // ——— 2. ЗВУКИ ДЕЙСТВИЙ: на каждое действие — список звуков из галереи, у каждого свои настройки ———
-const OPTIONS = TRACKS.map((n) => [n, `${nameOf(n)} (${n})`]);
+const optionList = () => sortedTracks().map((n) => [n, `${nameOf(n)} (${n})`]);
 const secs = (ms) => (ms / 1000).toFixed(2) + " с";
 const fmtSpeed = (v) => v.toFixed(2) + "×", fmtPitch = (v) => (v > 0 ? "+" : "") + v.toFixed(1) + " пт", fmtPct = (v) => Math.round(v * 100) + "%";
 const onsetMs = (track) => Math.round(((track ? sound.buffer(track)?.onset : 0) ?? 0) * 1000);
@@ -213,6 +222,66 @@ function runBoxes(which) {
   };
   step();
 }
+
+// ——— НОВЫЙ ЗВУК: вырезать отрезок, применить скорость и тон, сохранить отдельным файлом (меньше размер; исходный можно не грузить) ———
+const CYR = { а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "c", ч: "ch", ш: "sh", щ: "sh", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya" };
+const slug = (t) => t.toLowerCase().replace(/[а-яё]/g, (c) => CYR[c] ?? "").replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+const BASE_NAME = /^(drop|hand|turn|gather|merge|shuffle|sort)-[0-9]$/;
+/** Отрезок звука с готовыми скоростью и тоном — новая запись: связь «скорость–тон» как у ▶, без связи — растяжение по времени без смены высоты. */
+async function renderSound(v) {
+  const b = sound.buffer(v.track);
+  if (!b) throw new Error("звук ещё не загружен");
+  const src = b.audio, sr = src.sampleRate, ch = Math.min(2, src.numberOfChannels);
+  const startS = (v.from ?? Math.round(b.onset * 1000)) / 1000, endS = v.end ? Math.min(src.duration, v.end / 1000) : src.duration;
+  const from = Math.floor(Math.min(startS, src.duration) * sr), to = Math.max(from + 64, Math.floor(endS * sr));
+  const slice = new AudioBuffer({ numberOfChannels: ch, length: to - from, sampleRate: sr });
+  for (let c = 0; c < ch; c++) slice.copyToChannel(src.getChannelData(c).subarray(from, to), c);
+  const tie = v.tie !== false, shift = 2 ** ((v.pitch ?? 0) / 12), rate = tie ? v.rate * shift : shift, T = tie ? 1 : shift / v.rate;
+  const maker = { createBuffer: (c, l, r) => new AudioBuffer({ numberOfChannels: c, length: l, sampleRate: r }) };
+  const stretched = Math.abs(T - 1) > 0.02 ? stretchBuffer(maker, slice, T) : slice;
+  const off = new OfflineAudioContext(ch, Math.max(64, Math.ceil(stretched.length / rate)), sr);
+  const node = off.createBufferSource(); node.buffer = stretched; node.playbackRate.value = rate; node.connect(off.destination); node.start(0);
+  const out = await off.startRendering();
+  const fade = Math.min(Math.floor(sr * 0.004), out.length >> 2);
+  for (let c = 0; c < ch; c++) { const d = out.getChannelData(c); for (let i = 0; i < fade; i++) { d[i] *= i / fade; d[d.length - 1 - i] *= i / fade; } }
+  return out;
+}
+function encodeWav(buf) {
+  const ch = buf.numberOfChannels, n = buf.length, bytes = new ArrayBuffer(44 + n * ch * 2), dv = new DataView(bytes);
+  const str = (o, t) => { for (let i = 0; i < t.length; i++) dv.setUint8(o + i, t.charCodeAt(i)); };
+  str(0, "RIFF"); dv.setUint32(4, 36 + n * ch * 2, true); str(8, "WAVE"); str(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, ch, true);
+  dv.setUint32(24, buf.sampleRate, true); dv.setUint32(28, buf.sampleRate * ch * 2, true); dv.setUint16(32, ch * 2, true); dv.setUint16(34, 16, true); str(36, "data"); dv.setUint32(40, n * ch * 2, true);
+  const data = Array.from({ length: ch }, (_, c) => buf.getChannelData(c));
+  let o = 44;
+  for (let i = 0; i < n; i++) for (let c = 0; c < ch; c++) { const x = Math.max(-1, Math.min(1, data[c][i])); dv.setInt16(o, x < 0 ? x * 0x8000 : x * 0x7fff, true); o += 2; }
+  return bytes;
+}
+const sizeOf = async (name) => { try { const r = await fetch(`${globalThis.__TABLE_HOST__}/table/sounds/${name}.m4a`, { method: "HEAD" }); return +(r.headers.get("content-length") ?? 0); } catch { return 0; } };
+const kb = (n) => (n / 1024).toFixed(1) + " КБ";
+async function bakeSound(kind, i) {
+  const spec = feel.preset[kind], list = listOf(spec).map(plain), v = list[i];
+  if (!v?.track) return;
+  const raw = prompt(`Название нового звука (латиницей, цифры, дефис).\nИз «${nameOf(v.track)}» вырежется отрезок и применятся скорость и тон. Громкость и «от силы» останутся настройками.`, slug(`${FEEL_NAMES[kind]}-${i + 1}`) || "new-sound");
+  if (!raw) return;
+  const name = slug(raw);
+  if (name.length < 2) { $("saved").textContent = "Название слишком короткое (латиница, цифры, дефис)."; return; }
+  if (BASE_NAME.test(name)) { $("saved").textContent = `Имя «${name}» занято стандартным звуком стола — выбери другое.`; return; }
+  if (sound.tracks.includes(name) && !confirm(`Звук «${name}» уже есть. Перезаписать?`)) return;
+  $("saved").textContent = "Собираю звук…";
+  try {
+    const out = await renderSound(v), was = await sizeOf(v.track);
+    const r = await fetch(`/__sound-bake?name=${name}`, { method: "POST", headers: { "content-type": "application/octet-stream" }, body: encodeWav(out) });
+    const j = await r.json().catch(() => ({}));
+    if (!j.ok) throw new Error(`сервер не собрал файл (${r.status})`);
+    sound.addTrack(name); await sound.ensure(name);
+    const src = sound.buffer(v.track)?.audio.duration ?? 0, now = sound.buffer(name)?.audio.duration ?? 0;
+    // Новый звук играет как есть: отрезок и скорость с тоном уже внутри файла.
+    Object.assign(v, { track: name, from: null, end: 0, rate: 1, pitch: 0, tie: true });
+    commit(spec, list);
+    renderGallery(); renderEvents(); refreshCount();
+    $("saved").textContent = `Сохранён новый звук «${name}»: ${kb(j.bytes)}${was ? ` (исходный весил ${kb(was)})` : ""}, ${now.toFixed(2)} с (было ${src.toFixed(2)} с). Теперь он стоит в этом действии. Файл: server/table-client/sounds/${name}.m4a — его и список нужно закоммитить.`;
+  } catch (e) { $("saved").textContent = "Не собралось: " + (e?.message ?? e); showError("сборка звука: " + (e?.message ?? e)); }
+}
 function renderEvents() {
   boxes = [];
   $("events").replaceChildren();
@@ -239,7 +308,7 @@ function renderEvents() {
       const box = document.createElement("div"); box.className = "snd"; box.dataset.snd = i;
       const head = document.createElement("div"); head.className = "row";
       const sel = document.createElement("select");
-      for (const [val, text] of OPTIONS) { const o = document.createElement("option"); o.value = val; o.textContent = text; sel.append(o); }
+      for (const [val, text] of optionList()) { const o = document.createElement("option"); o.value = val; o.textContent = text; sel.append(o); }
       sel.value = v.track;
       sel.onchange = async () => { v.track = sel.value; v.from = null; v.end = 0; commit(spec, list); await loadTrack(v.track); renderEvents(); feel.playVariant(kind, i); };
       const one = document.createElement("button"); one.textContent = "▶"; one.title = "послушать только этот звук с этими настройками";
@@ -275,12 +344,14 @@ function renderEvents() {
       const tie = document.createElement("button"); tie.style.cssText = "margin:4px 0 0";
       const paintTie = () => { tie.textContent = "скорость меняет тон: " + (v.tie === false ? "НЕТ" : "ДА"); tie.classList.toggle("on", v.tie !== false); };
       tie.onclick = () => { v.tie = v.tie === false; commit(spec, list); paintTie(); paint(); }; paintTie();
-      box.append(tie);
+      const bake = document.createElement("button"); bake.textContent = "Сохранить как новый звук…"; bake.style.cssText = "margin:4px 0 0 8px"; bake.title = "вырезать отрезок со скоростью и тоном в отдельный маленький файл";
+      bake.onclick = () => bakeSound(kind, i);
+      box.append(tie, bake);
       ev.append(box);
     });
     const add = document.createElement("select"); add.className = "add";
     const first = document.createElement("option"); first.value = ""; first.textContent = "+ добавить звук…"; add.append(first);
-    for (const [val, text] of OPTIONS) { const o = document.createElement("option"); o.value = val; o.textContent = text; add.append(o); }
+    for (const [val, text] of optionList()) { const o = document.createElement("option"); o.value = val; o.textContent = text; add.append(o); }
     add.onchange = async () => {
       if (!add.value) return;
       const base = list.at(-1);

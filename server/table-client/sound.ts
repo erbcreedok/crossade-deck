@@ -8,6 +8,7 @@
 
 import type { CueKind } from "../src/table/cues.js";
 import { HOST } from "./host.js";
+import custom from "./soundsCustom.json";
 
 // Файлы: drop — card-place-1, turn — card-place-2, sort — card-place-4, hand — card-slide-1, merge — card-fan-1,
 // shuffle — card-shuffle, gather — card-shove-1/2/4.
@@ -19,7 +20,7 @@ export const EXTRA_TRACKS = ["drop-2", "drop-3", "drop-4", "hand-2", "hand-3", "
 
 const FILES = { drop: 1, hand: 1, turn: 1, gather: 3, merge: 1, shuffle: 1, sort: 1 } as const;
 /** Все дорожки по имени: записи стола (`FILES`) и дополнительные (`EXTRA_TRACKS`). */
-const ALL_TRACKS: string[] = [...Object.entries(FILES).flatMap(([kind, n]) => Array.from({ length: n }, (_, i) => `${kind}-${i + 1}`)), ...EXTRA_TRACKS];
+const ALL_TRACKS: string[] = [...Object.entries(FILES).flatMap(([kind, n]) => Array.from({ length: n }, (_, i) => `${kind}-${i + 1}`)), ...EXTRA_TRACKS, ...(custom as { names: string[] }).names];
 /** Какой файл на какой повод: в руку — стук (place-1), из руки на сукно — скольжение (slide-1), перестановка в руке — place-4. */
 export const SOUND_OF: Record<CueKind, keyof typeof FILES> = { drop: "drop", hand: "drop", out: "hand", turn: "turn", gather: "gather", merge: "merge", shuffle: "shuffle", sort: "sort", slam: "drop" };
 /**
@@ -130,6 +131,8 @@ export interface TableSound {
   voice(spec: VoiceSpec): void;
   /** Все дорожки, что играет стол: `drop-1`, `gather-1`… */
   readonly tracks: string[];
+  /** Новая дорожка, собранная на стенде (`soundsCustom.json`), появилась прямо сейчас: добавить в список без перезагрузки страницы. */
+  addTrack(name: string): void;
   /** Загрузить дорожку (одна загрузка на имя): `true`, когда готова. Для страниц, что грузят по нажатию, а не заранее. */
   ensure(name: string): Promise<boolean>;
   /** Декодированная запись дорожки (нет — ещё не загружена) и сколько секунд тишины срезается в начале. */
@@ -276,8 +279,10 @@ export function tableSound(opts: { lazy?: boolean } = {}): TableSound {
     if (was) return was;
     const t0 = performance.now();
     health.loading.push(name);
+    // Запись берётся у игрового сервера; нет у него (новую собрали на стенде, а он её ещё не знает) — у dev-сервера стенда (`/__sounds/`).
     const one = fetch(`${HOST}/table/sounds/${name}.m4a`)
-      .then((r) => r.arrayBuffer())
+      .then((r) => (r.ok ? r : fetch(`/__sounds/${name}.m4a`)))
+      .then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.arrayBuffer(); })
       .then((bytes) => ctx!.decodeAudioData(bytes))
       .then((buf) => {
         buffers.set(name, buf);
@@ -311,6 +316,7 @@ export function tableSound(opts: { lazy?: boolean } = {}): TableSound {
     // СВОЁ ГОЛОСОВОЕ СЛЫШНО ТИШЕ: чтобы автор знал, что ушло, но не слушал себя в полный голос.
     voiceGain: (mine) => (sound.voiceOn ? (mine ? VOICE_GAIN.mine : VOICE_GAIN.other) * (sound.prefs.voiceVolume / 100) : 0),
     save: () => writeSoundPrefs(sound.prefs),
+    addTrack: (name) => { if (!ALL_TRACKS.includes(name)) ALL_TRACKS.push(name); },
     ensure: (name) => (buffers.has(name) ? Promise.resolve(true) : boot() ? load(name) : Promise.resolve(false)),
     tracks: ALL_TRACKS,
     buffer: (name) => { const audio = buffers.get(name); return audio ? { audio, onset: onsets.get(name) ?? 0 } : undefined; },
@@ -320,6 +326,8 @@ export function tableSound(opts: { lazy?: boolean } = {}): TableSound {
       const mine = spec.mine !== false;
       const gain = (mine ? GAIN.mine : GAIN.other) * (sound.prefs.volume / 100) * (spec.gain ?? 1);
       const x = sound.prefs.spatial ? (spec.x ?? 0) : 0, z = sound.prefs.spatial ? (spec.z ?? 0) : 0;
+      // Дорожка, которую ещё не загружали (не была назначена при открытии страницы), — загрузится в фоне; сейчас промолчит, в следующий раз сыграет.
+      if (spec.track && !buffers.has(spec.track)) void load(spec.track);
       const file = spec.file ?? null, exact = spec.track && buffers.has(spec.track) ? spec.track : null;
       log.push({ kind: (file ?? "drop") as CueKind, file: exact ?? file ?? "synth", x: +x.toFixed(2), z: +z.toFixed(2), gain, ...(spec.cutMs ? { cutMs: spec.cutMs } : {}) });
       if (log.length > 50) log.shift();

@@ -1,5 +1,7 @@
-import { execSync } from "child_process";
-import { readFileSync, writeFileSync } from "fs";
+import { execFileSync, execSync } from "child_process";
+import { mkdtempSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import { fileURLToPath } from "url";
 import { defineConfig, type Plugin } from "vite";
 
@@ -53,10 +55,52 @@ const feelPresetSaver = (): Plugin => ({
   },
 });
 
+
+// НОВЫЙ ЗВУК ИЗ СТЕНДА: страница звуков вырезала отрывок, применила скорость и тон и прислала готовую запись (WAV) — здесь она сжимается в m4a (macOS `afconvert`, запасной путь —
+// `ffmpeg`), кладётся в `server/table-client/sounds/<имя>.m4a` и вписывается в `soundsCustom.json`. Имя — латиница, цифры, дефис, подчёркивание. Только для dev-сервера.
+const SOUNDS_DIR = fileURLToPath(new URL("../server/table-client/sounds/", import.meta.url));
+const CUSTOM_FILE = fileURLToPath(new URL("../server/table-client/soundsCustom.json", import.meta.url));
+const soundBaker = (): Plugin => ({
+  name: "sound-baker",
+  configureServer(server) {
+    // Все записи из папки — с этого же сервера: стенд берёт новые звуки отсюда, пока игровой сервер их ещё не знает.
+    server.middlewares.use("/__sounds", (req, res, next) => {
+      const m = /^\/([a-z0-9][a-z0-9_-]{0,39})\.m4a$/.exec((req.url ?? "").split("?")[0]!);
+      if (!m) return next();
+      try { const data = readFileSync(join(SOUNDS_DIR, `${m[1]}.m4a`)); res.setHeader("content-type", "audio/mp4"); res.setHeader("cache-control", "no-store"); res.end(data); } catch { res.statusCode = 404; res.end(); }
+    });
+    server.middlewares.use("/__sound-bake", (req, res) => {
+      const fail = (code: number, msg: string) => { res.statusCode = code; res.end(msg); };
+      if (req.method !== "POST") return fail(405, "POST only");
+      const name = new URL(req.url ?? "", "http://x").searchParams.get("name") ?? "";
+      if (!/^[a-z0-9][a-z0-9_-]{1,39}$/.test(name)) return fail(400, "имя: латиница, цифры, дефис, подчёркивание, 2–40 знаков");
+      const chunks: Buffer[] = []; let size = 0;
+      req.on("data", (c: Buffer) => { size += c.length; if (size > 6_000_000) req.destroy(); else chunks.push(c); });
+      req.on("end", () => {
+        const dir = mkdtempSync(join(tmpdir(), "bake-"));
+        try {
+          const wav = join(dir, "in.wav"), out = join(dir, "out.m4a");
+          writeFileSync(wav, Buffer.concat(chunks));
+          // ffmpeg без метаданных даёт файл вдвое меньше (короткий отрывок: ~2,8 КБ против ~5,9 у afconvert, который кладёт в контейнер лишнее); afconvert — запасной путь.
+          try { execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", wav, "-c:a", "aac", "-b:a", "64k", "-map_metadata", "-1", "-fflags", "+bitexact", "-flags:a", "+bitexact", out]); }
+          catch { execFileSync("afconvert", ["-f", "m4af", "-d", "aac", "-b", "64000", wav, out]); }
+          renameSync(out, join(SOUNDS_DIR, `${name}.m4a`));
+          const list = JSON.parse(readFileSync(CUSTOM_FILE, "utf8")) as { names: string[] };
+          const known = ["drop", "hand", "turn", "gather", "merge", "shuffle", "sort"].some((f) => new RegExp(`^${f}-[0-9]$`).test(name));
+          if (!known && !list.names.includes(name)) { list.names.push(name); writeFileSync(CUSTOM_FILE, JSON.stringify(list, null, 2) + "\n"); }
+          res.setHeader("content-type", "application/json");
+          res.end(JSON.stringify({ ok: true, name, bytes: statSync(join(SOUNDS_DIR, `${name}.m4a`)).size }));
+        } catch (e) { fail(500, String((e as Error).message)); }
+        finally { rmSync(dir, { recursive: true, force: true }); }
+      });
+    });
+  },
+});
+
 // ПЕСОЧНИЦА НА THREE.JS — свой порт. Код стола (`../server`) берётся исходниками: вне этой папки, поэтому
 // `fs.allow` открывает корень репозитория.
 export default defineConfig({
-  plugins: [feelPresetSaver()],
+  plugins: [feelPresetSaver(), soundBaker()],
   define: { __TABLE_BUILD__: JSON.stringify(build) },
   build: { target: "esnext" },
   optimizeDeps: { esbuildOptions: { target: "esnext" } },

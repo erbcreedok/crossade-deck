@@ -131,8 +131,8 @@ export function clientRoutes(source: ClientSource = fromEnv()): Router {
     });
   });
 
-  // ЗВУКИ — записи Kenney «Casino Audio» (CC0), имя из известного вида.
-  r.get(/^\/table\/sounds\/((?:drop|hand|turn|gather|merge|shuffle|sort)-[0-9])\.m4a$/, (req, res) => {
+  // ЗВУКИ — записи Kenney «Casino Audio» (CC0) и записи, собранные владельцем на стенде звуков (обрезанные, с готовыми скоростью и тоном). Имя — безопасное (латиница, цифры, дефис, подчёркивание); нет такого файла — 404.
+  r.get(/^\/table\/sounds\/([a-z0-9][a-z0-9_-]{0,39})\.m4a$/, (req, res) => {
     res.header("Cache-Control", "public, max-age=86400");
     res.type("audio/mp4").sendFile(join(source.sounds, `${req.params[0]!}.m4a`), (err) => {
       if (err && !res.headersSent) res.status(404).end();
