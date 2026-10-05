@@ -17,6 +17,7 @@ const checks = [];
 const check = (name, ok, got) => checks.push({ name, ok, got });
 check("на столе одна карта", (await f.evaluate(() => window.__me.state.felt.length)) === 1);
 check("на столе нет ни одной стопки (пустая колода убрана, карта не превратится в стопку)", (await f.evaluate(() => window.__me.state.piles.length)) === 0);
+check("за столом сидят только два наблюдателя-камеры; у четырёх цветов-игроков нет ни стула, ни места", await f.evaluate(() => { const st = window.__me.state, colours = ["blue", "red", "green", "yellow"]; return st.chairs.length === 2 && st.chairs.every((c) => c.owner?.startsWith("eye-")) && colours.every((k) => { const pl = st.people.find((x) => x.key === k); return !!pl && !pl.seat; }); }), await f.evaluate(() => ({ chairs: window.__me.state.chairs.map((c) => c.owner), people: window.__me.state.people.map((p) => [p.key, p.seat ?? null]) })));
 check("лицом вверх", await f.evaluate(() => window.__me.state.felt[0].up === true));
 const depth = () => f.evaluate(() => window.__top.test.depthOf(window.__me.state.felt[0].id));
 const box = await f.evaluate(() => { const r = document.getElementById("f-top").getBoundingClientRect(); return { x: r.x, y: r.y }; });

@@ -53,11 +53,16 @@ const PLAYERS = [
   { key: "green", name: "Зелёный", ink: "#59b36a" },
   { key: "yellow", name: "Жёлтый", ink: "#f2c14e" },
 ];
-const table = localTable({ players: PLAYERS });
-const views = Object.fromEntries(PLAYERS.map((p) => [p.key, table.view(p.key)]));
-const me = views.blue, alia = views.red;
-const viewpointOf = { top: "blue", first: "red" };
+// ЗА СТОЛОМ СИДЯТ ТОЛЬКО ДВА НАБЛЮДАТЕЛЯ — это камеры двух сцен (сверху и от первого лица), у каждого свой стул, чтобы было откуда смотреть. Четыре цвета — не люди за столом, а только
+// «кто двигает» и «кому что можно»: они встают из-за стола сразу, стульев и тел у них нет. Какой цвет выбран у сцены, такого цвета и её наблюдатель для остальных сцен (имя и цвет за столом
+// меняются на лету, стул тот же) — поэтому несущий в соседней сцене светится выбранным цветом и совпасть с «моим местом» не может.
+const EYES = [{ key: "eye-top", name: "Камера сверху", ink: "#4a8fe0" }, { key: "eye-first", name: "Камера от первого лица", ink: "#e0483f" }];
+const table = localTable({ players: [...EYES, ...PLAYERS], standing: PLAYERS.map((p) => p.key), admin: "blue" });
+const views = Object.fromEntries([...EYES, ...PLAYERS].map((p) => [p.key, table.view(p.key)]));
+const me = views["eye-top"], alia = views["eye-first"];
+const viewpointOf = { top: "eye-top", first: "eye-first" };
 const controller = { top: "blue", first: "blue" };
+for (const w of ["top", "first"]) table.recolor(viewpointOf[w], { name: PLAYERS[0].name, ink: PLAYERS[0].ink });
 const CTL_KEYS = new Set(["body", "say", "shoot", "mic", "log", "rtc", "askStickers", "watch"]);
 const { carryOf } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/tape.ts");
 const lat = { top: 0, first: 0 }, jit = { top: 0, first: 0 };
@@ -73,19 +78,15 @@ const note = (who, out) => {
 };
 /** Что сцена `who` знает о соседе: последнее дошедшее до неё слово; замолчал дольше 400 мс — считается, что карту отпустили. */
 const heard = (who) => { const e = inbox[who]; return e && e.out && performance.now() - e.at < 400 ? e.out : null; };
-/** Тот, кто несёт карту в соседней сцене, а в этой сцене её смотрят с его же места: сцена своего места «несущим» не считает, поэтому он показан как «двойник» — тот же цвет, ключ с тильдой (в `state.people` дописаны двойники всех игроков). */
-const ghostKey = (key, viewpoint) => (key === viewpoint.me.key ? key + "~" : key);
-const withGhosts = (() => { let base = null, out = null; return (state) => { if (state !== base) { base = state; out = { ...state, people: [...state.people, ...state.people.map((p) => ({ ...p, key: p.key + "~" }))] }; } return out; }; })();
 /** Хранилище сцены: читает стол из места наблюдателя, а намерения шлёт от имени выбранного игрока, через пинг сцены. */
 const OUT = new Set(["send", "command"]);
 const asPlayer = (viewpoint, which) => { const other = which === "top" ? "first" : "top"; return new Proxy(viewpoint, { get: (t, k) => {
   if (k === "send") return (intent) => { if (intent.t === "drop" || intent.t === "unpick") note(which, null); const at = Math.max(sendAt[which] + 1, performance.now() + lat[which] + Math.random() * jit[which]); sendAt[which] = at; setTimeout(() => views[controller[which]].send(intent), at - performance.now()); };
-  if (k === "state") return withGhosts(viewpoint.state);
   if (k === "actor") return views[controller[which]].me;
   if (k === "command") return (c) => setTimeout(() => views[controller[which]].command(c), lat[which] + Math.random() * jit[which]);
   if (k === "carry") return (out) => note(which, out);
   if (k === "onChange") return (l) => { hear[which].push(l); viewpoint.onChange(l); };
-  if (k === "carries") { const out = heard(which); const c = out ? carryOf(viewpoint.state, out.id, ghostKey(controller[other], viewpoint), out.over) : null; return c ? [{ ...c, ...(out.flip ? { flip: out.flip } : {}), ...(out.tilt ? { tilt: out.tilt } : {}), ...(out.spin ? { spin: out.spin } : {}), ...(out.fx ? { fx: out.fx } : {}) }] : []; }
+  if (k === "carries") { const out = heard(which); const c = out ? carryOf(viewpoint.state, out.id, viewpointOf[other], out.over) : null; return c ? [{ ...c, ...(out.flip ? { flip: out.flip } : {}), ...(out.tilt ? { tilt: out.tilt } : {}), ...(out.spin ? { spin: out.spin } : {}), ...(out.fx ? { fx: out.fx } : {}) }] : []; }
   if (CTL_KEYS.has(k)) return (...a) => views[controller[which]][k](...a);
   return Reflect.get(t, k, t);
 } }); };const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -114,7 +115,7 @@ await wait(800);
 me.send({ t: "deckMove", pile: me.state.piles[0].id, x: 0, y: 0.3, angle: 0 });
 await wait(600);
 // Рука наблюдателей не принимает карты: карта над её зоной остаётся на столе.
-for (const key of ["blue", "red"]) views[key].send({ t: "flag", chair: views[key].state.chairs.find((c) => c.owner === key).id, flag: "reject", on: true });
+for (const key of ["eye-top", "eye-first"]) views[key].send({ t: "flag", chair: views[key].state.chairs.find((c) => c.owner === key).id, flag: "reject", on: true });
 await wait(900);
 // Сдвиг кадра первого лица: центр сцены (карта или колода) — в кадр. Считаем, когда камера встала: на медленном телефоне она ещё едет, и сдвиг по первому замеру выходил неверным.
 {
@@ -160,7 +161,7 @@ for (const which of ["top", "first"]) {
   for (const pl of PLAYERS) {
     const b = document.createElement("button"); b.title = pl.name; b.style.setProperty("--c", pl.ink); b.style.setProperty("--ink", "#f5ead0"); b.dataset.k = pl.key;
     if (pl.key === controller[which]) b.className = "on";
-    b.onclick = () => { controller[which] = pl.key; for (const x of box.children) x.className = x.dataset.k === pl.key ? "on" : ""; };
+    b.onclick = () => { controller[which] = pl.key; table.recolor(viewpointOf[which], { name: pl.name, ink: pl.ink }); for (const x of box.children) x.className = x.dataset.k === pl.key ? "on" : ""; };
     box.append(b);
   }
   // Сброс камеры этой сцены: вернуть, как при загрузке (камеру можно утащить случайным свайпом).

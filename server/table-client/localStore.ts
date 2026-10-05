@@ -31,6 +31,10 @@ export interface LocalOpts {
    * Первый — админ. Для дизайн-страниц, где важно, КТО двигает карту (цвет, права), а не где он сидит.
    */
   players?: { key: string; name: string; ink: string }[];
+  /** Кто из `players` встаёт из-за стола сразу: остаётся игроком (цвет, права, двигает карты), но без стула. Стулья освобождаются, пустые убираются. */
+  standing?: string[];
+  /** Админ стола (по умолчанию первый из `players`). */
+  admin?: string;
   /** Сколько карт в колоде (по умолчанию вся: 36). */
   cards?: number;
 }
@@ -40,16 +44,17 @@ export interface LocalOpts {
  * ним сидит; у каждого своё состояние, свои слушатели и своя нарезка операций, а стол общий: что сделал один, увидят остальные.
  * Так два стенда в одной вкладке — мой экран и экран Алии, — и каждый живёт сам, со своей камерой, окнами и рукой.
  */
-export function localTable(opts: LocalOpts = {}): { view(key: string): TableStore } {
+export function localTable(opts: LocalOpts = {}): { view(key: string): TableStore; /** Поменять имя и цвет того, кто за столом (стул тот же): все глаза видят это сразу. Для стендов, где один «наблюдатель» двигает карты то одним, то другим цветом. */ recolor(key: string, patch: { name?: string; ink?: string }): void } {
   const me: Person = { key: "me", name: "Ye", ink: "#f2c14e", door: "guest" };
   // На стенде админ — я: иначе флаги чужих стульев не проверить.
   const roster: Person[] = opts.players ? opts.players.map((p) => ({ ...p, door: "guest" as const })) : [];
-  const table = new Table(opts.cards ? deal().slice(0, opts.cards) : deal(), roster[0]?.key ?? me.key);
+  const table = new Table(opts.cards ? deal().slice(0, opts.cards) : deal(), opts.admin ?? roster[0]?.key ?? me.key);
   const bots: Person[] = [
     { key: "alia", name: "Алия", ink: "#7fd1b9", door: "guest" },
     { key: "timur", name: "Тимур", ink: "#e08b3f", door: "guest" },
   ];
   for (const who of opts.players ? roster : [me, ...bots]) table.join(who);
+  for (const key of opts.standing ?? []) table.act(key, { t: "stand" }, 0);
 
   // РАЗДАЧА — ТЕМИ ЖЕ НАМЕРЕНИЯМИ, что шлёт палец: у стенда нет чёрного хода в стол.
   const seatOf = (who: string) => table.seenBy(who).people.find((p) => p.key === who)!.seat!;
@@ -96,6 +101,11 @@ export function localTable(opts: LocalOpts = {}): { view(key: string): TableStor
   };
 
   return {
+    recolor(key, patch) {
+      const who = person(key);
+      Object.assign(who, patch);
+      spread(table.join(who));
+    },
     view(key) {
       let v = views.get(key);
       if (!v) {
