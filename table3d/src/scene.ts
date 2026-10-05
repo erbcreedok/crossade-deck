@@ -430,6 +430,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const GATHER = { holdMs: 450, staggerMs: 40, moveStartPx: 10, settleMs: 900, spring: { k: 120, damp: 0.85 } } as const;
   /** Стопку несут за грип — где она сейчас под пальцем. */
   let pileCarry: { pile: string; x: number; y: number } | null = null;
+  /** Где на экране палец, что несёт стопку (`carryPile`), и последнее движение пальца вообще — для долгого удержания. */
+  let pileFinger: { x: number; y: number } | null = null, lastPtrEv: PointerEvent | null = null;
   /** Несомая стопка над своей рукой (вид «голова»): стоит в щели руки, как одна карта, а карты руки расступаются под неё. */
   const pileOverIds = new Map<string, number>();
   let pileOver: { pile: string; gap: number } | null = null;
@@ -2174,6 +2176,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (placeDenies()) moving = true;
     if (placeSlams(now)) moving = true;
     if (placeLandings(now)) moving = true;
+    if (placeHold(now)) moving = true;
     if (placeHomeMark()) moving = true;
     placeBodies();
     if (placeChairs(dt)) moving = true;
@@ -2311,7 +2314,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const glowMat = new THREE.MeshBasicMaterial({ map: cardGlowTexture(), color: 0x7fd1b9, transparent: true, depthWrite: false });
   const glowMesh = new THREE.Mesh(new THREE.PlaneGeometry(CARD_W + 1, CARD_H + 1), glowMat);
   glowMesh.visible = false; glowMesh.renderOrder = 1; scene.add(glowMesh);
-  let glowFor: { pile: string; level: "hint" | "hot" } | null = null;
+  let glowFor: { pile: string; level: "hint" | "hot"; blink?: number } | null = null;
   function placeGlow(): void {
     const p = glowFor ? store.state.piles.find((x) => x.id === glowFor!.pile) : undefined, base = p ? cards.get(p.cards[0]?.id ?? "") : undefined;
     if (!glowFor || !p || !base || !base.group.visible) { glowMesh.visible = false; return; }
@@ -2319,7 +2322,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const at = base.group.getWorldPosition(new THREE.Vector3());
     glowMesh.position.set(at.x, 0.004, at.z);
     glowMesh.rotation.set(-Math.PI / 2, -pileAngle(p) * DEG, 0, "YXZ");
-    glowMat.opacity = glowFor.level === "hot" ? 1 : 0.6;
+    // МИГАНИЕ ПРИ ДОЛГОМ УДЕРЖАНИИ: чем дольше держат, тем чаще; цвет золотой, не мятный приёмки.
+    if (glowFor.blink !== undefined) {
+      const hz = 2 + 7 * glowFor.blink;
+      glowMat.opacity = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(performance.now() / 1000 * hz * Math.PI * 2));
+      glowMat.color.setHex(0xf2c14e);
+    } else { glowMat.opacity = glowFor.level === "hot" ? 1 : 0.6; glowMat.color.setHex(0x7fd1b9); }
     glowMesh.visible = true;
   }
   /** Язычок каждой стопки — у нижней (к её хозяину) кромки её нижней карты, плашмя на столе, в той же позе, что стопка: несут стопку — несут и его. */
@@ -3142,7 +3150,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       return;
     }
     // Легла — ждёт ответа стола там, куда её положили (над сукном — опускается на сукно, в руку — в щель).
-    const o = cards.get(d.id), to = target(e, d);
+    const o = cards.get(d.id), to = forcedTo ?? target(e, d);
     // ПРАВИЛА СТОПКИ: в эту стопку класть нельзя или она полна — карта остаётся там, откуда её подняли (вернуть в ту же стопку, откуда взяли, можно).
     if (to.in === "deck") {
       const was = fromOf.get(d.id), into = store.state.piles.find((p) => p.id === to.pile), limit = store.state.pileRules?.[to.pile]?.limit ?? 0;
@@ -3325,6 +3333,61 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const now = performance.now();
     landings.set(id, { fn, armed: now + 40, until: now + ms });
   }
+  // ——— ДОЛГОЕ УДЕРЖАНИЕ: карту или стопку держат неподвижно над стопкой — под стопкой мигает подсветка (чем дольше, тем чаще), и через `holdMs` стопка поднимается под палец; ———
+  // карта или стопка из руки ложится на неё сверху, стопка идёт за пальцем. Всё равно, чем держат: хоть карту (в том числе взятую из этой же стопки), хоть стопку (за язычок или поднятую так же).
+  const HOLD = { from: 250, still: 14 };
+  let holdLift: { pile: string; since: number; at: { x: number; y: number } } | null = null;
+  /** Для проверок: время удержания идёт по этим часам, а не по реальным (медленная машина не должна поднимать стопки сама); `null` — настоящие. */
+  let holdVirtual: number | null = null;
+  window.addEventListener("pointermove", (ev) => { lastPtrEv = ev; }, true);
+  const holdMsOf = (pile: string): number => store.state.pileRules?.[pile]?.holdMs ?? 1500;
+  /** Над какой стопкой сейчас палец и пускает ли она то, что несут. */
+  function holdTargetPile(): { pile: string; finger: { x: number; y: number } } | null {
+    if (store.replay?.on || !tabFn) return null;
+    let at: { in: string; pile?: string } | null = null, finger: { x: number; y: number } | null = null, count = 1, from: string | null = null;
+    if (drag?.moved && drag.where) {
+      at = drag.where; finger = lastFinger;
+      const origin = fromOf.get(drag.id);
+      from = origin?.in === "pile" ? origin.pile : null;
+    } else if (pileCarry && pileFinger) {
+      finger = pileFinger;
+      at = aim(finger.x, finger.y, pileCarry.pile);
+      count = store.state.piles.find((p) => p.id === pileCarry!.pile)?.cards.length ?? 1;
+    }
+    if (!at || !finger || at.in !== "deck" || !at.pile) return null;
+    const pile = store.state.piles.find((p) => p.id === at!.pile);
+    if (!pile || pile.zone || pile.pose === "ring" || pile.pin && at.pile !== from) return null;
+    if (pileBarred(pile.id, "hold")) return null;
+    // Положить сюда нельзя (закрыта, нельзя класть, полна) — и поднимать нечего: карта в неё не ляжет.
+    if (at.pile !== from) {
+      const limit = store.state.pileRules?.[pile.id]?.limit ?? 0;
+      if (pile.shut || pile.seal || pile.lock || pileBarred(pile.id, "put") || (limit > 0 && pile.cards.length + count > limit)) return null;
+    }
+    return { pile: pile.id, finger };
+  }
+  function placeHold(real: number): boolean {
+    const now = holdVirtual ?? real;
+    const t = holdTargetPile();
+    if (!t) { holdLift = null; if (glowFor?.blink !== undefined) glowFor = null; return false; }
+    if (!holdLift || holdLift.pile !== t.pile || Math.hypot(t.finger.x - holdLift.at.x, t.finger.y - holdLift.at.y) > HOLD.still) holdLift = { pile: t.pile, since: now, at: { ...t.finger } };
+    const ms = holdMsOf(t.pile), el = now - holdLift.since;
+    if (el < HOLD.from) { if (glowFor?.blink !== undefined) glowFor = null; return true; }
+    glowFor = { pile: t.pile, level: "hot", blink: Math.min(1, el / ms) };
+    if (el < ms) return true;
+    // Время вышло: несомое ложится на стопку сверху, стопка поднимается под палец (тот же жест, что тяга за язычок, только уже начатый).
+    const ev = lastPtrEv;
+    holdLift = null; glowFor = null;
+    if (!ev) return false;
+    if (drag?.moved) { forcedTo = { in: "deck", pile: t.pile }; try { end(ev); } finally { forcedTo = null; } }
+    else if (pileCarry) {
+      const heldPile = pileCarry.pile;
+      store.send({ t: "release", id: heldPile });
+      store.send({ t: "pileDrop", pile: heldPile, to: { in: "deck", pile: t.pile } });
+      pileCarry = null; pileFinger = null; pileGrab = null;
+    }
+    tabFn?.(t.pile, ev, { lifted: true });
+    return true;
+  }
   function placeLandings(now: number): boolean {
     for (const [id, w] of [...landings]) {
       if (now < w.armed) continue;
@@ -3370,6 +3433,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const SHAKE = { ms: 420, rel: 0.024, roll: 1.4 };
   let shake: { t0: number; amp: number } | null = null, shakes = 0;
   const slamming = new Map<string, number>();
+  /** Куда положить несомую карту, что бы ни целил палец: долгое удержание над стопкой кладёт её в эту стопку (`holdWatch`). */
+  let forcedTo: Where | null = null;
   let slamForce = false, ticks = 0, slamTick0 = 0, slamTicks = -1, shakePeakPx = 0;
   function shakeCamera(amp = 1): void {
     shake = { t0: performance.now(), amp };
@@ -3655,6 +3720,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     hearFake: (list: readonly Carry[]) => hearOthers(list),
     /** Для проверок: кивает ли сейчас верхняя карта стопки (отказ по правилу стопки). */
     pileShaking: (pile: string) => { const top = store.state.piles.find((p) => p.id === pile)?.cards.at(-1)?.id; return !!top && denies.has(top); },
+    /** Для проверок: идёт ли долгое удержание над стопкой, как далеко (0…1) и мигает ли подсветка. */
+    holdInfo: () => ({ pile: holdLift?.pile ?? null, blinking: glowFor?.blink !== undefined, progress: glowFor?.blink ?? 0 }),
+    tabHitAt: (x: number, y: number) => hitTab({ clientX: x, clientY: y } as PointerEvent),
+    /** Для проверок: подменить часы долгого удержания (мс); `null` — вернуть реальные. */
+    holdClock: (ms: number | null) => { holdVirtual = ms; },
     heightOf: (id: string) => cards.get(id)?.group.position.y ?? null,
     airOf: (id: string) => { const o = cards.get(id); return o ? +(o.group.position.y - o.target.pos.y).toFixed(3) : null; },
     shakeInfo: () => ({ active: shake !== null && performance.now() - shake.t0 < SHAKE.ms, count: shakes, slamming: slamming.size, slamTicks, peakPx: Math.round(shakePeakPx) }),
@@ -3909,6 +3979,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     },
     pileAt: (pile) => (pileCarry?.pile === pile ? seatOnFelt(pileCarry) : null),
     carryPile(pile, screen) {
+      pileFinger = screen;
       const p = store.state.piles.find((x) => x.id === pile);
       let at: { x: number; y: number } | null = null, finger: { x: number; y: number } | null = null;
       if (screen) {

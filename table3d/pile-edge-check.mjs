@@ -14,6 +14,8 @@ const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
 p.on("pageerror", (e) => errors.push(e.message));
 await p.goto(`${base}/?stand&cam=top`);
 await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+// Долгое удержание над стопкой поднимает её; часы стоят, чтобы медленная машина не делала этого сама посреди проверки.
+await p.evaluate(() => (window.__t3dScreens ?? []).forEach((s) => s.holdClock(0)));
 await p.waitForTimeout(1500);
 const pile = await p.evaluate(() => { const s = window.__t3d.state(); const q = [...s.piles].sort((a, b) => b.cards.length - a.cards.length)[0]; return { id: q.id, n: q.cards.length, top: q.cards.at(-1).id }; });
 check("у колоды есть тело (ребро)", (await p.evaluate((id) => window.__t3d.bodyInfo(id), pile.id)) !== null);

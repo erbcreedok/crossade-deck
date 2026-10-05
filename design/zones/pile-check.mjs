@@ -17,6 +17,9 @@ await p.waitForTimeout(2000);
 const pile = () => f.evaluate(() => { const s = window.__me.state; return { piles: s.piles.map((x) => x.cards.length), felt: s.felt.length, up: s.felt.filter((c) => c.up).length }; });
 const topId = () => f.evaluate(() => window.__me.state.piles[0].cards.at(-1).id);
 const st = await pile();
+// Долгое удержание поднимает стопку; на медленной машине кадры идут по полсекунды, поэтому для обычных проверок время держим большим, а в проверке удержания ставим своё.
+// Часы долгого удержания стоят (0): машина медленная, и обычные проверки с неподвижным пальцем успели бы поднять стопку сами; в проверках удержания время двигаем вручную.
+await f.evaluate(() => { window.__top.test.holdClock(0); window.__first.test.holdClock(0); });
 check("колода из 52 карт: в стопке 50, на сукне две — одна лицом вверх, другая рубашкой вверх", st.piles.length === 1 && st.piles[0] === 50 && st.felt === 2 && st.up === 1, st);
 check("за столом сидят только два наблюдателя-камеры; у четырёх цветов нет ни стула, ни места", await f.evaluate(() => { const s = window.__me.state, colours = ["blue", "red", "green", "yellow"]; return s.chairs.length === 2 && s.chairs.every((c) => c.owner?.startsWith("eye-")) && colours.every((k) => { const pl = s.people.find((x) => x.key === k); return !!pl && !pl.seat; }); }));
 check("обе сцены нарисованы (два холста), у каждой кнопка «на весь экран»", await f.evaluate(() => document.querySelectorAll(".stage canvas").length === 2 && !!window.__full?.top && !!window.__full?.first));
@@ -43,7 +46,9 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
   const ink = (k) => f.evaluate((kk) => window.__me.state.people.find((x) => x.key === kk).ink.replace("#", "").toLowerCase(), k);
   for (const key of ["red", "green", "yellow", "blue"]) {
     await f.evaluate((k) => document.querySelector(`#who-top [data-k="${k}"]`).click(), key);
-    const id = await topId();
+    // карты улеглись: верхняя карта стопки стоит на месте
+    let id = await topId(), prev = null;
+    for (let k = 0; k < 30; k++) { const cur = await f.evaluate((i) => window.__top.test.screenOf(i), id); if (prev && Math.hypot(cur.x - prev.x, cur.y - prev.y) < 0.3) break; prev = cur; id = await topId(); await p.waitForTimeout(150); }
     const at = await f.evaluate((i) => window.__top.test.screenOf(i), id);
     await p.mouse.move(at.x, at.y); await p.mouse.down(); await p.mouse.move(at.x + 14, at.y - 9, { steps: 4 });
     for (let i = 0; i < 8; i++) { await p.mouse.move(at.x + 14 + (i % 2) * 6, at.y - 9, { steps: 2 }); await p.waitForTimeout(60); }
@@ -62,7 +67,7 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
 // ПРАВИЛА И НАСТРОЙКИ СТОПКИ (панели страницы): запреты для выбранных игроков с показом отказа; предел карт; сторона укладки; действия кнопками.
 {
   const panels = await f.evaluate(() => ({ rules: document.querySelectorAll("#rules-body .rrow").length, chips: document.querySelectorAll('#rules-body .rrow[data-rule="take"] [data-k]').length, sides: document.querySelectorAll("#knobs-body [data-side]").length, limit: !!document.getElementById("limit"), acts: [...document.querySelectorAll("#acts-body [data-act]")].map((b) => b.dataset.act) }));
-  check("панели: восемь правил (в том числе «за язычок» и «скрыть язычок») с цветными флажками, предел карт, три стороны укладки, четыре действия кнопками", panels.rules === 8 && panels.chips === 4 && panels.sides === 3 && panels.limit && panels.acts.join() === "shuffle,sort,flip,move", panels);
+  check("панели: девять правил (в том числе «за язычок» и «скрыть язычок») с цветными флажками, предел карт, три стороны укладки, четыре действия кнопками", panels.rules === 9 && panels.chips === 4 && panels.sides === 3 && panels.limit && panels.acts.join() === "shuffle,sort,flip,move", panels);
   const state = () => f.evaluate(() => { const s = window.__me.state, pl = s.piles[0]; return { n: pl.cards.length, top: pl.cards.at(-1)?.id, order: pl.cards.map((c) => c.id).join(), felt: s.felt.map((c) => c.id), rules: s.pileRules?.[pl.id] ?? null, topUp: pl.cards.at(-1)?.up === true }; });
   const clickIn = (sel) => f.evaluate((q) => document.querySelector(q).click(), sel);
   const setCtl = (key) => clickIn(`#who-top [data-k="${key}"]`);
@@ -144,6 +149,79 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
   check("grip: зелёному нельзя брать стопку за язычок (отказ сервера), синему можно", await f.evaluate(() => { const pl = window.__me.state.piles[0].id; const refused = []; window.__alia.onRefused?.((i, why) => refused.push(why)); return true; }) && (await f.evaluate(() => { const pl = window.__me.state.piles[0].id; return window.__me.state.pileRules?.[pl]?.grip.join() === "green"; })));
   await clickIn('#rules-body .rrow[data-rule="grip"] [data-k="green"]'); await p.waitForTimeout(300);
   await setCtl("blue");
+  // ДОЛГОЕ УДЕРЖАНИЕ: карту (в том числе взятую из этой же стопки) или стопку держат над стопкой — мигает подсветка, через holdMs стопка поднимается под палец.
+  // Часы удержания стоят и двигаются вручную: на медленной машине настоящие секунды набегают сами, пока палец ещё едет.
+  {
+    const clock = (ms) => f.evaluate((v) => { window.__top.test.holdClock(v); }, ms);
+    const info = () => f.evaluate(() => window.__top.test.holdInfo());
+    const pilesOf = () => f.evaluate(() => window.__me.state.piles.map((q) => ({ id: q.id, n: q.cards.length, x: q.x, y: q.y, top: q.cards.at(-1).id, locked: window.__me.state.locks?.[q.id] ?? null })));
+    const waitFor = async (fn, ms = 8000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { const v = await fn(); if (v) return v; await p.waitForTimeout(100); } return null; };
+    const home = async () => { await f.evaluate(() => window.__me.send({ t: "deckMove", pile: "deck", x: 0, y: 0.8, angle: -8 })); await p.waitForTimeout(500); };
+    await setCtl("blue");
+    // камеры в исходное: после проверки зума вторая стопка оказалась бы за краем кадра
+    await f.evaluate(() => { window.__top.home(); window.__first.home(); });
+    await p.waitForTimeout(1500);
+    // А. взял верхнюю карту стопки и держу над ней неподвижно
+    await clock(0);
+    const st0 = (await pilesOf())[0];
+    const at = await screen(st0.top);
+    await p.mouse.move(at.x, at.y); await p.mouse.down(); await p.mouse.move(at.x + 12, at.y - 6, { steps: 3 }); await p.mouse.move(at.x + 14, at.y - 8);
+    await clock(150); await p.waitForTimeout(400);
+    const early = await info();
+    await clock(600);
+    const first = await waitFor(async () => { const i = await info(); return i.blinking ? i : null; });
+    await clock(1000);
+    const second = await waitFor(async () => { const i = await info(); return first && i.progress > first.progress ? i : null; });
+    check("удержание: до 0,25 с подсветки нет; дальше мигает, и чем дольше, тем больше прогресс", !early.blinking && !!first && first.pile === st0.id && !!second, { early, first, second });
+    await clock(5000);
+    const lifted = await waitFor(async () => { const q = (await pilesOf())[0]; return q.locked !== null ? q : null; });
+    check("удержание: время вышло — стопка поднялась под палец (замок на стопке, карты на месте)", !!lifted && lifted.n === st0.n, { st0, lifted });
+    await clock(0);
+    await p.mouse.move(at.x + 80, at.y - 30, { steps: 8 }); await p.waitForTimeout(300);
+    await p.mouse.up(); await p.waitForTimeout(900);
+    const dropped = (await pilesOf())[0];
+    check("удержание: двинул палец — вся стопка поехала с ним и легла на новом месте", Math.hypot(dropped.x - st0.x, dropped.y - st0.y) > 0.3 && dropped.n === st0.n && dropped.locked === null, { st0, dropped });
+    await home();
+    // Б. одиночная карта над ДРУГОЙ стопкой: стопка-цель поднимается под палец, карта ложится на неё сверху
+    await f.evaluate(() => {
+      for (const x of [-2.2, -2.6]) { const id = window.__me.state.piles[0].cards.at(-1).id; window.__me.send({ t: "grab", id }); window.__me.send({ t: "drop", id, to: { in: "felt", x, y: 2.6, up: true, angle: 0 } }); }
+      window.__me.send({ t: "gather", ids: [...window.__me.state.felt.map((c) => c.id)], side: "keep", to: { x: -2.4, y: 0.8, angle: 0 } });
+    });
+    await p.waitForTimeout(900);
+    const two = await pilesOf();
+    check("две стопки: основная и новая, собранная из выложенных карт", two.length === 2 && two.some((q) => q.id !== "deck" && q.n >= 2), two);
+    const main = two.find((q) => q.id === "deck"), small = two.find((q) => q.id !== "deck");
+    {
+      const from = await screen(main.top), to = await screen(small.top);
+      await clock(0);
+      await p.mouse.move(from.x, from.y); await p.mouse.down(); await p.mouse.move(from.x - 10, from.y - 6, { steps: 3 }); await p.mouse.move(to.x, to.y, { steps: 10 });
+      await clock(400);
+      const blink = await waitFor(async () => { const i = await info(); return i.blinking && i.pile === small.id ? i : null; });
+      await clock(5000);
+      const lifted2 = await waitFor(async () => (await pilesOf()).find((q) => q.id === small.id && q.locked !== null));
+      const after = await pilesOf();
+      check("удержание над другой стопкой: подсветка мигает под ней; потом карта легла на неё сверху, а она поднялась под палец (в ней на одну больше, в основной на одну меньше)", !!blink && !!lifted2 && after.find((q) => q.id === small.id)?.n === small.n + 1 && after.find((q) => q.id === main.id)?.n === main.n - 1, { blink, lifted2, after });
+      await clock(0);
+      await p.mouse.up(); await p.waitForTimeout(900);
+    }
+    // В. стопку несут за язычок над другой стопкой: через holdMs они сливаются
+    {
+      const now = await pilesOf();
+      const big = now.find((q) => q.id === "deck"), tiny = now.find((q) => q.id !== "deck");
+      const tab = await f.evaluate((id) => window.__top.test.tabs().find((t) => t.pile === id), tiny.id);
+      const target = await screen(big.top);
+      await clock(0);
+      await p.mouse.move(tab.x, tab.y); await p.mouse.down(); await p.mouse.move(tab.x + 12, tab.y, { steps: 3 }); await p.mouse.move(target.x, target.y, { steps: 10 });
+      await clock(400);
+      await waitFor(async () => { const i = await info(); return i.blinking ? i : null; });
+      await clock(5000);
+      const merged = await waitFor(async () => { const q = await pilesOf(); return q.length === 1 ? q[0] : null; });
+      check("удержание стопки над другой стопкой: они слились в одну и она поднята под палец", !!merged && merged.n === big.n + tiny.n && merged.locked !== null, { merged, big, tiny });
+      await clock(0);
+      await p.mouse.up(); await p.waitForTimeout(900);
+    }
+    await home();
+  }
   // действия кнопками: перемешать
   await setCtl("blue");
   st = await state();

@@ -13,6 +13,8 @@ const open = async (touch, cam = "head") => {
   p.on("pageerror", (e) => errors.push(e.message));
   await p.goto(`${base}/?stand&cam=${cam}`);
   await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+  // Долгое удержание над стопкой поднимает её; часы стоят, чтобы медленная машина не делала этого сама посреди проверки.
+  await p.evaluate(() => (window.__t3dScreens ?? []).forEach((s) => s.holdClock(0)));
   await p.waitForTimeout(500);
   const id = await p.evaluate(() => { const c = window.__t3d.state().chairs.find((q) => q.owner === "me").hand.at(0); window.__t3d.dropFeltAt(c.id, -1.5, -1.5); return c.id; });
   let c = await p.evaluate((i) => window.__t3d.screenOf(i), id);

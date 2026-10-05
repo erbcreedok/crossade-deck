@@ -228,12 +228,12 @@ for (const f of document.querySelectorAll(".frame")) f.classList.add("ready");
 // ПРАВИЛА СТОПКИ: для каждого запрета — «все» и цветные флажки игроков (отмечены — им нельзя); справа — показывать ли отказ. Ставит админ (синий).
 const PILE = me.state.piles[0].id;
 const sendRule = (intent) => views.blue.send({ t: "pileRule", pile: PILE, ...intent });
-const NO_RULES = { take: [], put: [], move: [], grip: [], tab: [], flip: [], shuffle: [], sort: [], notice: { take: false, put: false, move: false, grip: false, tab: false, flip: false, shuffle: false, sort: false }, limit: 0, side: "keep" };
+const NO_RULES = { take: [], put: [], move: [], grip: [], tab: [], hold: [], flip: [], shuffle: [], sort: [], notice: { take: false, put: false, move: false, grip: false, tab: false, hold: false, flip: false, shuffle: false, sort: false }, limit: 0, side: "keep", holdMs: 1500 };
 const pileRules = () => me.state.pileRules?.[PILE] ?? NO_RULES;
 const paints = [];
 {
   const body = $("rules-body");
-  for (const [rule, label] of [["take", "Нельзя снять верхнюю карту"], ["put", "Нельзя положить в стопку (вернуть в неё же взятую оттуда можно)"], ["move", "Нельзя сдвинуть стопку по сукну (унести в руку или в другую стопку можно)"], ["grip", "Нельзя брать стопку за язычок и тянуть (ни сдвинуть, ни унести в руку, ни в другую стопку)"], ["tab", "Язычок скрыт (его не видно, окна стопки не открыть)"], ["flip", "Нельзя перевернуть стопку"], ["shuffle", "Нельзя перемешать"], ["sort", "Нельзя отсортировать"]]) {
+  for (const [rule, label] of [["take", "Нельзя снять верхнюю карту"], ["put", "Нельзя положить в стопку (вернуть в неё же взятую оттуда можно)"], ["move", "Нельзя сдвинуть стопку по сукну (унести в руку или в другую стопку можно)"], ["grip", "Нельзя брать стопку за язычок и тянуть (ни сдвинуть, ни унести в руку, ни в другую стопку)"], ["tab", "Язычок скрыт (его не видно, окна стопки не открыть)"], ["hold", "Нельзя поднимать и склеивать стопку долгим удержанием (карту или стопку над ней)"], ["flip", "Нельзя перевернуть стопку"], ["shuffle", "Нельзя перемешать"], ["sort", "Нельзя отсортировать"]]) {
     const row = document.createElement("div"); row.className = "rrow"; row.dataset.rule = rule;
     const lab = document.createElement("div"); lab.className = "rl"; lab.textContent = label;
     const chips = document.createElement("div"); chips.className = "rc";
@@ -262,12 +262,18 @@ const paints = [];
   const inp = document.createElement("input"); inp.type = "number"; inp.min = "0"; inp.max = "99"; inp.step = "1"; inp.id = "limit"; inp.style.cssText = "width:70px;background:#2a1d12;color:#f5ead0;border:0;box-shadow:0 0 0 2px #0b0704;padding:6px;font:400 13px 'Tiny5', monospace";
   inp.onchange = () => { const v = Math.max(0, Math.min(99, Math.round(Number(inp.value) || 0))); sendRule({ rule: "limit", value: v }); };
   lc.append(inp); lim.append(ll, lc); body.append(lim);
+  const hm = document.createElement("div"); hm.className = "rrow"; hm.dataset.knob = "holdMs";
+  const hl = document.createElement("div"); hl.className = "rl"; hl.textContent = "Сколько держать, чтобы стопка поднялась под палец, мс (300–5000)";
+  const hc = document.createElement("div"); hc.className = "rc";
+  const hinp = document.createElement("input"); hinp.type = "number"; hinp.min = "300"; hinp.max = "5000"; hinp.step = "100"; hinp.id = "holdms"; hinp.style.cssText = inp.style.cssText;
+  hinp.onchange = () => { const v = Math.max(300, Math.min(5000, Math.round(Number(hinp.value) || 1500))); sendRule({ rule: "holdMs", value: v }); };
+  hc.append(hinp); hm.append(hl, hc); body.append(hm);
   const side = document.createElement("div"); side.className = "rrow"; side.dataset.knob = "side";
   const sl = document.createElement("div"); sl.className = "rl"; sl.textContent = "Какой стороной карты ложатся в стопку";
   const sc = document.createElement("div"); sc.className = "rc"; const sides = {};
   for (const [v, t] of [["keep", "как несли"], ["down", "рубашкой вверх"], ["up", "лицом вверх"]]) { const b = document.createElement("button"); b.className = "tg"; b.dataset.side = v; b.textContent = t; b.onclick = () => sendRule({ rule: "side", value: v }); sc.append(b); sides[v] = b; }
   side.append(sl, sc); body.append(side);
-  paints.push(() => { if (document.activeElement !== inp) inp.value = String(pileRules().limit); for (const v of Object.keys(sides)) sides[v].classList.toggle("on", pileRules().side === v); });
+  paints.push(() => { if (document.activeElement !== inp) inp.value = String(pileRules().limit); if (document.activeElement !== hinp) hinp.value = String(pileRules().holdMs); for (const v of Object.keys(sides)) sides[v].classList.toggle("on", pileRules().side === v); });
 }
 // ДЕЙСТВИЯ СО СТОПКОЙ: на стенде нет настоящего худа с язычком стопки, поэтому действия — кнопками; делает тот, кого выбрали у сцены. Запрещённое — отказ и «нельзя» (если показ включён).
 {

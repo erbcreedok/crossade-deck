@@ -45,6 +45,12 @@ describe("правила стопки", () => {
     expect(t.act("a", { t: "grip", pile: MAIN_PILE }, 3)).toMatchObject({ ops: expect.any(Array) });
     expect(t.seenBy("b").pileRules?.[MAIN_PILE]?.tab).toEqual(["b"]);
   });
+  it("долгое удержание: правило hold для людей и время holdMs хранятся в снимке", () => {
+    const t = seated();
+    rule(t, "a", { rule: "hold", who: "b", on: true });
+    rule(t, "a", { rule: "holdMs", value: 800 });
+    expect(t.seenBy("b").pileRules?.[MAIN_PILE]).toMatchObject({ hold: ["b"], holdMs: 800 });
+  });
   it("не перевернуть, не перемешать, не отсортировать — по одному", () => {
     const t = seated();
     for (const how of ["flip", "shuffle", "sort"] as const) {
@@ -104,11 +110,13 @@ describe("правила стопки", () => {
     rule(t, "a", { rule: "notice", who: "put", on: true });
     rule(t, "a", { rule: "limit", value: 5 });
     rule(t, "a", { rule: "side", value: "down" });
-    expect(t.seenBy("b").pileRules?.[MAIN_PILE]).toEqual({ take: ["b"], put: [], move: [], grip: [], tab: [], flip: [], shuffle: [], sort: [], notice: { take: false, put: true, move: false, grip: false, tab: false, flip: false, shuffle: false, sort: false }, limit: 5, side: "down" });
+    rule(t, "a", { rule: "holdMs", value: 2200 });
+    expect(t.seenBy("b").pileRules?.[MAIN_PILE]).toEqual({ take: ["b"], put: [], move: [], grip: [], tab: [], hold: [], flip: [], shuffle: [], sort: [], notice: { take: false, put: true, move: false, grip: false, tab: false, hold: false, flip: false, shuffle: false, sort: false }, limit: 5, side: "down", holdMs: 2200 });
     rule(t, "a", { rule: "take", who: "b", on: false });
     rule(t, "a", { rule: "notice", who: "put", on: false });
     rule(t, "a", { rule: "limit", value: 0 });
     rule(t, "a", { rule: "side", value: "keep" });
+    rule(t, "a", { rule: "holdMs", value: 1500 });
     expect(t.seenBy("b").pileRules?.[MAIN_PILE]).toBeUndefined();
   });
   it("ставит только админ, лишнее и неверное — отказ", () => {
@@ -116,5 +124,7 @@ describe("правила стопки", () => {
     expect(rule(t, "b", { rule: "take", who: "a", on: true })).toEqual({ refused: "not-yours" });
     expect(rule(t, "a", { rule: "limit", value: 1000 })).toEqual({ refused: "bad" });
     expect(rule(t, "a", { rule: "side", value: "sideways" })).toEqual({ refused: "bad" });
+    expect(rule(t, "a", { rule: "holdMs", value: 50 })).toEqual({ refused: "bad" });
+    expect(rule(t, "a", { rule: "holdMs", value: 9000 })).toEqual({ refused: "bad" });
   });
 });

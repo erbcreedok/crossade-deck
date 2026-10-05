@@ -47,7 +47,8 @@ export function mountPileDrag(scene: SceneApi, store: TableStore, hooks: PileDra
     const pinned = !!store.state.piles.find((x) => x.id === pile)?.pin;
     // ПРАВИЛА СТОПКИ: двигать нельзя — стопка остаётся на месте и «отказывает» один раз, когда её потянули.
     const barred: "grip" | "move" | null = scene.pileBarred(pile, "grip") ? "grip" : scene.pileBarred(pile, "move") ? "move" : null;
-    const mine = (): boolean => hooks.current?.(pile) ?? true;
+    // Стопка ещё моя: худ не отдал руку другому делу и она не растворилась в другой (слилась при удержании над ней).
+    const mine = (): boolean => (hooks.current?.(pile) ?? true) && store.state.piles.some((x) => x.id === pile);
     let moved = false, hold = 0, refused = false;
     const begin = (): void => {
       moved = true;

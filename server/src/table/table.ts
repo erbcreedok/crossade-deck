@@ -53,6 +53,7 @@ import {
   FELT_REACH,
   NO_CARD_RULES,
   NO_PILE_RULES,
+  HOLD_MS_RANGE,
   PILE_LIMIT_MAX,
   PILE_RULES,
   type PileRule,
@@ -868,6 +869,9 @@ export class Table {
     if (rule === "limit") {
       if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > PILE_LIMIT_MAX) return { refused: "bad" };
       next.limit = value;
+    } else if (rule === "holdMs") {
+      if (typeof value !== "number" || !Number.isInteger(value) || value < HOLD_MS_RANGE.min || value > HOLD_MS_RANGE.max) return { refused: "bad" };
+      next.holdMs = value;
     } else if (rule === "side") {
       if (value !== "keep" && value !== "down" && value !== "up") return { refused: "bad" };
       next.side = value;
@@ -877,7 +881,7 @@ export class Table {
       const list = next[rule].filter((key) => key !== who);
       next[rule] = on ? [...list, who] : list;
     } else return { refused: "bad" };
-    const clear = PILE_RULES.every((one) => !next[one].length && !next.notice[one]) && next.limit === 0 && next.side === "keep";
+    const clear = PILE_RULES.every((one) => !next[one].length && !next.notice[one]) && next.limit === 0 && next.side === "keep" && next.holdMs === HOLD_MS_RANGE.def;
     if (clear) this.pileRules.delete(pile); else this.pileRules.set(pile, next);
     return { ops: this.commit([{ t: "pileRules", pile, rules: clear ? null : next }]) };
   }

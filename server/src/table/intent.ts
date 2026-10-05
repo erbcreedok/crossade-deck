@@ -6,7 +6,7 @@
 //
 // Чистый модуль: ни комнаты, ни сети. Кто бы ни принимал намерения — принимает их через эту дверь.
 
-import { BOT_ACTS, CARD_BACKS, CARD_FACES, DECK_DOS, GATHER_SIDES, PILE_GUARDS, PILE_LIMIT_MAX, PILE_RULES, type Arrange, type BotAct, type ChairFlag, type HandPose, type Intent, type TableRules, type Where } from "./contract.js";
+import { BOT_ACTS, CARD_BACKS, CARD_FACES, DECK_DOS, GATHER_SIDES, HOLD_MS_RANGE, PILE_GUARDS, PILE_LIMIT_MAX, PILE_RULES, type Arrange, type BotAct, type ChairFlag, type HandPose, type Intent, type TableRules, type Where } from "./contract.js";
 
 /** Имя карты, стопки, стула, человека, дела — короткая строка. */
 const NAME_MAX = 120;
@@ -124,6 +124,7 @@ const READERS: { [K in Intent["t"]]: (raw: Raw) => Extract<Intent, { t: K }> | n
   pileRule: (r) => {
     if (!name(r.pile)) return null;
     if (r.rule === "limit") return typeof r.value === "number" && Number.isInteger(r.value) && r.value >= 0 && r.value <= PILE_LIMIT_MAX ? { t: "pileRule", pile: r.pile, rule: "limit", value: r.value } : null;
+    if (r.rule === "holdMs") return typeof r.value === "number" && Number.isInteger(r.value) && r.value >= HOLD_MS_RANGE.min && r.value <= HOLD_MS_RANGE.max ? { t: "pileRule", pile: r.pile, rule: "holdMs", value: r.value } : null;
     if (r.rule === "side") return oneOf(GATHER_SIDES, r.value) ? { t: "pileRule", pile: r.pile, rule: "side", value: r.value } : null;
     if (!bool(r.on)) return null;
     if (r.rule === "notice") return oneOf(PILE_RULES, r.who) ? { t: "pileRule", pile: r.pile, rule: "notice", who: r.who, on: r.on } : null;
