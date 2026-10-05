@@ -39,35 +39,33 @@ for (const t of ["turn-1", "merge-1", "shuffle-1"]) {
   await f.waitForFunction((n) => document.querySelectorAll('.ev[data-kind="lay"] .snd').length === n, had + 1, { timeout: 8000 });
 }
 check("к действию добавлены ещё три звука из разных мест (всего 4)", (await sounds("lay")) === 4);
-// У третьего свои настройки: начало 0,3 с, длится 0,2 с, скорость 1,5, тон +3, громкость 0,5.
+// У третьего свои настройки: начало 0,3 с, конец 0,5 с, скорость 1,5, тон +3, громкость 0,5.
 await f.evaluate(() => {
   const box = document.querySelectorAll('.ev[data-kind="lay"] .snd')[2];
   const set = (label, val) => { const r = [...box.querySelectorAll(".sl")].find((l) => l.querySelector("span").textContent === label).querySelector("input"); r.value = val; r.dispatchEvent(new Event("input")); };
-  set("начало", 300); set("длится", 200); set("скорость", 1.5); set("тон", 3); set("громкость", 0.5);
+  set("начало", 300); set("конец", 500); set("скорость", 1.5); set("тон", 3); set("громкость", 0.5);
 });
 await clear();
 await f.evaluate(() => document.querySelectorAll('.ev[data-kind="lay"] .snd')[2].querySelectorAll("button")[0].click());
 await p.waitForTimeout(300);
 const third = await spec();
-check("▶ у третьего звука играет только его с его настройками: начало 0,3 с, длится 0,2 с, ×1,5, +3 пт, громкость 0,5", third && third.track === "merge-1" && Math.abs(third.from - 0.3) < 0.011 && third.cutMs === 200 && Math.abs(third.rate - 1.5) < 0.01 && third.pitch === 3 && Math.abs(third.gain - 0.8 * 0.5) < 0.05 && (third.layers ?? []).length === 0, third);
-check("настройки сохранены у этого звука, у других остались свои", await f.evaluate(() => { const l = window.__feel.preset.lay; const all = [l, ...(l.extra ?? [])]; return all.length === 4 && all[2].track === "merge-1" && all[2].len === 200 && all[0].len !== 200 && all[1].len !== 200; }));
+check("▶ у третьего звука играет только его с его настройками: начало 0,3 с, конец 0,5 с, ×1,5, +3 пт, громкость 0,5", third && third.track === "merge-1" && Math.abs(third.from - 0.3) < 0.011 && Math.abs(third.cutMs - 200 / (1.5 * 2 ** (3 / 12))) < 2 && Math.abs(third.rate - 1.5) < 0.01 && third.pitch === 3 && Math.abs(third.gain - 0.8 * 0.5) < 0.05 && (third.layers ?? []).length === 0, third);
+check("настройки сохранены у этого звука, у других остались свои", await f.evaluate(() => { const l = window.__feel.preset.lay; const all = [l, ...(l.extra ?? [])]; return all.length === 4 && all[2].track === "merge-1" && all[2].end === 500 && all[0].end !== 500 && all[1].end !== 500; }));
 // Картинка звука в секции 2: волна, золотая черта старта и оранжевая — конца; двигаются за ползунками сразу; бегунок бежит при воспроизведении.
 {
   const m = () => f.evaluate(() => { const b = document.querySelectorAll('.ev[data-kind="lay"] .snd')[2], g = (c) => parseFloat(b.querySelector(c).style.left); return { start: g(".sm"), end: g(".em"), d1: parseFloat(b.querySelector(".d1").style.width), d2: parseFloat(b.querySelector(".d2").style.width), wave: b.querySelector("canvas").getContext("2d").getImageData(0, 0, b.querySelector("canvas").width, b.querySelector("canvas").height).data.some((v, i) => i % 4 === 3 && v > 0), lg: b.querySelector(".lg").textContent, lg2: b.querySelector(".lg2").textContent }; });
   const set = (label, val) => f.evaluate(([l, v]) => { const box = document.querySelectorAll('.ev[data-kind="lay"] .snd')[2]; const r = [...box.querySelectorAll(".sl")].find((x) => x.querySelector("span").textContent === l).querySelector("input"); r.value = v; r.dispatchEvent(new Event("input")); }, [label, val]);
   const a = await m();
   check("у звука в секции 2 есть картинка: волна, черта старта, черта конца, подписи «старт» и «конец»", a.wave && a.end > a.start && /старт/.test(a.lg) && /конец/.test(a.lg2), a);
-  await set("начало", 100); await set("длится", 0); const b0 = await m();
+  await set("начало", 100); await set("конец", 700); const b0 = await m();
   await set("начало", 400); const b1 = await m();
   check("ползунок «начало» двигает черту старта на волне сразу и притемняет левее", b1.start > b0.start + 10 && Math.abs(b1.d1 - b1.start) < 0.5, { b0, b1 });
-  await set("длится", 100); const c1 = await m();
-  await set("длится", 300); const c2 = await m();
-  check("ползунок «длится» двигает черту конца: дольше — правее; правее конца притемнено", c2.end > c1.end + 5 && Math.abs(c2.d2 - (100 - c2.end)) < 0.5, { c1, c2 });
-  await set("начало", 100); await set("длится", 100); await set("скорость", 1); await set("тон", 0); const s1 = await m();
-  await set("скорость", 2); const s2 = await m();
-  check("скорость меняет, где кончается (быстрее — за то же время проходит больше записи)", s2.end > s1.end + 5, { s1, s2 });
-  await set("тон", 3);
-  await set("начало", 100); await set("длится", 200); await set("скорость", 1.5);
+  await set("конец", 450); const c1 = await m();
+  await set("конец", 600); const c2 = await m();
+  check("ползунок «конец» двигает оранжевую черту сразу: дальше — правее; правее конца притемнено", c2.end > c1.end + 5 && Math.abs(c2.d2 - (100 - c2.end)) < 0.5, { c1, c2 });
+  await set("скорость", 2); await set("тон", 7); const c3 = await m();
+  check("скорость и тон конец НЕ двигают: черта конца остаётся на месте", Math.abs(c3.end - c2.end) < 0.3, { c2, c3 });
+  await set("начало", 100); await set("конец", 500); await set("скорость", 1.5); await set("тон", 3);
   await f.evaluate(() => document.querySelectorAll('.ev[data-kind="lay"] .snd')[2].querySelectorAll("button")[0].click());
   await p.waitForTimeout(40);
   const ph1 = await f.evaluate(() => { const e = document.querySelectorAll('.ev[data-kind="lay"] .snd')[2].querySelector(".ph"); return { shown: e.style.display, left: parseFloat(e.style.left) }; });

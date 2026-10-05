@@ -46,8 +46,8 @@ export interface Variant {
   pitch?: number;
   /** Скорость меняет и высоту; по умолчанию да. */
   tie?: boolean;
-  /** Сколько миллисекунд звучит от начала (0 или нет — до конца записи). */
-  len?: number | null;
+  /** Где звук кончается — миллисекунда в самой записи (0 или нет — до конца файла). Не зависит от скорости и тона: сдвигается только ползунком. */
+  end?: number | null;
   /** Громкость этого звука внутри действия, 0…2 (нет — 1); умножается на громкость действия `gain`. */
   vol?: number;
   /** Динамика, 0…1: насколько сила действия (высота падения, скорость броска) меняет громкость этого звука. 0 — всегда одинаково; 1 — слабое действие почти не слышно. Нет — как задано у действия (`soft`). */
@@ -180,6 +180,13 @@ export function tableFeel(sound: TableSound, haptic: TableHaptic): TableFeel {
   } catch { /* нет хранилища или битое — заводской */ }
   const log: FeelLogged[] = ((globalThis as { __feelLog?: FeelLogged[] }).__feelLog = []);
 
+  /** Через сколько миллисекунд ЗВУЧАНИЯ оборвать звук, чтобы он кончился там, где задан его `end` в записи: путь по записи делим на то, во сколько раз играем быстрее. */
+  const cutOf = (v: Variant, spec: FeelSpec): number => {
+    if (!v.end) return spec.cutMs;
+    const b = v.track ? sound.buffer(v.track) : undefined, start = typeof v.from === "number" ? v.from : b ? b.onset * 1000 : 0;
+    const speed = v.tie === false ? v.rate : v.rate * 2 ** ((v.pitch ?? 0) / 12);
+    return Math.max(10, (v.end - start) / speed);
+  };
   const feel: TableFeel = {
     preset,
     prefs,
@@ -197,7 +204,7 @@ export function tableFeel(sound: TableSound, haptic: TableHaptic): TableFeel {
         const dyn = v.dyn ?? 1 - spec.soft, gain = spec.gain * (v.vol ?? 1) * (1 - dyn + dyn * energy);
         loudest = Math.max(loudest, gain);
         if (!prefs.sound || (gain <= 0.001 && i > 0)) return;
-        const rate = v.rate * (1 + (Math.random() * 2 - 1) * spec.jitter), cut = v.len ?? spec.cutMs;
+        const rate = v.rate * (1 + (Math.random() * 2 - 1) * spec.jitter), cut = cutOf(v, spec);
         sound.voice({ file: spec.file, ...(v.track ? { track: v.track } : {}), ...(typeof v.from === "number" ? { from: v.from / 1000 } : {}), ...(v.pitch ? { pitch: v.pitch } : {}), ...(v.tie === false ? { tie: false } : {}), rate, gain, mine: e.mine !== false, x: e.x ?? 0, z: e.z ?? 0, layers: i === 0 ? synth : [], ...(cut ? { cutMs: cut } : {}) });
       });
       log.push({ kind: e.kind, mine: e.mine !== false, energy: +energy.toFixed(2), gain: prefs.sound ? +loudest.toFixed(3) : 0, vibe });
@@ -216,7 +223,7 @@ export function tableFeel(sound: TableSound, haptic: TableHaptic): TableFeel {
     playVariant(kind, index) {
       const spec = preset[kind], v: Variant | undefined = index === 0 ? spec : spec.extra?.[index - 1];
       if (!v || !prefs.sound) return;
-      sound.voice({ file: spec.file, ...(v.track ? { track: v.track } : {}), ...(typeof v.from === "number" ? { from: v.from / 1000 } : {}), ...(v.pitch ? { pitch: v.pitch } : {}), ...(v.tie === false ? { tie: false } : {}), rate: v.rate, gain: spec.gain * (v.vol ?? 1), mine: true, layers: [], ...(v.len ? { cutMs: v.len } : {}) });
+      sound.voice({ file: spec.file, ...(v.track ? { track: v.track } : {}), ...(typeof v.from === "number" ? { from: v.from / 1000 } : {}), ...(v.pitch ? { pitch: v.pitch } : {}), ...(v.tie === false ? { tie: false } : {}), rate: v.rate, gain: spec.gain * (v.vol ?? 1), mine: true, layers: [], ...(cutOf(v, spec) ? { cutMs: cutOf(v, spec) } : {}) });
     },
     save() {
       // Хранится только то, что отличается от заводского: поменяли заводской пресет — он дойдёт и до тех, кто ничего не трогал.

@@ -81,7 +81,7 @@
     <div class="hint">Все звуки, что скачаны. Один звук — одно нажатие: слушай. Ничего настраивать тут не нужно. <span id="count"></span></div>
     <div class="gal" id="gal"></div></div>
   <div class="plate"><div class="head"><div class="n">2</div><div class="t">ЗВУКИ ДЕЙСТВИЙ</div></div>
-    <div class="hint">На каждое действие — столько звуков, сколько хочешь, из любых. У каждого звука свои: с какой секунды начинается, сколько длится, скорость, тон, громкость и «от силы» (насколько сила движения делает его громче или тише). При действии играют все звуки списка. Сохраняется сразу; «Карта — база» подхватывает.</div>
+    <div class="hint">На каждое действие — столько звуков, сколько хочешь, из любых. У каждого звука свои: с какой секунды начинается, где кончается (в самой записи, скорость и тон это место не двигают), скорость, тон, громкость и «от силы» (насколько сила движения делает его громче или тише). При действии играют все звуки списка. Сохраняется сразу; «Карта — база» подхватывает.</div>
     <div class="tools"><button id="copy">Копировать настройки</button><button id="reset">Сбросить всё</button></div>
     <div id="events"></div></div>
 </div>
@@ -181,13 +181,13 @@ const lenOf = (track) => Math.round((sound.buffer(track)?.audio.duration ?? 1) *
 const listOf = (spec) => (spec.track ? [spec, ...(spec.extra ?? [])] : (spec.extra ?? []));
 function commit(spec, list) {
   const first = list[0];
-  for (const k of ["track", "from", "rate", "pitch", "tie", "len", "vol", "dyn"]) delete spec[k];
+  for (const k of ["track", "from", "rate", "pitch", "tie", "end", "len", "vol", "dyn"]) delete spec[k];
   if (first) Object.assign(spec, first); else { spec.track = null; spec.file = null; }
   if (first?.track) spec.file = first.track.replace(/-\d+$/, "");
   if (list.length > 1) spec.extra = list.slice(1); else delete spec.extra;
   feel.save();
 }
-const plain = (v) => ({ track: v.track ?? null, from: v.from ?? null, rate: v.rate ?? 1, pitch: v.pitch ?? 0, tie: v.tie !== false, len: v.len ?? 0, vol: v.vol ?? 1, ...(v.dyn !== undefined ? { dyn: v.dyn } : {}) });
+const plain = (v) => ({ track: v.track ?? null, from: v.from ?? null, rate: v.rate ?? 1, pitch: v.pitch ?? 0, tie: v.tie !== false, end: v.end ?? 0, vol: v.vol ?? 1, ...(v.dyn !== undefined ? { dyn: v.dyn } : {}) });
 const slider = (label, min, max, step, get, set, fmt) => { const l = document.createElement("div"); l.className = "sl"; l.innerHTML = `<span>${label}</span><input type="range" min="${min}" max="${max}" step="${step}"><b></b>`; const r = l.querySelector("input"), v = l.querySelector("b"); r.value = get(); v.textContent = fmt(get()); r.oninput = () => { set(+r.value); v.textContent = fmt(+r.value); }; return l; };
 /** Звуки, нарисованные сейчас на странице: для бегунков. */
 let boxes = [];
@@ -234,7 +234,7 @@ function renderEvents() {
       const sel = document.createElement("select");
       for (const [val, text] of OPTIONS) { const o = document.createElement("option"); o.value = val; o.textContent = text; sel.append(o); }
       sel.value = v.track;
-      sel.onchange = async () => { v.track = sel.value; v.from = null; v.len = 0; commit(spec, list); await loadTrack(v.track); renderEvents(); feel.playVariant(kind, i); };
+      sel.onchange = async () => { v.track = sel.value; v.from = null; v.end = 0; commit(spec, list); await loadTrack(v.track); renderEvents(); feel.playVariant(kind, i); };
       const one = document.createElement("button"); one.textContent = "▶"; one.title = "послушать только этот звук с этими настройками";
       one.onclick = async () => { await loadTrack(v.track); feel.playVariant(kind, i); runBoxes(boxes.filter((b) => b.v === v)); };
       const del = document.createElement("button"); del.textContent = "×"; del.title = "убрать этот звук из действия";
@@ -247,7 +247,7 @@ function renderEvents() {
       wb.append(cv, d1, d2, sm, em, ph, lg, lg2);
       /** Во сколько раз звук играется быстрее записи: со связью скорость и тон вместе, без — одна скорость. */
       const factor = () => (v.tie === false ? v.rate : v.rate * 2 ** (v.pitch / 12));
-      const span = () => { const dur = sound.buffer(v.track)?.audio.duration ?? 1, start = Math.min(dur, (v.from ?? onsetMs(v.track)) / 1000), end = v.len ? Math.min(dur, start + (v.len / 1000) * factor()) : dur; return { dur, start, end }; };
+      const span = () => { const dur = sound.buffer(v.track)?.audio.duration ?? 1, start = Math.min(dur, (v.from ?? onsetMs(v.track)) / 1000), end = v.end ? Math.min(dur, v.end / 1000) : dur; return { dur, start, end: Math.max(end, start) }; };
       const paint = () => {
         const { dur, start, end } = span(), a = (start / dur) * 100, z = (end / dur) * 100;
         sm.style.left = a + "%"; em.style.left = z + "%"; d1.style.width = a + "%"; d2.style.width = 100 - z + "%";
@@ -258,7 +258,7 @@ function renderEvents() {
       const apply = (fn) => (x) => { fn(x); commit(spec, list); paint(); };
       box.append(head, wb,
         slider("начало", 0, lenOf(v.track), 10, () => v.from ?? onsetMs(v.track), apply((x) => { v.from = x; }), secs),
-        slider("длится", 0, lenOf(v.track), 10, () => v.len, apply((x) => { v.len = x; }), (x) => (x ? secs(x) : "до конца")),
+        slider("конец", 0, lenOf(v.track), 10, () => v.end || lenOf(v.track), apply((x) => { v.end = x >= lenOf(v.track) ? 0 : x; }), (x) => (x >= lenOf(v.track) ? "до конца файла" : secs(x))),
         slider("скорость", 0.25, 2.5, 0.01, () => v.rate, apply((x) => { v.rate = x; }), fmtSpeed),
         slider("тон", -12, 12, 0.1, () => v.pitch, apply((x) => { v.pitch = x; }), fmtPitch),
         slider("громкость", 0, 2, 0.05, () => v.vol, apply((x) => { v.vol = x; }), (x) => x.toFixed(2)),
@@ -277,7 +277,7 @@ function renderEvents() {
     add.onchange = async () => {
       if (!add.value) return;
       const base = list.at(-1);
-      list.push({ track: add.value, from: null, rate: base?.rate ?? 1, pitch: 0, tie: true, len: 0, vol: 1 });
+      list.push({ track: add.value, from: null, rate: base?.rate ?? 1, pitch: 0, tie: true, end: 0, vol: 1 });
       commit(spec, list); await loadTrack(add.value); renderEvents(); feel.playVariant(kind, list.length - 1);
     };
     ev.append(add);
