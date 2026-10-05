@@ -120,7 +120,7 @@ await f.evaluate(() => document.getElementById("reset").click());
     await p.waitForTimeout(200);
     await f.evaluate(() => { const sel = document.querySelector('.ev[data-kind="flip"] .snd select'); sel.value = "gather-1"; sel.dispatchEvent(new Event("change")); });
     await f.waitForFunction(() => window.__feel.preset.flip.track === "gather-1", null, { timeout: 5000 });
-    await f.evaluate(() => { const box = document.querySelector('.ev[data-kind="flip"] .snd'); const set = (l, v) => { const r = [...box.querySelectorAll(".sl")].find((x) => x.querySelector("span").textContent === l).querySelector("input"); r.value = v; r.dispatchEvent(new Event("input")); }; set("начало", 100); set("конец", 500); set("скорость", 2); });
+    await f.evaluate(() => { const box = document.querySelector('.ev[data-kind="flip"] .snd'); const set = (l, v) => { const r = [...box.querySelectorAll(".sl")].find((x) => x.querySelector("span").textContent === l).querySelector("input"); r.value = v; r.dispatchEvent(new Event("input")); }; set("начало", 100); set("конец", 500); set("скорость", 2); set("тон", 0); window.__feel.preset.flip.tie = true; });
     await f.evaluate(() => [...document.querySelectorAll('.ev[data-kind="flip"] .snd button')].find((b) => /новый звук/.test(b.textContent)).click());
     await f.waitForFunction(() => window.__feel.preset.flip.track === "zz-test-bake", null, { timeout: 20000 });
     await p.waitForTimeout(500);
@@ -157,6 +157,11 @@ await f.evaluate(() => document.getElementById("reset").click());
     check("«В игру» записало только «Положил» в файл", Object.keys(JSON.parse(readFileSync(file, "utf8"))).join() === "lay", readFileSync(file, "utf8"));
     check("«Положил»: «в игре этот же», сводка 1 из 8, у «Взял» всё ещё прежний", (await badge("lay")) === "в игре этот же" && /1 из 8/.test(await summary()) && (await badge("grab")) === "в игре прежний звук");
     check("«В игру» у совпадающего недоступна, «Убрать из игры» доступна", (await btn("lay", "В игру")) === true && (await btn("lay", "Убрать из игры")) === false);
+    // «тик/бум» тоже правка: после записи в игру переключатель оживляет статус и «В игру»
+    await g.evaluate(() => [...document.querySelectorAll('.ev[data-kind="lay"] .row button')].find((x) => /тик\/бум/.test(x.textContent)).click());
+    check("переключил «тик/бум» у записанного в игру: «изменён, в игре прежний», кнопка «В игру» доступна", (await badge("lay")) === "изменён, в игре прежний" && (await btn("lay", "В игру")) === false, { b: await badge("lay") });
+    await g.evaluate(() => [...document.querySelectorAll('.ev[data-kind="lay"] .row button')].find((x) => /тик\/бум/.test(x.textContent)).click());
+    check("вернул «тик/бум» как было — снова «в игре этот же»", (await badge("lay")) === "в игре этот же");
     // правка ползунком ПОСЛЕ записи (без перерисовки страницы): статус и кнопка «В игру» оживают сразу, и новое записывается поверх
     await g.evaluate(() => { const r = [...document.querySelectorAll('.ev[data-kind="lay"] .snd .sl')].find((x) => /скорость/.test(x.textContent)).querySelector("input"); r.value = "1.5"; r.dispatchEvent(new Event("input")); });
     check("поменял скорость ползунком у записанного в игру: «изменён, в игре прежний», кнопка «В игру» доступна", (await badge("lay")) === "изменён, в игре прежний" && (await btn("lay", "В игру")) === false && (await btn("lay", "Вернуть как в игре")) === false, { b: await badge("lay") });

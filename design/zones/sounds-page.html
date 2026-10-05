@@ -228,7 +228,9 @@ const specText = (spec) => {
   const vs = listOf(spec).map((v) => `${v.track}${v.from != null || v.end ? ` ${((v.from ?? onsetMs(v.track)) / 1000).toFixed(2)}–${v.end ? (v.end / 1000).toFixed(2) : "конец"} с` : ""} ×${(v.rate ?? 1).toFixed(2)}${v.pitch ? ` ${v.pitch > 0 ? "+" : ""}${(+v.pitch).toFixed(1)} пт` : ""}`);
   return vs.length ? vs.join(" · ") : "без записи (только тик/бум)";
 };
-const stateOf = (k) => !live.has(k) ? "old" : JSON.stringify(feel.preset[k]) === applied[k] ? "same" : "diff";
+/** «тик/бум» не записан и «тик/бум: ДА» — одно и то же. */
+const norm = (spec) => JSON.stringify({ ...spec, synth: spec.synth !== false });
+const stateOf = (k) => !live.has(k) ? "old" : norm(feel.preset[k]) === norm(JSON.parse(applied[k])) ? "same" : "diff";
 const BADGE = { old: "в игре прежний звук", same: "в игре этот же", diff: "изменён, в игре прежний" };
 /** Сыграть то, что сейчас в игре у действия: записанные настройки или (если ещё не переведено) прежний звук игры. */
 function playInGame(k) {
@@ -357,7 +359,7 @@ function renderEvents() {
     const hear = (energy) => () => { const i = feel.play({ kind, energy }); runBoxes(mine().filter((_, k) => k === i)); };
     strong.onclick = hear(1); weak.onclick = hear(0.2);
     const paintSynth = () => { synth.textContent = "тик/бум: " + (spec.synth === false ? "НЕТ" : "ДА"); synth.classList.toggle("on", spec.synth !== false); };
-    synth.onclick = () => { spec.synth = spec.synth === false; feel.save(); paintSynth(); }; paintSynth();
+    synth.onclick = () => { spec.synth = spec.synth === false; feel.save(); paintSynth(); refreshStates(); }; paintSynth();
     synth.title = "синтезированные тик и «бум» поверх записей";
     row.append(nm, strong, weak, synth);
     ev.append(row);
