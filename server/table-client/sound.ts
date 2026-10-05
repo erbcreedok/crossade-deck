@@ -9,6 +9,7 @@
 import type { CueKind } from "../src/table/cues.js";
 import { HOST } from "./host.js";
 import custom from "./soundsCustom.json";
+import packsJson from "./soundsPacks.json";
 
 // Файлы: drop — card-place-1, turn — card-place-2, sort — card-place-4, hand — card-slide-1, merge — card-fan-1,
 // shuffle — card-shuffle, gather — card-shove-1/2/4.
@@ -207,6 +208,22 @@ export interface SoundHealth {
 }
 
 /**
+ * ПАККИ ЗВУКОВ: несколько коротких записей, сшитых при сборке в один файл (меньше запросов и служебных байтов). `packs.<имя>` — `file` (с хешем содержимого в имени) и `clips`:
+ * название звука → [с какой секунды, до какой секунды] внутри файла. Звука нет ни в одном пакке — он грузится отдельным файлом, как раньше. Пустой список — всё как раньше.
+ */
+interface Pack { file: string; clips: Record<string, [number, number]> }
+const PACKS = (packsJson as { packs: Record<string, Pack> }).packs;
+const CLIP_PACK = new Map<string, string>(Object.entries(PACKS).flatMap(([pack, p]) => Object.keys(p.clips).map((name): [string, string] => [name, pack])));
+
+/** Вырезать из декодированной записи отрезок `[from, to]` секунд в новую запись (звук из пакка). */
+export function sliceBuffer(ctx: { createBuffer(channels: number, length: number, rate: number): AudioBuffer }, buf: AudioBuffer, from: number, to: number): AudioBuffer {
+  const sr = buf.sampleRate, a = Math.max(0, Math.floor(from * sr)), b = Math.min(buf.length, Math.max(a + 1, Math.floor(to * sr)));
+  const out = ctx.createBuffer(buf.numberOfChannels, b - a, sr);
+  for (let c = 0; c < buf.numberOfChannels; c += 1) out.getChannelData(c).set(buf.getChannelData(c).subarray(a, b));
+  return out;
+}
+
+/**
  * РАСТЯНУТЬ ЗАПИСЬ ВО ВРЕМЕНИ, НЕ МЕНЯЯ ВЫСОТЫ (наложение зёрен): запись режется на окна по 40 мс с половинным перекрытием и собирается заново с другим шагом.
  * `T` — во сколько раз длиннее (меньше 1 — короче). Простейший способ: для коротких ударов и шелеста годится, для длинных тонов даёт лёгкую «дрожь».
  * Скорость без смены высоты = растянуть на `T = высота / скорость` и играть с `playbackRate = высота`.
@@ -274,7 +291,33 @@ export function tableSound(opts: { lazy?: boolean } = {}): TableSound {
   };
   /** Дорожка в пути: одна загрузка на имя, сколько бы раз ни просили. */
   const pending = new Map<string, Promise<boolean>>();
+  /** Пакк грузится один раз и режется на звуки: после этого каждый из его звуков готов без запросов. */
+  const loadPack = (pack: string): Promise<boolean> => {
+    const key = `pack:${pack}`, was = pending.get(key);
+    if (was) return was;
+    const t0 = performance.now(), file = PACKS[pack]!.file;
+    health.loading.push(key);
+    const one = fetch(`${HOST}/table/sounds/${file}`)
+      .then((r) => (r.ok ? r : fetch(`/__sounds/${file}`)))
+      .then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.arrayBuffer(); })
+      .then((bytes) => ctx!.decodeAudioData(bytes))
+      .then((whole) => {
+        for (const [name, [from, to]] of Object.entries(PACKS[pack]!.clips)) {
+          const clip = sliceBuffer(ctx!, whole, from, to);
+          buffers.set(name, clip); onsets.set(name, onsetOf(clip));
+          health.onsets[name] = +onsets.get(name)!.toFixed(4); health.loadMs[name] = Math.round(performance.now() - t0);
+        }
+        health.loaded = buffers.size;
+        return true;
+      })
+      .catch(() => { pending.delete(key); return false; })
+      .finally(() => { health.loading = health.loading.filter((n) => n !== key); });
+    pending.set(key, one);
+    return one;
+  };
   const load = (name: string): Promise<boolean> => {
+    const inPack = CLIP_PACK.get(name);
+    if (inPack) return loadPack(inPack).then((ok) => ok && buffers.has(name));
     const was = pending.get(name);
     if (was) return was;
     const t0 = performance.now();
