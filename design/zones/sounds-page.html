@@ -71,6 +71,12 @@
   .wb .lg2 { position: absolute; right: 4px; top: 2px; font-size: 10px; color: var(--dim); pointer-events: none; }
   .sub { font-size: 11px; color: var(--dim); margin: -2px 0 8px; line-height: 1.3; }
   .none { font-size: 12px; color: var(--dim); margin: 0 0 8px; }
+  .plate.closed > :not(.head) { display: none; }
+  .plate > .head, .ev > .row:first-child .nm { cursor: pointer; }
+  .plate.closed > .head { margin-bottom: 0; }
+  .ev.closed > :not(:first-child) { display: none; }
+  .ev.closed { padding-bottom: 0; margin-bottom: 8px; }
+  .arrow { display: inline-block; width: 14px; color: var(--gold); }
   .state { margin: 0 0 10px; padding: 8px; background: rgba(11,7,4,.5); box-shadow: inset 0 0 0 2px rgba(11,7,4,.7); font-size: 12px; line-height: 1.4; }
   .state .ln { display: flex; gap: 8px; align-items: baseline; margin: 0 0 3px; }
   .state .ln > span:first-child { width: 74px; flex: none; color: var(--dim); }
@@ -83,11 +89,11 @@
 <div class="page">
   <h1>ЗВУКИ</h1>
   <div id="diag"></div><div id="errors"></div>
-  <div class="plate"><div class="head"><div class="n">1</div><div class="t">ГАЛЕРЕЯ ЗВУКОВ</div></div>
+  <div class="plate" data-fold="plate1"><div class="head"><div class="n">1</div><div class="t">ГАЛЕРЕЯ ЗВУКОВ</div></div>
     <div class="hint">Все звуки, что есть в папке со звуками. Один звук — одно нажатие: слушай. Ничего настраивать тут не нужно. Новый файл (wav, mp3, m4a…) добавляется кнопкой ниже: он сожмётся, встанет в папку и появится в списке. <span id="count"></span></div>
     <div class="tools"><button id="addfile">+ Добавить звук из файла…</button><input id="filepick" type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.ogg,.flac" style="display:none"></div>
     <div class="gal" id="gal"></div></div>
-  <div class="plate"><div class="head"><div class="n">2</div><div class="t">ЗВУКИ ДЕЙСТВИЙ</div></div>
+  <div class="plate" data-fold="plate2"><div class="head"><div class="n">2</div><div class="t">ЗВУКИ ДЕЙСТВИЙ</div></div>
     <div class="hint">На каждое действие — столько звуков, сколько хочешь, из любых. У каждого звука свои: с какой секунды начинается, где кончается (в самой записи, скорость и тон это место не двигают), скорость, тон, громкость и «от силы» (насколько сила движения делает его громче или тише). При каждом действии играет ОДИН звук из списка — каждый раз другой, по кругу в случайном порядке, подряд один и тот же не повторяется. Правки сохраняются сразу на этом устройстве («Карта — база» подхватывает). Игра их не видит, пока не нажато «В игру» у действия: до тех пор в игре играет прежний звук (или тот, что нажали в игру раньше).</div>
     <div id="summary"></div>
     <div class="tools"><button id="saveall">Всё в игру</button><button id="copy">Копировать настройки</button><button id="reset">Сбросить всё</button></div>
@@ -105,6 +111,16 @@ const { tableSound, stretchBuffer } = await import("/@fs/Users/giyers/Desktop/cr
 const { tableHaptic } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/haptic.ts");
 const { tableFeel, FEEL_KINDS, FEEL_NAMES, FEEL_LIVE, FEEL_OLD, FEEL_DEFAULT } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/feel.ts");
 const $ = (id) => document.getElementById(id);
+/** Свёрнутые секции (главные и по действиям) помнятся на этом устройстве. */
+const FOLD_KEY = "crossade.sounds.fold";
+const folded = new Set((() => { try { return JSON.parse(localStorage.getItem(FOLD_KEY) ?? "[]"); } catch { return []; } })());
+const toggleFold = (id) => { if (folded.has(id)) folded.delete(id); else folded.add(id); try { localStorage.setItem(FOLD_KEY, JSON.stringify([...folded])); } catch { /* без памяти — на эту сессию */ } };
+for (const plate of document.querySelectorAll(".plate[data-fold]")) {
+  const id = plate.dataset.fold, head = plate.querySelector(".head"), arrow = document.createElement("span");
+  arrow.className = "arrow"; head.prepend(arrow);
+  const paint = () => { plate.classList.toggle("closed", folded.has(id)); arrow.textContent = folded.has(id) ? "▸" : "▾"; };
+  head.onclick = () => { toggleFold(id); paint(); }; paint();
+}
 const sound = tableSound({ lazy: true }), feel = tableFeel(sound, tableHaptic());
 /** Что уже в игре: действия из `feelPreset.json` и снимок их настроек на момент записи. Нет в списке — игра играет прежний звук. */
 const live = new Set(FEEL_LIVE), applied = {};
@@ -319,7 +335,10 @@ function renderEvents() {
     const spec = feel.preset[kind], ev = document.createElement("div"); ev.className = "ev"; ev.dataset.kind = kind;
     const list = listOf(spec).map(plain);
     const row = document.createElement("div"); row.className = "row";
-    const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = FEEL_NAMES[kind];
+    const nm = document.createElement("div"); nm.className = "nm";
+    const arrow = document.createElement("span"); arrow.className = "arrow"; nm.append(arrow, FEEL_NAMES[kind]);
+    const paintFold = () => { ev.classList.toggle("closed", folded.has("ev:" + kind)); arrow.textContent = folded.has("ev:" + kind) ? "▸" : "▾"; };
+    nm.onclick = () => { toggleFold("ev:" + kind); paintFold(); }; paintFold();
     const strong = document.createElement("button"), weak = document.createElement("button"), synth = document.createElement("button");
     strong.textContent = "▶ действие"; weak.textContent = "▷ слабо";
     const mine = () => boxes.filter((b) => b.box.closest(".ev") === ev);

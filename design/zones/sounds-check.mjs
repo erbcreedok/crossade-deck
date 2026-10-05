@@ -185,6 +185,30 @@ await f.evaluate(() => document.getElementById("reset").click());
     check("вписан в список своих звуков, на странице сказано про коммит", JSON.parse(readFileSync(custom, "utf8")).names.includes("zz-test-upload") && await g.evaluate(() => /закоммитить/.test(document.getElementById("saved").textContent)));
   } finally { rmSync(out, { force: true }); writeFileSync(custom, was); }
 }
+// СВОРАЧИВАНИЕ: главные секции (1, 2) и каждое действие; помнится после перезагрузки.
+{
+  const g = p.frames().find((x) => x.url().includes("sounds-page"));
+  const vis = (q) => g.evaluate((qq) => { const e = document.querySelector(qq); return !!e && e.offsetParent !== null && e.getBoundingClientRect().height > 0; }, q);
+  await g.evaluate(() => localStorage.removeItem("crossade.sounds.fold"));
+  await p.reload(); await p.waitForTimeout(3000);
+  const h = p.frames().find((x) => x.url().includes("sounds-page"));
+  await h.waitForFunction(() => window.__ready && window.__sound.tracks.every((n) => window.__sound.buffer(n)), null, { timeout: 60000 });
+  const v = (q) => h.evaluate((qq) => { const e = document.querySelector(qq); return !!e && e.offsetParent !== null; }, q);
+  check("по умолчанию всё развёрнуто", await v("#gal") && await v('.ev[data-kind="lay"] .state') && await v('.ev[data-kind="lay"] .snd'));
+  await h.evaluate(() => document.querySelector('.ev[data-kind="lay"] .nm').click());
+  check("действие свёрнуто: его звуки и статус скрыты, заголовок с кнопками виден, остальные действия на месте", !(await v('.ev[data-kind="lay"] .state')) && !(await v('.ev[data-kind="lay"] .snd')) && await v('.ev[data-kind="lay"] > .row:first-child button') && await v('.ev[data-kind="grab"] .snd'));
+  await p.reload(); await p.waitForTimeout(3000);
+  const h2 = p.frames().find((x) => x.url().includes("sounds-page"));
+  await h2.waitForFunction(() => window.__ready && window.__sound.tracks.every((n) => window.__sound.buffer(n)), null, { timeout: 60000 });
+  check("после перезагрузки действие остаётся свёрнутым", await h2.evaluate(() => { const e = document.querySelector('.ev[data-kind="lay"] .snd'); return !e || e.offsetParent === null; }));
+  await h2.evaluate(() => document.querySelector('.ev[data-kind="lay"] .nm').click());
+  check("повторное нажатие разворачивает", await h2.evaluate(() => document.querySelector('.ev[data-kind="lay"] .snd').offsetParent !== null));
+  await h2.evaluate(() => document.querySelector('[data-fold="plate2"] .head').click());
+  check("секция 2 свёрнута: действий не видно, заголовок виден; секция 1 на месте", await h2.evaluate(() => document.querySelector("#events").offsetParent === null && document.querySelector('[data-fold="plate2"] .head').offsetParent !== null && document.querySelector("#gal").offsetParent !== null));
+  await h2.evaluate(() => document.querySelector('[data-fold="plate1"] .head').click());
+  check("секция 1 свёрнута: галерея скрыта", await h2.evaluate(() => document.querySelector("#gal").offsetParent === null));
+  await h2.evaluate(() => localStorage.removeItem("crossade.sounds.fold"));
+}
 await browser.close();
 check("без ошибок страницы", errors.length === 0, errors);
 for (const k of checks) console.log(k.ok ? "ok  " : "FAIL", k.name, k.ok ? "" : JSON.stringify(k.got));
