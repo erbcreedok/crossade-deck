@@ -1,0 +1,33 @@
+design/zones/sounds-page.html
+  s_d1074c8bc76056::t_fca3a4c7264b2a 130-131
+  s_d1074c8bc76056::t_54a7de65459e25 1-41,43-82,84-85,87-101,104-105,108-129,132-136,138-147
+  s_d1074c8bc76056::t_82c77e0b82495e 42,83,86,102-103,106-107,137
+server/table-client/feel.ts
+  s_d1074c8bc76056::t_82c77e0b82495e 40-41,166
+  s_d1074c8bc76056::t_5c119b134a636d 38-39
+server/table-client/sound.ts
+  s_d1074c8bc76056::t_82c77e0b82495e 158-159,285
+  s_d1074c8bc76056::t_5c119b134a636d 123-126,154-157,254-255,262-263,277-278
+design/zones/feel-check.mjs
+  s_d1074c8bc76056::t_e013787cb28d8a 110-115
+design/zones/sounds.html
+  s_d1074c8bc76056::t_54a7de65459e25 1-17
+design/zones/sounds-check.mjs
+  s_d1074c8bc76056::t_54a7de65459e25 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fc3ea676babc8d81ba6a0c5ade27343611516d67",
+  "prompts": {},
+  "sessions": {
+    "s_d1074c8bc76056": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "badbded6-896c-42c7-bfbf-fb2e63e12d3e",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
