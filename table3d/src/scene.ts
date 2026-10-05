@@ -16,7 +16,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS3DObject, CSS3DRenderer } from "three/addons/renderers/CSS3DRenderer.js";
 import type { PanelWorld, WorldPlace } from "./panel.js";
-import type { CardRule, Chair, Pile, SeenCard, Snapshot, Where } from "../../server/src/table/contract.js";
+import type { CardRule, Carry, Chair, Pile, SeenCard, Snapshot, Where } from "../../server/src/table/contract.js";
 import { CARRY_EVERY_MS, FELT_REACH } from "../../server/src/table/contract.js";
 import { SEAT_PULL, AWAY_DEG, awayOf, BODY_EVERY_MS, gazeOf, HEAD, headOf, leftHandOf, NECK, NECK_LEN, restHead, SHOULDER_H, sideOf, shoulders3, type Body, type Point3 } from "../../server/src/table/bodies.js";
 import { HAND_CEIL, STRAIN, BACK, PEEK, peekShift, peekTight, CAM, headAt, neckNew, neckStep, pitchToCentre, TOP, topHeight, wrap, type CamMode } from "./camera.js";
@@ -3003,7 +3003,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!drag?.where || now - carriedAt < CARRY_EVERY_MS) return;
     carriedAt = now;
     const tilt = drag.place && drag.where.in === "felt" ? Math.round(Math.acos(Math.min(1, Math.abs(new THREE.Vector3(0, 0, 1).applyQuaternion(drag.place.quat).y))) / DEG) : 0;
-    store.carry({ id: drag.id, over: drag.where, ...(flipDeg ? { flip: Math.round(flipDeg) } : {}), ...(tilt ? { tilt } : {}) });
+    store.carry({ id: drag.id, over: drag.where, ...(flipDeg ? { flip: Math.round(flipDeg) } : {}), ...(tilt ? { tilt } : {}), ...(drag.rot ? { spin: Math.round(drag.rot) } : {}) });
   };
   /** Щёлкнуло: сторона сменилась, карта доворачивается сама (пружина), угол в воздухе сброшен. */
   const flipClick = (): void => {
@@ -3295,21 +3295,21 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * ЧУЖИЕ ДЕЙСТВИЯ СЛЫШНЫ И ВИДНЫ: что несёт другой палец, читается из потока «несу» (`store.carries`) — взял, шелест, перевернул, тики поворота, положил,
    * а удар (`fx: slam`) приходит прямо в потоке. Звучит тише своего (`mine: false`), удар встряхивает и мою камеру (слабее).
    */
-  function hearOthers(): void {
+  function hearOthers(list: readonly Carry[] = store.carries): void {
     if (store.replay?.on) return;
     const live = new Set<string>();
-    for (const c of store.carries) {
+    for (const c of list) {
       if (c.by === store.me.key || !cards.has(c.id)) continue;
       live.add(c.id);
       const o = c.over;
       let h = heard.get(c.id);
       if (!h) {
-        h = { up: o.in === "felt" ? o.up : undefined, angle: o.in === "felt" ? o.angle : 0, tick: o.in === "felt" ? o.angle : 0, fx: false };
+        h = { up: o.in === "felt" ? o.up : undefined, angle: o.in === "felt" ? o.angle : 0, tick: c.spin ?? 0, fx: false };
         heard.set(c.id, h);
         feel("grab", c.id, 1, false);
       } else if (o.in === "felt") {
         if (h.up !== undefined && o.up !== h.up) { h.up = o.up; feel("flip", c.id, 1, false); }
-        if (Math.abs((((o.angle - h.tick) % 360) + 540) % 360 - 180) >= 15) { h.tick = o.angle; feel("spin", c.id, 1, false); }
+        if (Math.abs((c.spin ?? 0) - h.tick) >= 15) { h.tick = c.spin ?? 0; feel("spin", c.id, 1, false); }
       }
       if (c.fx === "slam" && !h.fx) { h.fx = true; const id = c.id; feel("slam", id, 1, false, true); onLand(id, () => { feel("slam", id, 1, false); shakeCamera(0.55); }, 800); }
     }
@@ -3607,6 +3607,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     cardQuat: (id: string) => { const o = cards.get(id); return o ? new THREE.Euler().setFromQuaternion(o.target.quat, "ZXY").toArray().slice(0, 3).map((v) => Math.round(((v as number) * 180) / Math.PI * 10) / 10) : null; },
     dropShadow: (id: string) => { const d = dropShadows.get(id); if (!d || !d.mesh.visible) return { on: false }; const a = d.pos; return { on: true, x: (a.getX(0) + a.getX(1) + a.getX(2) + a.getX(3)) / 4, z: (a.getZ(0) + a.getZ(1) + a.getZ(2) + a.getZ(3)) / 4 }; },
     ruleInfo: (id: string) => ({ shaking: denies.has(id), ring: cards.get(id)?.ring.visible === true, home: homeMark.visible, lift: cardRule(id, "lift"), move: cardRule(id, "move"), turn: cardRule(id, "turn"), notice: { lift: cardNotice(id, "lift"), move: cardNotice(id, "move"), turn: cardNotice(id, "turn"), rotate: cardNotice(id, "rotate"), slam: cardNotice(id, "slam") }, rotate: cardRule(id, "rotate"), slam: cardRule(id, "slam") }),
+    /** Для проверок: подать «чужой поток несу» напрямую (стенд один на странице и чужих потоков не видит). */
+    hearFake: (list: readonly Carry[]) => hearOthers(list),
     heightOf: (id: string) => cards.get(id)?.group.position.y ?? null,
     airOf: (id: string) => { const o = cards.get(id); return o ? +(o.group.position.y - o.target.pos.y).toFixed(3) : null; },
     shakeInfo: () => ({ active: shake !== null && performance.now() - shake.t0 < SHAKE.ms, count: shakes, slamming: slamming.size, slamTicks, peakPx: Math.round(shakePeakPx) }),

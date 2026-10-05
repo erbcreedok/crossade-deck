@@ -31,6 +31,22 @@ describe("carry.flip", () => {
   });
 });
 
+describe("carry.spin", () => {
+  it("поворот жестом доходит до остальных, лишнее обрезается, без него поля нет", () => {
+    const t = seated();
+    const id = t.seenBy("a").piles[0]!.cards.at(-1)!.id;
+    t.act("a", { t: "grab", id }, 0);
+    t.carry("a", { id, over: felt, spin: 47.4 }, 1);
+    expect(t.carriesSeenBy("b")[0]!.spin).toBe(47);
+    t.carry("a", { id, over: felt, spin: 99999 }, 2);
+    expect(t.carriesSeenBy("b")[0]!.spin).toBe(7200);
+    t.carry("a", { id, over: felt, spin: "x" as unknown as number }, 3);
+    expect(t.carriesSeenBy("b")[0]!.spin).toBeUndefined();
+    t.carry("a", { id, over: felt }, 4);
+    expect(t.carriesSeenBy("b")[0]!.spin).toBeUndefined();
+  });
+});
+
 describe("carry.tilt", () => {
   it("наклон к глазу несущего доходит до остальных, лишнее обрезается", () => {
     const t = seated();
