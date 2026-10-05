@@ -11,7 +11,15 @@ import { HOST } from "./host.js";
 
 // Файлы: drop — card-place-1, turn — card-place-2, sort — card-place-4, hand — card-slide-1, merge — card-fan-1,
 // shuffle — card-shuffle, gather — card-shove-1/2/4.
+/**
+ * ЕЩЁ ЗАПИСИ ТОГО ЖЕ НАБОРА (Kenney, CC0), лежат в папке, но в случайный выбор столом НЕ входят: из вариантов для каждого повода владелец выбрал одну запись (`SOUND_OF`), и стол играет её.
+ * Здесь они — для галереи звуков и для движений на стенде (`feel.ts`): их можно послушать и назначить.
+ */
+export const EXTRA_TRACKS = ["drop-2", "drop-3", "drop-4", "hand-2", "hand-3", "merge-2", "turn-2", "turn-3"] as const;
+
 const FILES = { drop: 1, hand: 1, turn: 1, gather: 3, merge: 1, shuffle: 1, sort: 1 } as const;
+/** Все дорожки по имени: записи стола (`FILES`) и дополнительные (`EXTRA_TRACKS`). */
+const ALL_TRACKS: string[] = [...Object.entries(FILES).flatMap(([kind, n]) => Array.from({ length: n }, (_, i) => `${kind}-${i + 1}`)), ...EXTRA_TRACKS];
 /** Какой файл на какой повод: в руку — стук (place-1), из руки на сукно — скольжение (slide-1), перестановка в руке — place-4. */
 export const SOUND_OF: Record<CueKind, keyof typeof FILES> = { drop: "drop", hand: "drop", out: "hand", turn: "turn", gather: "gather", merge: "merge", shuffle: "shuffle", sort: "sort", slam: "drop" };
 /**
@@ -252,7 +260,7 @@ export function tableSound(opts: { lazy?: boolean } = {}): TableSound {
       ctx = new Ctx();
     }
     holdAudio(ctx);
-    if (!opts.lazy) for (const [kind, n] of Object.entries(FILES)) for (let i = 1; i <= n; i += 1) void load(`${kind}-${i}`);
+    if (!opts.lazy) for (const name of ALL_TRACKS) void load(name);
     return true;
   };
   const wake = () => {
@@ -304,7 +312,7 @@ export function tableSound(opts: { lazy?: boolean } = {}): TableSound {
     voiceGain: (mine) => (sound.voiceOn ? (mine ? VOICE_GAIN.mine : VOICE_GAIN.other) * (sound.prefs.voiceVolume / 100) : 0),
     save: () => writeSoundPrefs(sound.prefs),
     ensure: (name) => (buffers.has(name) ? Promise.resolve(true) : boot() ? load(name) : Promise.resolve(false)),
-    tracks: Object.entries(FILES).flatMap(([kind, n]) => Array.from({ length: n }, (_, i) => `${kind}-${i + 1}`)),
+    tracks: ALL_TRACKS,
     buffer: (name) => { const audio = buffers.get(name); return audio ? { audio, onset: onsets.get(name) ?? 0 } : undefined; },
     voice(spec) {
       health.asked += 1;

@@ -20,7 +20,7 @@ const clear = () => f.evaluate(() => { window.__spec = []; });
 
 // 1. Галерея: все 9 звуков загружены при открытии, у каждого плитка с волной, никаких ручек.
 const gal = await f.evaluate(() => ({ tiles: [...document.querySelectorAll("#gal .tile")].map((t) => t.dataset.track), ranges: document.querySelectorAll("#gal input").length, selects: document.querySelectorAll("#gal select").length, waves: [...document.querySelectorAll("#gal canvas")].every((c) => c.getContext("2d").getImageData(0, 0, c.width, c.height).data.some((v, i) => i % 4 === 3 && v > 0)) }));
-check("галерея: 9 плиток-звуков, у каждой волна", gal.tiles.length === 9 && gal.waves, gal);
+check("галерея: 17 плиток-звуков (все записи из папки), у каждой волна", gal.tiles.length === 17 && gal.waves && ["drop-4", "hand-3", "turn-3", "merge-2"].every((t) => gal.tiles.includes(t)), gal);
 check("в галерее нет ни ползунков, ни выбора — только слушать", gal.ranges === 0 && gal.selects === 0, gal);
 await clear();
 await f.evaluate(() => document.querySelector('#gal .tile[data-track="gather-2"]').click());
@@ -32,6 +32,7 @@ check("при воспроизведении плитка подсвечена �
 // 2. Звуки действий: у каждого действия список; добавить звук из любых; свои настройки у каждого; ▶ играет ровно его.
 const ev = (kind) => `.ev[data-kind="${kind}"]`;
 const sounds = (kind) => f.evaluate((k) => document.querySelectorAll(`.ev[data-kind="${k}"] .snd`).length, kind);
+check("в списке выбора звука действия те же 17 звуков (и подсказка «добавить»), никаких групп", await f.evaluate(() => { const o = [...document.querySelectorAll('.ev[data-kind="lay"] select.add option')].map((x) => x.textContent); return o.length === 18 && !o.some((t) => /групп/.test(t)); }));
 check("у действия «Положил» один звук по умолчанию", (await sounds("lay")) === 1);
 for (const t of ["turn-1", "merge-1", "shuffle-1"]) {
   const had = await sounds("lay");

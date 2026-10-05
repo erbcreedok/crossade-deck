@@ -78,7 +78,7 @@
   <h1>ЗВУКИ</h1>
   <div id="diag"></div><div id="errors"></div>
   <div class="plate"><div class="head"><div class="n">1</div><div class="t">ГАЛЕРЕЯ ЗВУКОВ</div></div>
-    <div class="hint">Все звуки, что скачаны. Один звук — одно нажатие: слушай. Ничего настраивать тут не нужно. <span id="count"></span></div>
+    <div class="hint">Все звуки, что есть в папке со звуками. Один звук — одно нажатие: слушай. Ничего настраивать тут не нужно. <span id="count"></span></div>
     <div class="gal" id="gal"></div></div>
   <div class="plate"><div class="head"><div class="n">2</div><div class="t">ЗВУКИ ДЕЙСТВИЙ</div></div>
     <div class="hint">На каждое действие — столько звуков, сколько хочешь, из любых. У каждого звука свои: с какой секунды начинается, где кончается (в самой записи, скорость и тон это место не двигают), скорость, тон, громкость и «от силы» (насколько сила движения делает его громче или тише). При действии играют все звуки списка. Сохраняется сразу; «Карта — база» подхватывает.</div>
@@ -97,6 +97,9 @@ const { tableHaptic } = await import("/@fs/Users/giyers/Desktop/crossade-deck/se
 const { tableFeel, FEEL_KINDS, FEEL_NAMES } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/feel.ts");
 const $ = (id) => document.getElementById(id);
 const sound = tableSound({ lazy: true }), feel = tableFeel(sound, tableHaptic());
+/** Порядок в галерее и в списках: семьями — стук, скольжение, переворот, веер, сбор, тасовка, перестановка. */
+const FAMILY = ["drop", "hand", "turn", "merge", "gather", "shuffle", "sort"];
+const TRACKS = [...sound.tracks].sort((a, b) => FAMILY.indexOf(a.replace(/-\d+$/, "")) - FAMILY.indexOf(b.replace(/-\d+$/, "")) || a.localeCompare(b));
 window.__sound = sound; window.__feel = feel;
 window.__ready = true;
 {
@@ -105,7 +108,7 @@ window.__ready = true;
   line(`звуки берутся с ${host}`);
   fetch(`${host}/table/sounds/drop-1.m4a`, { method: "HEAD" }).then((r) => line(`сервер звуков ответил ${r.status} за ${Math.round(performance.now() - t0)} мс`)).catch((e) => line(`сервер звуков НЕ ответил: ${e?.message ?? e}`));
 }
-const TRACK_NAMES = { "drop-1": "Стук карты о стол", "hand-1": "Скольжение карты", "turn-1": "Переворот", "merge-1": "Веер / слияние", "shuffle-1": "Тасовка", "sort-1": "Перестановка", "gather-1": "Сбор (1)", "gather-2": "Сбор (2)", "gather-3": "Сбор (3)" };
+const TRACK_NAMES = { "drop-2": "Стук карты (2)", "drop-3": "Стук карты (3)", "drop-4": "Стук карты (4)", "hand-2": "Скольжение карты (2)", "hand-3": "Скольжение карты (3)", "merge-2": "Веер / слияние (2)", "turn-2": "Переворот (2)", "turn-3": "Переворот (3)", "drop-1": "Стук карты о стол", "hand-1": "Скольжение карты", "turn-1": "Переворот", "merge-1": "Веер / слияние", "shuffle-1": "Тасовка", "sort-1": "Перестановка", "gather-1": "Сбор (1)", "gather-2": "Сбор (2)", "gather-3": "Сбор (3)" };
 const nameOf = (t) => TRACK_NAMES[t] ?? t;
 
 // ——— 1. ГАЛЕРЕЯ: плитка на звук, нажал — играет целиком с самого начала файла ———
@@ -146,7 +149,7 @@ function runPlayhead(name, ms) {
   const step = () => { const f = (performance.now() - t0) / ms; if (f >= 1) { t.ph.style.display = "none"; t.el.classList.remove("playing"); return; } t.ph.style.left = f * 100 + "%"; phTimer = requestAnimationFrame(step); };
   step();
 }
-for (const name of sound.tracks) {
+for (const name of TRACKS) {
   const el = document.createElement("div"); el.className = "tile"; el.dataset.track = name;
   const tn = document.createElement("div"); tn.className = "tn"; tn.textContent = nameOf(name);
   const info = document.createElement("div"); info.className = "tf"; info.textContent = name;
@@ -172,7 +175,7 @@ refreshCount();
 await Promise.all(sound.tracks.map((n) => loadTrack(n)));
 
 // ——— 2. ЗВУКИ ДЕЙСТВИЙ: на каждое действие — список звуков из галереи, у каждого свои настройки ———
-const OPTIONS = sound.tracks.map((n) => [n, `${nameOf(n)} (${n})`]);
+const OPTIONS = TRACKS.map((n) => [n, `${nameOf(n)} (${n})`]);
 const secs = (ms) => (ms / 1000).toFixed(2) + " с";
 const fmtSpeed = (v) => v.toFixed(2) + "×", fmtPitch = (v) => (v > 0 ? "+" : "") + v.toFixed(1) + " пт", fmtPct = (v) => Math.round(v * 100) + "%";
 const onsetMs = (track) => Math.round(((track ? sound.buffer(track)?.onset : 0) ?? 0) * 1000);
