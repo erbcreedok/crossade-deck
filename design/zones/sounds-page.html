@@ -81,7 +81,7 @@
     <div class="hint">Все звуки, что есть в папке со звуками. Один звук — одно нажатие: слушай. Ничего настраивать тут не нужно. <span id="count"></span></div>
     <div class="gal" id="gal"></div></div>
   <div class="plate"><div class="head"><div class="n">2</div><div class="t">ЗВУКИ ДЕЙСТВИЙ</div></div>
-    <div class="hint">На каждое действие — столько звуков, сколько хочешь, из любых. У каждого звука свои: с какой секунды начинается, где кончается (в самой записи, скорость и тон это место не двигают), скорость, тон, громкость и «от силы» (насколько сила движения делает его громче или тише). При действии играют все звуки списка. Сохраняется сразу; «Карта — база» подхватывает.</div>
+    <div class="hint">На каждое действие — столько звуков, сколько хочешь, из любых. У каждого звука свои: с какой секунды начинается, где кончается (в самой записи, скорость и тон это место не двигают), скорость, тон, громкость и «от силы» (насколько сила движения делает его громче или тише). При каждом действии играет ОДИН звук из списка — каждый раз другой, по кругу в случайном порядке, подряд один и тот же не повторяется. Сохраняется сразу; «Карта — база» подхватывает.</div>
     <div class="tools"><button id="copy">Копировать настройки</button><button id="reset">Сбросить всё</button></div>
     <div id="events"></div></div>
 </div>
@@ -221,9 +221,9 @@ function renderEvents() {
     const row = document.createElement("div"); row.className = "row";
     const nm = document.createElement("div"); nm.className = "nm"; nm.textContent = FEEL_NAMES[kind];
     const strong = document.createElement("button"), weak = document.createElement("button"), synth = document.createElement("button");
-    strong.textContent = "▶ всё действие"; weak.textContent = "▷ слабо";
+    strong.textContent = "▶ действие"; weak.textContent = "▷ слабо";
     const mine = () => boxes.filter((b) => b.box.closest(".ev") === ev);
-    const hear = (energy) => () => { feel.play({ kind, energy }); runBoxes(mine()); };
+    const hear = (energy) => () => { const i = feel.play({ kind, energy }); runBoxes(mine().filter((_, k) => k === i)); };
     strong.onclick = hear(1); weak.onclick = hear(0.2);
     const paintSynth = () => { synth.textContent = "тик/бум: " + (spec.synth === false ? "НЕТ" : "ДА"); synth.classList.toggle("on", spec.synth !== false); };
     synth.onclick = () => { spec.synth = spec.synth === false; feel.save(); paintSynth(); }; paintSynth();

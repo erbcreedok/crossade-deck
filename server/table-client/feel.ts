@@ -157,8 +157,8 @@ export interface TableFeel {
   /** Рабочий пресет (по умолчанию плюс то, что подобрали ручками). */
   preset: Record<FeelKind, FeelSpec>;
   prefs: FeelPrefs;
-  /** Сыграть событие. */
-  play(e: FeelEvent): void;
+  /** Сыграть событие: из звуков действия играет ОДИН, каждый раз другой (по кругу в случайном порядке, без повтора подряд). Возвращает номер сыгравшего (0 — основной, 1… — из набора). */
+  play(e: FeelEvent): number;
   /** Сыграть ровно один звук события (0 — основной, 1… — из набора) как есть: его дорожка, начало, скорость, тон и громкость события, без слоёв синтеза и вибрации. */
   playVariant(kind: FeelKind, index: number): void;
   /** Сохранить пресет и настройки в браузере. */
@@ -186,6 +186,21 @@ export function tableFeel(sound: TableSound, haptic: TableHaptic): TableFeel {
   } catch { /* нет хранилища или битое — заводской */ }
   const log: FeelLogged[] = ((globalThis as { __feelLog?: FeelLogged[] }).__feelLog = []);
 
+  /** «Мешок» номеров звуков каждого действия: выпали все — перемешали заново (первый новый не равен последнему прежнему), так что подряд один и тот же не выпадает. */
+  const bags = new Map<FeelKind, { left: number[]; last: number }>();
+  const nextOf = (kind: FeelKind, n: number): number => {
+    let bag = bags.get(kind);
+    if (!bag) { bag = { left: [], last: -1 }; bags.set(kind, bag); }
+    bag.left = bag.left.filter((i) => i < n);
+    if (!bag.left.length) {
+      const order = Array.from({ length: n }, (_, i) => i);
+      for (let i = n - 1; i > 0; i -= 1) { const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j]!, order[i]!]; }
+      if (n > 1 && order[0] === bag.last) { const k = order.findIndex((x) => x !== bag!.last); [order[0], order[k]] = [order[k]!, order[0]!]; }
+      bag.left = order;
+    }
+    bag.last = bag.left.shift()!;
+    return bag.last;
+  };
   /** Через сколько миллисекунд ЗВУЧАНИЯ оборвать звук, чтобы он кончился там, где задан его `end` в записи: путь по записи делим на то, во сколько раз играем быстрее. */
   const cutOf = (v: Variant, spec: FeelSpec): number => {
     if (!v.end) return spec.cutMs;
@@ -200,20 +215,18 @@ export function tableFeel(sound: TableSound, haptic: TableHaptic): TableFeel {
     get vibeMode() { return vibeMode(haptic); },
     play(e) {
       const spec = preset[e.kind], energy = Math.max(0, Math.min(1, e.energy ?? 1));
-      // Играют ВСЕ звуки списка действия разом, каждый со своими началом, длительностью, скоростью, тоном, громкостью и динамикой; тик и «бум» (если не выключены) — один раз.
+      // Звуков у действия может быть несколько — чтобы не повторялись одни и те же: каждый раз играет ОДИН, из «мешка» в случайном порядке; пока весь мешок не выпал, повторов нет.
       const samples: Variant[] = [...(spec.track ? [spec] : []), ...(spec.extra ?? [])];
-      const voices: Variant[] = samples.length ? samples : [{ rate: spec.rate }];
+      const index = samples.length ? nextOf(e.kind, samples.length) : -1;
+      const v: Variant = index >= 0 ? samples[index]! : { rate: spec.rate };
       const synth = spec.synth === false ? [] : spec.layers.map((l) => ({ ...l, gain: l.gain * (spec.soft + (1 - spec.soft) * energy) }));
       const vibe = e.mine !== false && prefs.vibe && spec.vibe.length ? spec.vibe.map((ms) => Math.max(1, Math.round(ms * (0.5 + 0.5 * energy)))) : [];
-      let loudest = 0;
-      voices.forEach((v, i) => {
-        const dyn = v.dyn ?? 1 - spec.soft, gain = spec.gain * (v.vol ?? 1) * (1 - dyn + dyn * energy);
-        loudest = Math.max(loudest, gain);
-        if (!prefs.sound || (gain <= 0.001 && i > 0)) return;
+      const dyn = v.dyn ?? 1 - spec.soft, gain = spec.gain * (v.vol ?? 1) * (1 - dyn + dyn * energy);
+      if (prefs.sound) {
         const rate = v.rate * (1 + (Math.random() * 2 - 1) * spec.jitter), cut = cutOf(v, spec);
-        sound.voice({ file: spec.file, ...(v.track ? { track: v.track } : {}), ...(typeof v.from === "number" ? { from: v.from / 1000 } : {}), ...(v.pitch ? { pitch: v.pitch } : {}), ...(v.tie === false ? { tie: false } : {}), rate, gain, mine: e.mine !== false, x: e.x ?? 0, z: e.z ?? 0, layers: i === 0 ? synth : [], ...(cut ? { cutMs: cut } : {}) });
-      });
-      log.push({ kind: e.kind, mine: e.mine !== false, energy: +energy.toFixed(2), gain: prefs.sound ? +loudest.toFixed(3) : 0, vibe });
+        sound.voice({ file: spec.file, ...(v.track ? { track: v.track } : {}), ...(typeof v.from === "number" ? { from: v.from / 1000 } : {}), ...(v.pitch ? { pitch: v.pitch } : {}), ...(v.tie === false ? { tie: false } : {}), rate, gain, mine: e.mine !== false, x: e.x ?? 0, z: e.z ?? 0, layers: synth, ...(cut ? { cutMs: cut } : {}) });
+      }
+      log.push({ kind: e.kind, mine: e.mine !== false, energy: +energy.toFixed(2), gain: prefs.sound ? +gain.toFixed(3) : 0, vibe });
       if (log.length > 60) log.shift();
       if (vibe.length) {
         const mode = vibeMode(haptic);
@@ -225,6 +238,7 @@ export function tableFeel(sound: TableSound, haptic: TableHaptic): TableFeel {
           vibe.forEach((ms, i) => { if (i % 2 === 0) { if (at === 0) iosSwitchTick(); else setTimeout(iosSwitchTick, at); } at += ms; });
         }
       }
+      return index;
     },
     playVariant(kind, index) {
       const spec = preset[kind], v: Variant | undefined = index === 0 ? spec : spec.extra?.[index - 1];

@@ -73,12 +73,13 @@ check("настройки сохранены у этого звука, у дру
   await p.waitForTimeout(60);
   const ph2 = await f.evaluate(() => { const e = document.querySelectorAll('.ev[data-kind="lay"] .snd')[2].querySelector(".ph"); return { shown: e.style.display, left: parseFloat(e.style.left) }; });
   check("при ▶ белый бегунок бежит по волне от старта к концу", ph1.shown === "block" && ph2.left > ph1.left, { ph1, ph2 });
-  // «Всё действие»: играют все четыре звука сразу.
+  // Действие: играет ОДИН звук из списка, каждый раз другой — по кругу в случайном порядке, подряд один и тот же не повторяется; одновременно ничего не играет.
   await clear();
-  await f.evaluate(() => { [...document.querySelectorAll('.ev[data-kind="lay"] .row button')].find((b) => /всё действие/.test(b.textContent)).click(); });
-  await p.waitForTimeout(300);
-  const all = await f.evaluate(() => window.__spec.map((s) => s.track));
-  check("«▶ всё действие» играет ВСЕ четыре звука списка разом", all.length === 4 && new Set(all).size === 4, all);
+  await f.evaluate(() => { for (let i = 0; i < 12; i++) window.__feel.play({ kind: "lay", energy: 1 }); });
+  const seq = await f.evaluate(() => window.__spec.filter((s) => s.track).map((s) => s.track));
+  check("за 12 действий — ровно 12 звуков (по одному на действие, не вместе)", seq.length === 12, seq);
+  check("по кругу: дальше каждая четвёрка подряд содержит все четыре звука", [4, 8].every((i) => new Set(seq.slice(i, i + 4)).size === 4), seq);
+  check("один и тот же подряд не повторяется", seq.every((t, i) => i === 0 || t !== seq[i - 1]), seq);
 }
 // Динамика: у звука свой ползунок; при слабом действии громкость падает по ней.
 await f.evaluate(() => { const box = document.querySelectorAll('.ev[data-kind="lay"] .snd')[0]; const r = [...box.querySelectorAll(".sl")].find((l) => l.querySelector("span").textContent === "от силы").querySelector("input"); r.value = 0; r.dispatchEvent(new Event("input")); });
