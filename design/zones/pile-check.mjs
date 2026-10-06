@@ -521,6 +521,41 @@ await tidy();
       await ev(() => window.__me.send({ t: "deckMove", pile: "deck", x: 0, y: 0.8, angle: -8 })); await p.waitForTimeout(500);
       await ev(() => { if (window.__me.state.piles[0].cards.at(-1)?.up === true) window.__me.send({ t: "deckDo", pile: "deck", how: "flip" }); }); await p.waitForTimeout(500);
     }
+    // Ж. КАРТА НА КАРТУ И СТОПКА НА КАРТУ: отпускание после посадки сливает в одну вещь (карта на карту — стопка из двух; стопка на карту — одна стопка).
+    {
+      await home();
+      const place = (k, x, y) => f.evaluate(([i, xx, yy]) => { const id = window.__me.state.piles[0].cards.at(-1).id; window.__me.send({ t: "grab", id }); window.__me.send({ t: "drop", id, to: { in: "felt", x: xx, y: yy, up: false, angle: 0 } }); }, [k, x, y]);
+      const piles2 = () => f.evaluate(() => window.__me.state.piles.map((q) => ({ id: q.id, n: q.cards.length, locked: window.__me.state.locks?.[q.id] ?? null })));
+      const feltIds = () => f.evaluate(() => window.__me.state.felt.map((c) => c.id));
+      await place(0, 2.4, 0.9); await p.waitForTimeout(700); await place(1, -2.4, 0.9); await p.waitForTimeout(900);
+      const [a, b] = await feltIds();
+      await f.evaluate(() => { window.__top.home(); window.__first.home(); }); await p.waitForTimeout(1500);
+      await clock(0);
+      const A = await stable(a), B = await stable(b);
+      await p.mouse.move(A.x, A.y); await p.mouse.down(); await p.mouse.move(A.x - 12, A.y - 6, { steps: 3 }); await p.mouse.move(B.x, B.y, { steps: 10 });
+      await p.waitForTimeout(300);
+      await clock(300); await p.waitForTimeout(400);
+      const hi = await info();
+      check("карта над лежащей картой: через 0,25 с легла на неё и горит ровно", hi.seated && hi.steady && String(hi.pile).startsWith("heap:"), hi);
+      await p.mouse.up(); await p.waitForTimeout(1200); await clock(0);
+      const afterA = await piles2();
+      check("карта на карту: отпустил после посадки — вместо двух карт одна стопка из двух", (await feltIds()).length === 0 && afterA.length === 2 && afterA.some((q) => q.id !== "deck" && q.n === 2), afterA);
+      // стопку из двух несут за язычок над третьей картой на сукне
+      await place(2, 2.4, 0.9); await p.waitForTimeout(900);
+      const small = (await piles2()).find((q) => q.id !== "deck") ?? { id: "none" }, c3 = (await feltIds())[0];
+      await f.evaluate(() => { window.__top.home(); window.__first.home(); }); await p.waitForTimeout(1500);
+      const tab = (await f.evaluate((id) => window.__top.test.tabs().find((t) => t.pile === id), small.id)) ?? { x: 20, y: 20 }, C = await stable(c3);
+      await clock(0);
+      await p.mouse.move(tab.x, tab.y); await p.mouse.down(); await p.mouse.move(tab.x + 12, tab.y, { steps: 3 }); await p.mouse.move(C.x, C.y, { steps: 10 });
+      await p.waitForTimeout(300); await clock(300); await p.waitForTimeout(400);
+      const hs = await info();
+      await p.mouse.up(); await p.waitForTimeout(1200); await clock(0);
+      const afterB = await piles2();
+      check("стопка на карту: стопка из двух над лежащей картой — легла, а после отпускания в одной стопке три карты", hs.seated && String(hs.pile).startsWith("heap:") && (await feltIds()).length === 0 && afterB.filter((q) => q.id !== "deck").length === 1 && afterB.find((q) => q.id !== "deck")?.n === 3, { hs, afterB });
+      // как было: собрать малую стопку обратно в основную
+      await f.evaluate(() => { const other = window.__me.state.piles.find((x) => x.id !== "deck"); if (other) window.__me.send({ t: "pileDrop", pile: other.id, to: { in: "deck", pile: "deck" } }); }); await p.waitForTimeout(900);
+      await home();
+    }
   }
   // действия кнопками: перемешать
   await setCtl("blue");
