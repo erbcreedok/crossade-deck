@@ -556,6 +556,25 @@ await tidy();
       await f.evaluate(() => { const other = window.__me.state.piles.find((x) => x.id !== "deck"); if (other) window.__me.send({ t: "pileDrop", pile: other.id, to: { in: "deck", pile: "deck" } }); }); await p.waitForTimeout(900);
       await home();
     }
+    // З. Карта удержана над картой до подъёма: получилась стопка из двух, она в руке, и на язычке «2», а не «1»; после отпускания — одна стопка из двух.
+    {
+      const place = (x, y) => f.evaluate(([xx, yy]) => { const id = window.__me.state.piles[0].cards.at(-1).id; window.__me.send({ t: "grab", id }); window.__me.send({ t: "drop", id, to: { in: "felt", x: xx, y: yy, up: false, angle: 0 } }); }, [x, y]);
+      const snap = () => f.evaluate(() => ({ piles: window.__me.state.piles.filter((q) => q.id !== "deck").map((q) => ({ n: q.cards.length, locked: window.__me.state.locks?.[q.id] ?? null, tab: window.__top.test.tabs().find((t) => t.pile === q.id)?.count })), felt: window.__me.state.felt.length }));
+      await home(); await place(2.4, 0.9); await p.waitForTimeout(700); await place(-2.4, 0.9); await p.waitForTimeout(900);
+      const [a, b] = await f.evaluate(() => window.__me.state.felt.map((c) => c.id));
+      await f.evaluate(() => { window.__top.home(); window.__first.home(); }); await p.waitForTimeout(1500);
+      await clock(0);
+      const A = await stable(a), B = await stable(b);
+      await p.mouse.move(A.x, A.y); await p.mouse.down(); await p.mouse.move(A.x - 12, A.y - 6, { steps: 3 }); await p.mouse.move(B.x, B.y, { steps: 10 });
+      await p.waitForTimeout(300); await clock(5000);
+      const held = await waitFor(async () => { const s2 = await snap(); return s2.piles[0]?.locked ? s2 : null; }, 12000);
+      await p.waitForTimeout(600);
+      const held2 = await snap();
+      check("карта над картой поднята удержанием: одна стопка из двух в руке, на язычке два", !!held && held2.piles.length === 1 && held2.piles[0].n === 2 && held2.piles[0].tab === 2 && held2.felt === 0, held2);
+      await clock(0); await p.mouse.up(); await p.waitForTimeout(1200);
+      await f.evaluate(() => { const other = window.__me.state.piles.find((x) => x.id !== "deck"); if (other) window.__me.send({ t: "pileDrop", pile: other.id, to: { in: "deck", pile: "deck" } }); }); await p.waitForTimeout(900);
+      await home();
+    }
   }
   // действия кнопками: перемешать
   await setCtl("blue");

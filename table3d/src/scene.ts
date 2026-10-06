@@ -2409,7 +2409,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const seen = new Set<string>();
     // Карты, что сейчас подняты (моя в пальце, чужие в потоке «несу»): в число на язычке не входят, хотя в стопке стола они ещё числятся, пока их не положили.
     const lifted = new Set<string>();
-    if (drag?.moved) lifted.add(drag.id);
+    if (drag?.moved && !drag.pile) lifted.add(drag.id);
     for (const c of store.carries) { lifted.add(c.id); for (const w of c.with ?? []) lifted.add(w.card.id); }
     for (const p of store.state.piles) {
       // Язычок — стопки, а не верхней карты: торчит из нижней, лежит на столе; верхнюю потянули — он остался.
