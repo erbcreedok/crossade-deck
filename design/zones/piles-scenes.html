@@ -63,36 +63,10 @@ const me = views["eye-top"], alia = views["eye-first"];
 const viewpointOf = { top: "eye-top", first: "eye-first" };
 const controller = { top: "blue", first: "blue" };
 for (const w of ["top", "first"]) table.recolor(viewpointOf[w], { name: PLAYERS[0].name, ink: PLAYERS[0].ink });
-const CTL_KEYS = new Set(["body", "say", "shoot", "mic", "log", "rtc", "askStickers", "watch"]);
 const { carryOf } = await import("/@fs/Users/giyers/Desktop/crossade-deck/server/table-client/tape.ts");
-const lat = { top: 0, first: 0 }, jit = { top: 0, first: 0 };
-// ЖИВОЙ НОСИТЕЛЬ КАРТ: что несёт палец в одной сцене, доходит до другой пакетами, как через сервер: каждое слово едет `пинг отправителя + пинг получателя` и ещё случайное «дрожание»;
-// слова доходят по порядку (как по сокету), поэтому задержавшиеся слова приходят пачкой, а между ними пауза — карта у соседа стоит, потом прыгает.
-const sendAt = { top: 0, first: 0 };
-const inbox = { top: null, first: null }, lastAt = { top: 0, first: 0 }, hear = { top: [], first: [] };
-const note = (who, out) => {
-  const other = who === "top" ? "first" : "top";
-  const at = Math.max(lastAt[other] + 1, performance.now() + lat[who] + lat[other] + Math.random() * (jit[who] + jit[other]));
-  lastAt[other] = at;
-  setTimeout(() => { inbox[other] = { out, at: performance.now() }; for (const l of hear[other]) l(); }, at - performance.now());
-};
-/** Что сцена `who` знает о соседе: последнее дошедшее до неё слово; замолчал дольше 400 мс — считается, что карту отпустили. */
-const heard = (who) => { const e = inbox[who]; return e && e.out && performance.now() - e.at < 400 ? e.out : null; };
-/** Хранилище сцены: читает стол из места наблюдателя, а намерения шлёт от имени выбранного игрока, через пинг сцены. */
-const OUT = new Set(["send", "command"]);
-const asPlayer = (viewpoint, which) => { const other = which === "top" ? "first" : "top"; return new Proxy(viewpoint, { get: (t, k) => {
-  if (k === "send") return (intent) => { if (intent.t === "drop" || intent.t === "unpick") note(which, null); const at = Math.max(sendAt[which] + 1, performance.now() + lat[which] + Math.random() * jit[which]); sendAt[which] = at; setTimeout(() => views[controller[which]].send(intent), at - performance.now()); };
-  if (k === "actor") return views[controller[which]].me;
-  if (k === "command") return (c) => setTimeout(() => views[controller[which]].command(c), lat[which] + Math.random() * jit[which]);
-  if (k === "carry") return (out) => note(which, out);
-  if (k === "onChange") return (l) => { hear[which].push(l); viewpoint.onChange(l); };
-  // Одна карта в воздухе — `carries`; целая стопка (id стопки) — отдельный список `stacks`, как у настоящего хранилища: её несут целиком, и она живёт, пока держат (замок), а не 0,4 с после последнего слова.
-  const wholePile = (out) => !!out && viewpoint.state.piles.some((x) => x.id === out.id);
-  if (k === "carries") { const out = heard(which); if (wholePile(out)) return []; const c = out ? carryOf(viewpoint.state, out.id, viewpointOf[other], out.over) : null; return c ? [{ ...c, ...(out.flip ? { flip: out.flip } : {}), ...(out.tilt ? { tilt: out.tilt } : {}), ...(out.spin ? { spin: out.spin } : {}), ...(out.fx ? { fx: out.fx } : {}) }] : []; }
-  if (k === "stacks") { const e = inbox[which], out = e && e.out && performance.now() - e.at < 2500 ? e.out : null; if (!wholePile(out) || !viewpoint.state.locks[out.id]) return []; const c = carryOf(viewpoint.state, out.id, viewpointOf[other], out.over); return c ? [c] : []; }
-  if (CTL_KEYS.has(k)) return (...a) => views[controller[which]][k](...a);
-  return Reflect.get(t, k, t);
-} }); };const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+// Сеть стенда — один общий слой (`standNet.js`): пинг, дрожание, «что несёт палец» и хранилище сцены от имени выбранного игрока.
+const { standNet } = await import("./standNet.js");
+const { asPlayer, lat, jit } = standNet({ views, controller, viewpointOf, carryOf });const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const $ = (id) => document.getElementById(id);
 
 // СТЕНД: у кадра свой размер сцены (`SW`×`SH`), в кадре видна только середина — стола с кромкой и стульев не видно.
