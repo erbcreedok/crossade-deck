@@ -760,7 +760,8 @@ export class Table {
       const chair = this.chairs.get(w.id)!;
       if (chair.owner !== null || chair.hand.length === 0 || !allowed(this.handAsk(by, w.id, "hand.take"))) return { refused: "chair-locked" };
     }
-    this.carries.set(out.id, { by, over, whole: this.cardsOfWhole(w).join(",") });
+    const tilt = typeof out.tilt === "number" && Number.isFinite(out.tilt) ? Math.max(0, Math.min(90, Math.round(out.tilt))) : 0;
+    this.carries.set(out.id, { by, over, whole: this.cardsOfWhole(w).join(","), ...(tilt ? { tilt } : {}) });
     return { ok: true };
   }
 
@@ -777,7 +778,7 @@ export class Table {
         if (c.by === viewer || (only !== undefined && only !== id)) continue;
         const at = (one: string): Where => (w.kind === "pile" ? { in: "deck", pile: w.id } : { in: "hand", chair: w.id, i: ids.indexOf(one) });
         const top = ids[ids.length - 1]!;
-        out.push({ id, by: c.by, over: c.over, from: at(top), card: this.seen(top, viewer, at(top)), whole: true, with: ids.slice(0, -1).map((one) => ({ card: this.seen(one, viewer, at(one)), from: at(one) })) });
+        out.push({ id, by: c.by, over: c.over, from: at(top), card: this.seen(top, viewer, at(top)), whole: true, ...(c.tilt ? { tilt: c.tilt } : {}), with: ids.slice(0, -1).map((one) => ({ card: this.seen(one, viewer, at(one)), from: at(one) })) });
         continue;
       }
       const lock = this.locks.get(id);

@@ -135,6 +135,23 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
     await p.mouse.up(); await p.waitForTimeout(900);
     await f.evaluate(() => window.__me.send({ t: "deckMove", pile: window.__me.state.piles[0].id, x: 0, y: 0.8, angle: -8 })); await p.waitForTimeout(600);
   }
+  // СТОПКА В РУКЕ ВЫГЛЯДИТ КАК НЕСОМАЯ КАРТА: от первого лица наклонена к глазу (а не лежит плашмя), а у соседа светится только нижняя карта
+  {
+    const ids = await f.evaluate(() => window.__me.state.piles[0].cards.map((c) => c.id));
+    const tab = await f.evaluate(() => window.__first.test.tabs()[0]);
+    await p.mouse.move(tab.x, tab.y); await p.mouse.down(); await p.mouse.move(tab.x + 12, tab.y, { steps: 3 }); await p.mouse.move(tab.x + 60, tab.y - 20, { steps: 8 });
+    let tilt = null, glow = null;
+    for (let k = 0; k < 40; k++) {
+      await p.waitForTimeout(150);
+      tilt = await f.evaluate((id) => window.__first.test.cardTilt(id), ids.at(-1));
+      glow = await f.evaluate(([bottom, top]) => ({ bottom: window.__top.test.haloInfo(bottom)?.on, top: window.__top.test.haloInfo(top)?.on }), [ids[0], ids.at(-1)]);
+      if (tilt && tilt.fromUp > 8 && glow.bottom) break;
+    }
+    check("стопка в руке от первого лица наклонена к глазу, как несомая карта (а не лежит плашмя)", !!tilt && tilt.fromUp > 8, tilt);
+    check("у соседа светится только нижняя карта несомой стопки", glow.bottom === true && glow.top === false, glow);
+    await p.mouse.up(); await p.waitForTimeout(900);
+    await f.evaluate(() => window.__me.send({ t: "deckMove", pile: window.__me.state.piles[0].id, x: 0, y: 0.8, angle: -8 })); await p.waitForTimeout(600);
+  }
   // ЯЗЫЧОК ТЯНЕТСЯ: за него берут всю стопку и переносят (на стенде тот же жест, что в игре)
   {
     const before = await f.evaluate(() => { const pl = window.__me.state.piles[0]; return { x: pl.x, y: pl.y, n: pl.cards.length }; });
@@ -207,16 +224,26 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
     const main = two.find((q) => q.id === "deck"), small = two.find((q) => q.id !== "deck");
     {
       const from = await stable(main.top), to = await stable(small.top);
+      // пинг у верхней сцены 700 мс: ответ стола про карту приходит позже, и стопка не должна подняться раньше, чем карта в неё легла
+      await f.evaluate(() => { const e = document.getElementById("lag-top"); e.value = "700"; e.dispatchEvent(new Event("input")); });
       await clock(0);
       await p.mouse.move(from.x, from.y); await p.mouse.down(); await p.mouse.move(from.x - 10, from.y - 6, { steps: 3 }); await p.mouse.move(to.x, to.y, { steps: 10 });
       await clock(400);
       const blink = await waitFor(async () => { const i = await info(); return i.blinking && i.pile === small.id ? i : null; });
       await clock(5000);
-      const lifted2 = await waitFor(async () => (await pilesOf()).find((q) => q.id === small.id && q.locked !== null));
+      // в первый миг, когда стопка несётся под пальцем, карта, что держали, уже лежит в ней (а не догоняет по столу)
+      const early = await waitFor(async () => { const c = await f.evaluate(() => window.__top.test.pileCarrying()); if (!c) return null; return { carrying: c, hasKing: await f.evaluate(([pid, king]) => window.__me.state.piles.find((q) => q.id === pid)?.cards.some((x) => x.id === king) ?? false, [c, main.top]) }; }, 12000);
+      check("удержание над стопкой при пинге 700 мс: стопка поднялась только когда карта уже лежала в ней", !!early && early.hasKing === true, early);
+      const lifted2 = await waitFor(async () => (await pilesOf()).find((q) => q.id === small.id && q.locked !== null), 12000);
       const after = await pilesOf();
       check("удержание над другой стопкой: подсветка мигает под ней; потом карта легла на неё сверху, а она поднялась под палец (в ней на одну больше, в основной на одну меньше)", !!blink && !!lifted2 && after.find((q) => q.id === small.id)?.n === small.n + 1 && after.find((q) => q.id === main.id)?.n === main.n - 1, { blink, lifted2, after });
+      // карта, что держали, поднялась вместе со стопкой, а не догоняет её по столу: обе рядом на экране
+      let dist = 1e9;
+      for (let k = 0; k < 30 && dist >= 30; k++) { await p.waitForTimeout(150); dist = await f.evaluate(([x, y]) => { const A = window.__top.test.screenOf(x), B = window.__top.test.screenOf(y); return Math.hypot(A.x - B.x, A.y - B.y); }, [main.top, small.top]); }
+      check("удержание над стопкой: удерживаемая карта поднялась вместе со стопкой (не отстаёт и не лежит отдельно)", dist < 30, { dist });
       await clock(0);
-      await p.mouse.up(); await p.waitForTimeout(900);
+      await p.mouse.up(); await p.waitForTimeout(1200);
+      await f.evaluate(() => { const e = document.getElementById("lag-top"); e.value = "0"; e.dispatchEvent(new Event("input")); });
     }
     // В. стопку несут за язычок над другой стопкой: через holdMs они сливаются
     {
