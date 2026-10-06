@@ -31,8 +31,8 @@ export function standNet({ views, controller, viewpointOf, carryOf }) {
       if (k === "command") return (c) => setTimeout(() => views[controller[which]].command(c), lat[which] + Math.random() * jit[which]);
       if (k === "carry") return (out) => note(which, out);
       if (k === "onChange") return (l) => { hear[which].push(l); viewpoint.onChange(l); };
-      if (k === "carries") { const { out, c } = carried(FRESH.one); return c && !c.whole ? [{ ...c, ...(out.flip ? { flip: out.flip } : {}), ...(out.tilt ? { tilt: out.tilt } : {}), ...(out.spin ? { spin: out.spin } : {}), ...(out.fx ? { fx: out.fx } : {}) }] : []; }
-      if (k === "stacks") { const { out, c } = carried(FRESH.whole); return c && c.whole && viewpoint.state.locks[out.id] ? [c] : []; }
+      if (k === "carries") { const { out, c } = carried(FRESH.one); return c && !c.whole ? [{ ...c, ...(out.flip ? { flip: out.flip } : {}), ...(out.tilt ? { tilt: out.tilt } : {}), ...(out.spin ? { spin: out.spin } : {}), ...(out.fx ? { fx: out.fx } : {}), ...(out.merge ? { merge: out.merge } : {}) }] : []; }
+      if (k === "stacks") { const { out, c } = carried(FRESH.whole); return c && c.whole && viewpoint.state.locks[out.id] ? [{ ...c, ...(out.merge ? { merge: out.merge } : {}) }] : []; }
       if (CTL_KEYS.has(k)) return (...a) => views[controller[which]][k](...a);
       return Reflect.get(t, k, t);
     } });

@@ -2202,6 +2202,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (placeSlams(now)) moving = true;
     if (placeLandings(now)) moving = true;
     if (placeHold(now)) moving = true;
+    if (placeOthersGlow(performance.now())) moving = true;
     if (placeHomeMark()) moving = true;
     placeBodies();
     if (placeChairs(dt)) moving = true;
@@ -2363,6 +2364,45 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       glowMat.color.setHex(GOLD);
     } else { glowMat.opacity = glowFor.level === "hot" ? 1 : 0.6; glowMat.color.setHex(0x7fd1b9); }
     glowMesh.visible = glowMat.opacity > 0;
+  }
+  /**
+   * ЧУЖОЕ СЛИЯНИЕ: что другой палец держит над целью, я вижу тем же светом под ней — ровным, потом мигающим. Время считаю у себя: от того, когда увидел, за вычетом `ago`, что прислал он.
+   * Свет золотой у всех: цвет игрока только у самой несомой вещи.
+   */
+  const otherMerge = new Map<string, { at: string; since: number; lift: boolean }>();
+  const otherGlows: THREE.Mesh[] = [];
+  function hearMerge(c: Carry, now: number): void {
+    const m = c.merge;
+    if (!m) { otherMerge.delete(c.id); return; }
+    const was = otherMerge.get(c.id);
+    if (!was || was.at !== m.at || now - was.since - m.ago > 400) otherMerge.set(c.id, { at: m.at, since: now - m.ago, lift: m.lift });
+    else was.lift = m.lift;
+  }
+  function placeOthersGlow(now: number): boolean {
+    let used = 0;
+    for (const [id, m] of otherMerge) {
+      if (!store.carries.some((c) => c.id === id)) { otherMerge.delete(id); continue; }
+      const heap = m.at.startsWith("heap:"), k = mergeKnobs(store.state.pileRules, heap ? TABLE_PILE : m.at), el = now - m.since, phase = mergePhase(el, k);
+      if (phase === "free") continue;
+      let pos: THREE.Vector3 | null = null, angle = 0;
+      if (heap) { const f = store.state.felt.find((x) => x.id === m.at.slice(5)); if (f) { pos = new THREE.Vector3(f.x, 0.004, f.y); angle = f.angle; } }
+      else {
+        const p = store.state.piles.find((x) => x.id === m.at), base = p ? cards.get(p.cards[0]?.id ?? "") : undefined;
+        if (p && base?.group.visible) { base.group.updateMatrixWorld(true); const at = base.group.getWorldPosition(new THREE.Vector3()); pos = new THREE.Vector3(at.x, 0.004, at.z); angle = pileAngle(p); }
+      }
+      if (!pos) continue;
+      let mesh = otherGlows[used];
+      if (!mesh) { mesh = new THREE.Mesh(glowMesh.geometry, glowMat.clone()); mesh.renderOrder = 1; scene.add(mesh); otherGlows[used] = mesh; }
+      used++;
+      const mat = mesh.material as THREE.MeshBasicMaterial;
+      mat.color.setHex(GOLD);
+      mat.opacity = phase === "blink" && m.lift && !blinkOn(el - k.delay - k.glow, k.blink) ? 0 : 1;
+      mesh.position.copy(pos);
+      mesh.rotation.set(-Math.PI / 2, -angle * DEG, 0, "YXZ");
+      mesh.visible = mat.opacity > 0;
+    }
+    for (let i = used; i < otherGlows.length; i++) otherGlows[i]!.visible = false;
+    return otherMerge.size > 0;
   }
   /** Язычок каждой стопки — у нижней (к её хозяину) кромки её нижней карты, плашмя на столе, в той же позе, что стопка: несут стопку — несут и его. */
   function placeTabs(): void {
@@ -3116,7 +3156,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!drag?.where || now - carriedAt < CARRY_EVERY_MS) return;
     carriedAt = now;
     const tilt = drag.place && drag.where.in === "felt" ? Math.round(Math.acos(Math.min(1, Math.abs(new THREE.Vector3(0, 0, 1).applyQuaternion(drag.place.quat).y))) / DEG) : 0;
-    store.carry({ id: drag.pile ?? drag.id, over: drag.where, ...(flipDeg ? { flip: Math.round(flipDeg) } : {}), ...(tilt ? { tilt } : {}), ...(drag.rot ? { spin: Math.round(drag.rot) } : {}) });
+    store.carry({ id: drag.pile ?? drag.id, over: drag.where, ...(merge ? { merge: { at: merge.key, ago: Math.max(0, Math.round((holdVirtual ?? now) - merge.since)), lift: merge.lift } } : {}), ...(flipDeg ? { flip: Math.round(flipDeg) } : {}), ...(tilt ? { tilt } : {}), ...(drag.rot ? { spin: Math.round(drag.rot) } : {}) });
   };
   /** Щёлкнуло: сторона сменилась, карта доворачивается сама (пружина), угол в воздухе сброшен. */
   /** Нельзя ли перевернуть то, что несу: карте — правило карты, стопке — правило стопки. */
@@ -3281,7 +3321,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     // Легла — ждёт ответа стола там, куда её положили (над сукном — опускается на сукно, в руку — в щель).
     const o = cards.get(d.id);
     let to = forcedTo ?? target(e, d);
-    if (!forcedTo && to.in === "deck" && to.turn === undefined && to.pile !== seatedOn) {
+    // Карту, взятую из стопки, вернули в неё же — это возврат на место, а не слияние: задержка не нужна.
+    const origin = fromOf.get(d.id), homeBack = !d.pile && to.in === "deck" && origin?.in === "pile" && origin.pile === to.pile;
+    if (!forcedTo && to.in === "deck" && to.turn === undefined && to.pile !== seatedOn && !homeBack) {
       // Класть сюда нельзя — цель кивает (если показ включён); вещь всё равно не сливается и падает на сукно.
       const over = to.pile, limit = store.state.pileRules?.[over]?.limit ?? 0, into = store.state.piles.find((p) => p.id === over), was = fromOf.get(d.id);
       if (into && !(was?.in === "pile" && was.pile === over) && !d.pile && (pileBarred(over, "put") || (limit > 0 && into.cards.length >= limit))) denyPile(over, "put");
@@ -3511,7 +3553,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   // нет реакции → верхняя ложится на нижнюю, ровный свет → мигание → нижняя поднимается под палец. Сдвиг пальца до подъёма всё отменяет. Времена и режимы сторон — ручки (`mergeKnobs`).
   // Отпустить, пока верхняя ещё не легла (до задержки), — слияния при падении нет: вещь ляжет на сукно рядом.
   type Verdict = { seat: boolean; lift: boolean; drop: boolean };
-  let merge: { key: string; since: number; at: { x: number; y: number }; seated: boolean; drop: boolean } | null = null;
+  let merge: { key: string; since: number; at: { x: number; y: number }; seated: boolean; drop: boolean; lift: boolean } | null = null;
   /** Для проверок: время удержания идёт по этим часам, а не по реальным (медленная машина не должна поднимать стопки сама); `null` — настоящие. */
   let holdVirtual: number | null = null;
   window.addEventListener("pointermove", (ev) => { lastPtrEv = ev; }, true);
@@ -3624,6 +3666,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const was = merge.seated;
     merge = null;
     if (glowFor?.mode !== undefined) glowFor = null;
+    // Остальным — что слияние кончилось (свет под целью гаснет).
+    carriedAt = 0; pushCarry();
     if (was) refreshHeld();
   }
   /** Палец сдвинулся от места, где остановился, — ожидание слияния отменено (до подъёма). Вызывается на каждое движение пальца. */
@@ -3673,8 +3717,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const key = pt ? pt.pile : ht ? `heap:${ht.top.id}` : null, verdict = pt?.verdict ?? ht?.verdict ?? null;
     if (!key || !verdict || !verdict.seat) { dropMerge(); return false; }
     const finger = pt?.finger ?? ht!.finger, k = mergeKnobs(store.state.pileRules, pt ? pt.pile : TABLE_PILE);
-    if (!merge || merge.key !== key) { dropMerge(); merge = { key, since: now, at: { ...finger }, seated: false, drop: verdict.drop }; }
-    merge.drop = verdict.drop;
+    if (!merge || merge.key !== key) { dropMerge(); merge = { key, since: now, at: { ...finger }, seated: false, drop: verdict.drop, lift: verdict.lift }; carriedAt = 0; pushCarry(); }
+    merge.drop = verdict.drop; merge.lift = verdict.lift;
     const el = now - merge.since, phase = mergePhase(el, k), seated = phase !== "free";
     if (seated !== merge.seated) { merge.seated = seated; refreshHeld(); }
     if (!seated) { if (glowFor?.mode !== undefined) glowFor = null; return true; }
@@ -3702,6 +3746,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (store.replay?.on) return;
     const live = new Set<string>();
     for (const c of list) {
+      if (c.by !== store.me.key) hearMerge(c, performance.now());
       if (c.by === store.me.key || !cards.has(c.id)) continue;
       live.add(c.id);
       const o = c.over;
@@ -4024,6 +4069,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     /** Для проверок: кивает ли сейчас верхняя карта стопки (отказ по правилу стопки). */
     pileShaking: (pile: string) => { const top = store.state.piles.find((p) => p.id === pile)?.cards.at(-1)?.id; return !!top && denies.has(top); },
     /** Для проверок: идёт ли долгое удержание над стопкой, как далеко (0…1) и мигает ли подсветка. */
+    /** Чужое слияние, которое я вижу: сколько держат и сколько свечений под целями горит в этот миг. */
+    othersGlow: () => ({ merges: otherMerge.size, visible: otherGlows.filter((m) => m.visible).length, lit: otherGlows.filter((m) => m.visible && (m.material as THREE.MeshBasicMaterial).opacity > 0).length }),
     holdInfo: () => ({ pile: merge?.key ?? null, seated: merge?.seated ?? false, steady: glowFor?.mode === "steady", blinking: glowFor?.mode === "blink", lit: glowFor?.lit ?? false, progress: glowFor?.blink ?? 0 }),
     tabHitAt: (x: number, y: number) => hitTab({ clientX: x, clientY: y } as PointerEvent),
     /** Для проверок: подменить часы долгого удержания (мс); `null` — вернуть реальные. */

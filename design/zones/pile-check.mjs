@@ -410,10 +410,16 @@ await tidy();
       await clock(700); await p.waitForTimeout(350);
       const i3 = await info();
       check("таймлайн: до 0,25 с вещь свободна (не легла, света нет); с 0,25 с легла и горит ровно; с 0,45 с мигает", !i1.seated && !i1.steady && !i1.blinking && i2.seated && i2.steady && !i2.blinking && i3.seated && i3.blinking, { i1, i2, i3 });
+      // 1б. другой экран видит тот же свет под целью (по потоку «несу»): сдвинули палец на пару пикселей — поток обновился, часы там идут сами
+      let og = null;
+      for (let k = 0; k < 40 && !og; k++) { await p.mouse.move(pt.x + (k % 2) * 2, pt.y + 1); await p.waitForTimeout(100); const g = await f.evaluate(() => window.__first.test.othersGlow()); if (g.visible >= 1) og = g; }
+      check("другой экран видит то же свечение под целью, пока её держат", !!og, og);
       // 2. сдвиг пальца до подъёма отменяет всё: свет погас, вещь снова свободна
       await p.mouse.move(pt.x + 40, pt.y + 6, { steps: 4 }); await p.waitForTimeout(350);
       const i4 = await info();
       check("сдвиг пальца до подъёма отменяет слияние: свет погас, вещь свободна", !i4.seated && !i4.steady && !i4.blinking, i4);
+      const gone = await waitFor(async () => { const g = await f.evaluate(() => window.__first.test.othersGlow()); return g.merges === 0 ? g : null; }, 4000);
+      check("и у другого экрана свет погас: слияние отменено", !!gone, gone);
       await letGo();
       check("после отмены карта не слилась: стопка та же, карта лежит на сукне", (await onFelt(same)) && (await deckN()) === n00, { n: await deckN(), n00 });
       // 3. отпустил до задержки — слияния при падении нет
@@ -427,6 +433,15 @@ await tidy();
       await clock(300); await p.waitForTimeout(350);
       await letGo();
       check("отпустил после посадки (0,25 с и позже): карта слилась со стопкой", !(await onFelt(same)) && (await deckN()) === n0 + 1, { n: await deckN(), n0 });
+      // 4б. взятую из стопки карту вернули в неё же сразу — это возврат на место, задержка не нужна
+      {
+        await f.evaluate(() => { window.__top.home(); window.__first.home(); }); await p.waitForTimeout(1200);
+        await clock(0);
+        const q = (await pilesOf())[0], at2 = await stable(q.top);
+        await p.mouse.move(at2.x, at2.y); await p.mouse.down(); await p.mouse.move(at2.x + 40, at2.y - 30, { steps: 4 }); await p.mouse.move(at2.x, at2.y, { steps: 4 }); await p.mouse.up(); await p.waitForTimeout(900);
+        const q2 = (await pilesOf())[0];
+        check("взятую из стопки карту вернули в неё же сразу: она на месте, без задержки (возврат, а не слияние)", q2.n === q.n && q2.top === q.top, { q, q2 });
+      }
       // 5. ручка «задержка»: 600 мс — на 300 ещё свободна, на 700 уже легла
       await setKnob("delayms", 600); await p.waitForTimeout(400);
       const slow = await lay(false);

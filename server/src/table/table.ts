@@ -58,6 +58,7 @@ import {
   SIDE_MODES,
   TABLE_PILE,
   mergeKnobs,
+  type MergeCarry,
   type SideMode,
   PILE_LIMIT_MAX,
   PILE_RULES,
@@ -173,7 +174,7 @@ export class Table {
   /** Правила отдельных стопок (`Snapshot.pileRules`). */
   private pileRules = new Map<string, PileRules>();
   /** Последнее «над чем карта», пока её держат. Живёт не дольше блокировки (`carriesSeenBy`). */
-  private carries = new Map<string, { by: string; over: Where; auto?: true; with?: string[]; whole?: string; flip?: number; tilt?: number; spin?: number; fx?: "slam" }>();
+  private carries = new Map<string, { by: string; over: Where; auto?: true; with?: string[]; whole?: string; flip?: number; tilt?: number; spin?: number; fx?: "slam"; merge?: MergeCarry }>();
   private rules: TableRules = { ...DEFAULT_RULES };
   private trails = new Map<string, Trail>();
   /** Перевёрнутые карты в колоде и в руках. У карты на сукне сторона лежит в ней самой (`felt[].up`). */
@@ -737,7 +738,8 @@ export class Table {
     const flip = typeof out.flip === "number" && Number.isFinite(out.flip) ? Math.max(-180, Math.min(180, Math.round(out.flip))) : 0;
     const tilt = typeof out.tilt === "number" && Number.isFinite(out.tilt) ? Math.max(0, Math.min(90, Math.round(out.tilt))) : 0;
     const spin = typeof out.spin === "number" && Number.isFinite(out.spin) ? Math.max(-7200, Math.min(7200, Math.round(out.spin))) : 0;
-    this.carries.set(out.id, { by, over, ...(auto ? { auto: true as const } : {}), ...(flock.length ? { with: flock } : {}), ...(flip ? { flip } : {}), ...(tilt ? { tilt } : {}), ...(spin ? { spin } : {}), ...(out.fx === "slam" && !this.pinned(by, out.id, "slam") ? { fx: "slam" as const } : {}) });
+    const merge = this.cleanMerge(out.merge);
+    this.carries.set(out.id, { by, over, ...(merge ? { merge } : {}), ...(auto ? { auto: true as const } : {}), ...(flock.length ? { with: flock } : {}), ...(flip ? { flip } : {}), ...(tilt ? { tilt } : {}), ...(spin ? { spin } : {}), ...(out.fx === "slam" && !this.pinned(by, out.id, "slam") ? { fx: "slam" as const } : {}) });
     return { ok: true };
   }
 
@@ -766,7 +768,8 @@ export class Table {
       if (chair.owner !== null || chair.hand.length === 0 || !allowed(this.handAsk(by, w.id, "hand.take"))) return { refused: "chair-locked" };
     }
     const tilt = typeof out.tilt === "number" && Number.isFinite(out.tilt) ? Math.max(0, Math.min(90, Math.round(out.tilt))) : 0;
-    this.carries.set(out.id, { by, over, whole: this.cardsOfWhole(w).join(","), ...(tilt ? { tilt } : {}) });
+    const merge = this.cleanMerge(out.merge);
+    this.carries.set(out.id, { by, over, whole: this.cardsOfWhole(w).join(","), ...(tilt ? { tilt } : {}), ...(merge ? { merge } : {}) });
     return { ok: true };
   }
 
@@ -797,7 +800,7 @@ export class Table {
         const at = this.picks.get(one) === c.by ? this.whereIs(one) : null;
         return at ? [{ card: this.seen(one, viewer, at), from: at }] : [];
       });
-      out.push({ id, by: c.by, over: c.over, from, card: this.seen(id, viewer, from), ...(c.auto ? { auto: true as const } : {}), ...(flock.length ? { with: flock } : {}), ...(c.flip ? { flip: c.flip } : {}), ...(c.tilt ? { tilt: c.tilt } : {}), ...(c.spin ? { spin: c.spin } : {}), ...(c.fx ? { fx: c.fx } : {}) });
+      out.push({ id, by: c.by, over: c.over, from, card: this.seen(id, viewer, from), ...(c.auto ? { auto: true as const } : {}), ...(flock.length ? { with: flock } : {}), ...(c.flip ? { flip: c.flip } : {}), ...(c.tilt ? { tilt: c.tilt } : {}), ...(c.spin ? { spin: c.spin } : {}), ...(c.fx ? { fx: c.fx } : {}), ...(c.merge ? { merge: c.merge } : {}) });
     }
     return out;
   }
@@ -865,6 +868,12 @@ export class Table {
     return { ops: this.commit([{ t: "cardRules", id, rules: clear ? null : next }]) };
   }
   private pileRulesObj(): Record<string, PileRules> { return Object.fromEntries(this.pileRules); }
+  /** Слияние держанием из потока «несу»: только если цель названа по-людски и время в разумных пределах. */
+  private cleanMerge(m: unknown): MergeCarry | undefined {
+    const one = m as Partial<MergeCarry> | null | undefined;
+    if (!one || typeof one.at !== "string" || one.at.length === 0 || one.at.length > 40 || typeof one.ago !== "number" || !Number.isFinite(one.ago) || typeof one.lift !== "boolean") return undefined;
+    return { at: one.at, ago: Math.max(0, Math.min(60000, Math.round(one.ago))), lift: one.lift };
+  }
   /** Нельзя ли этому человеку это со стопкой (`PileRules`). */
   private pileBarred(by: string, pile: string, rule: PileRule): boolean {
     return this.pileRules.get(pile)?.[rule].includes(by) ?? false;

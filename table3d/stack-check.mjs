@@ -64,7 +64,7 @@ check("выбор снят", after.picks.length === 0, after.picks);
 // Стороны как лежали: перевёрнутость карт не менялась «из-под коробки».
 const stackUps = await p.evaluate((pid) => window.__t3d.state().piles.find((q) => q.id === pid).cards.map((c) => !!c.up), inPile?.id);
 const stackCards = await p.evaluate((pid) => window.__t3d.state().piles.find((q) => q.id === pid).cards.map((c) => ({ id: c.id, up: !!c.up })), inPile?.id);
-check("карты в стопке лежат теми же сторонами, что лежали (две лицом, две рубашкой)", stackCards.length >= 4 && ids.every((id) => stackCards.find((c) => c.id === id)?.up === upsBefore[id]) && ids.some((id) => upsBefore[id]) && ids.some((id) => !upsBefore[id]), { upsBefore, stackCards });
+check("сбор строгий: все карты стопки лежат одной стороной (собственные стороны карт не в счёт)", stackCards.length >= 4 && ids.every((id) => stackCards.find((c) => c.id === id)?.up === stackCards[0].up) && ids.some((id) => upsBefore[id]) && ids.some((id) => !upsBefore[id]), { upsBefore, stackCards });
 // Карты в руке не выделяются.
 const h0 = (await st()).hand[0];
 const hp = await at(h0);

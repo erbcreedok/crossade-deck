@@ -16,8 +16,12 @@ await p.goto(`${base}/?stand&cam=top`);
 await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
 await p.waitForTimeout(1500);
 // Карта на сукне рубашкой вверх (`up: false`): с неё начинаем, «перевёрнута» — значит `up: true`.
+// Каждая карта — в своё место: лежащую карту, над которой подержали палец дольше задержки, подхватило бы слияние.
+const SPOTS = [[-1.2, 0.4], [1.2, 0.4], [-1.2, -1.6], [1.2, -1.6], [-1.2, 2.2], [1.2, 2.2]];
+let putN = 0;
 const put = async () => {
-  const id = await p.evaluate(() => { const s = window.__t3d.state(); const c = s.chairs.find((x) => x.owner === "me").hand.at(0); window.__t3d.dropFeltAt(c.id, -1.2, 0.4); return c.id; });
+  const spot = SPOTS[putN++ % SPOTS.length];
+  const id = await p.evaluate((sp) => { const s = window.__t3d.state(); const c = s.chairs.find((x) => x.owner === "me").hand.at(0); window.__t3d.dropFeltAt(c.id, sp[0], sp[1]); return c.id; }, spot);
   await p.waitForTimeout(800);
   // Из руки карта ложится той стороной, какой была (лицом ко мне): начинаем всегда с рубашки вверх.
   if (await p.evaluate((i) => window.__t3d.state().felt.find((c) => c.id === i).up, id)) { await p.evaluate((i) => window.__t3d.turnCard(i), id); await p.waitForTimeout(500); }
