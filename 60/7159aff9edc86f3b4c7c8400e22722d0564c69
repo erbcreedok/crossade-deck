@@ -1,0 +1,30 @@
+table3d/src/scene.ts
+  s_73107c3d804131::t_d1b4d360e4787c 3447,3451,3454
+  s_73107c3d804131::t_a51e84d9498231 2317,2319-2327,3377-3383,3388-3419,3422-3424,3426-3427,3429,3431-3442
+  s_73107c3d804131::t_1fee97448213bc 3384-3387
+  s_73107c3d804131::t_dc0eaeadbb695f 3794-3796
+design/zones/pile-check.mjs
+  s_73107c3d804131::t_2c9e3b90db00a3 226-228,230-235,237-243,245-263
+  s_73107c3d804131::t_ee66feb5e848a8 229
+  s_73107c3d804131::t_fba4e1410c36b9 158,169,197,214,236
+  s_73107c3d804131::t_03c141cd566634 159
+  s_73107c3d804131::t_5b1ef56f1abf00 220,244
+table3d/hold-pick-check.mjs
+  s_73107c3d804131::t_a748934ddc5841 15-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "607159aff9edc86f3b4c7c8400e22722d0564c69",
+  "prompts": {},
+  "sessions": {
+    "s_73107c3d804131": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e85b33e2-d0a6-4a90-b535-037e1d4326e5",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
