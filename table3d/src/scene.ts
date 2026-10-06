@@ -2191,6 +2191,32 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       if (d.lengthSq() < 1e-6 && v.lengthSq() < 1e-6 && Math.abs(ds) < 1e-4 && g.quaternion.angleTo(t.quat) < 1e-3) { g.position.copy(t.pos); g.quaternion.copy(t.quat); g.scale.setScalar(t.scale); v.set(0, 0, 0); g.userData.sv = 0; }
       else moving = true;
     }
+    // НЕСОМАЯ СТОПКА — ОДНА ВЕЩЬ: нижние карты не догоняют верхнюю каждая своей пружиной, а лежат на ней жёстко (её нынешняя поза, каждая на толщину ниже). Так и у меня, и у тех, кто смотрит.
+    const rigid = (ids: string[], topId: string): void => {
+      const top = cards.get(topId);
+      if (!top) return;
+      const up = (c: SeenCard | undefined) => c?.up === true;
+      const tq = top.group.quaternion, face = new THREE.Vector3(0, 0, 1).applyQuaternion(tq), sc = top.group.scale.x;
+      const topUp = up(store.state.piles.flatMap((q) => q.cards).find((c) => c.id === topId));
+      ids.forEach((id, i) => {
+        if (id === topId) return;
+        const o = cards.get(id);
+        if (!o) return;
+        const side = (up(store.state.piles.flatMap((q) => q.cards).find((c) => c.id === id)) === topUp) ? 1 : -1;
+        o.group.position.copy(top.group.position).addScaledVector(face, -(ids.length - 1 - i) * PILE_STEP * sc * (topUp ? 1 : -1) * (topUp ? 1 : 1));
+        o.group.quaternion.copy(tq);
+        if (side < 0) o.group.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI));
+        o.group.scale.setScalar(sc);
+        (o.group.userData.v as THREE.Vector3 | undefined)?.set(0, 0, 0);
+        moving = true;
+      });
+    };
+    if (drag?.moved && drag.pile) { const pl = store.state.piles.find((x) => x.id === drag!.pile); if (pl) rigid(pl.cards.map((c) => c.id), drag.id); }
+    for (const c of store.stacks) {
+      if ((c.by === store.me.key && !store.replay?.on) || c.over.in !== "felt") continue;
+      const order = [...(c.with ?? []).map((w) => w.card.id), c.card.id];
+      rigid(order, c.card.id);
+    }
     // Камера сдвинулась — толщина шеи и рук чужих тел пересчитана под новую дальность.
     const camSig = camera.position.toArray().map((v) => v.toFixed(1)).join();
     if (camSig !== bodiesCam) { bodiesCam = camSig; drawBodies(store.state); }
@@ -2424,7 +2450,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const key = `${count}|${p.pin}|${litTabs.has(p.id)}`;
       if (t.key !== key) { t.key = key; t.shown = count; drawTab(t.cv, count, !!p.pin, litTabs.has(p.id)); t.tex.needsUpdate = true; }
       base.group.updateMatrixWorld(true);
-      const at = base.group.getWorldPosition(new THREE.Vector3()), k = base.group.scale.x, a = -pileAngle(p) * DEG, d = k * (CARD_H / 2 + TAB.l / 2);
+      const at = base.group.getWorldPosition(new THREE.Vector3()), k = base.group.scale.x, a = -(drag?.moved && drag.pile === p.id ? drag.angle : pileAngle(p)) * DEG, d = k * (CARD_H / 2 + TAB.l / 2);
       const put = (m: THREE.Mesh, sign: 1 | -1): void => {
         const tx = at.x + sign * d * Math.sin(a), tz = at.z + sign * d * Math.cos(a);
         // Язычок не тонет под картами, что легли рядом на сукно: он выше самой высокой из них, лежащей под ним.
@@ -3067,7 +3093,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     // Язычок — первым: он лежит у самой кромки стопки и перекрыл бы её верхнюю карту.
     const pile = hitTab(e);
     if (pile && pile.startsWith("chair:")) { e.stopImmediatePropagation(); chairStackDown(pile.slice(6), e); return; }
-    if (pile) { e.stopImmediatePropagation(); startPileDrag(pile, e); return; }
+    if (pile) { e.stopImmediatePropagation(); startPileDrag(pile, e, false, tabs.get(pile)?.side === 2 ? -1 : 1); return; }
     const id = hitCard(e);
     if (id && cardRule(id, "lift")) { deny(id, "lift"); return; }
     { const from = id ? fromOf.get(id) : undefined; if (id && from?.in === "pile" && pileBarred(from.pile, "take")) { denyPile(from.pile, "take"); return; } }
@@ -3102,11 +3128,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * поворот рукой, переворот вторым пальцем, край экрана и поток «несу» у стопки те же, что у одной карты. Отличается только то, что уходит столу: стопку берут `grip`, а отпускают `pileDrop` / `deckMove`.
    * `lifted` — стопка уже в руке (подняли удержанием), ждать сдвига пальца не нужно.
    */
-  function startPileDrag(pile: string, e: PointerEvent, lifted = false): void {
+  function startPileDrag(pile: string, e: PointerEvent, lifted = false, tab: 1 | -1 | null = null): void {
     const p = store.state.piles.find((x) => x.id === pile);
     const top = p?.cards.at(-1);
     if (!p || !top || !cards.has(top.id) || drag) return;
     orbit.enabled = false;
+    dragTab = tab;
     try { renderer.domElement.setPointerCapture(e.pointerId); } catch { /* нет такого указателя */ }
     drag = { id: top.id, x: e.clientX, y: e.clientY, moved: false, hold: 0, up: !!top.up, angle: carryAngle(e.clientX, e.clientY), rot: 0, gap: null, place: null, where: null, spot: null, zone: null, fingerHand: false, latch0: null, scrubbed: false, pile, members: p.cards.map((c) => c.id) };
     trail = []; lastThrow = 0; ptrX = e.clientX; lastRotTick = 0;
@@ -3140,6 +3167,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * Поза несомой вещи. Над стопкой или кучей она ложится на них сверху, но только когда слияние началось (`merge.seated`, после задержки) — раньше вещь свободна и висит под пальцем.
    * Стенд дизайна выключает посадку: вещь остаётся на весу (`test.setPileSnap`).
    */
+  /** Стопку взяли за язычок (знак стороны язычка): под пальцем остаётся язычок, а не середина стопки. */
+  let dragTab: 1 | -1 | null = null;
   const dragPlace = (x: number, y: number): Place | null => {
     const d = drag!, w = d.where, pile = w && w.in === "deck" ? store.state.piles.find((q) => q.id === w.pile) : undefined;
     if (d.gap !== null || d.spot) return null;
@@ -3148,7 +3177,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const top = merge.key.startsWith("heap:") ? store.state.felt.find((f) => f.id === merge!.key.slice(5)) : undefined;
       if (top) return lying(top.x, top.y, 0.05 + (store.state.felt.findIndex((f) => f.id === top.id) + 1) * FELT_STEP + 0.02, top.angle, d.up);
     }
-    return heldAt(x, y, d.angle, d.up);
+    const held = heldAt(x, y, d.angle, d.up);
+    if (held && d.pile && dragTab) {
+      const a = -d.angle * DEG, off = dragTab * held.scale * (CARD_H / 2 + TAB.l / 2);
+      held.pos.x -= off * Math.sin(a); held.pos.z -= off * Math.cos(a);
+    }
+    return held;
   };
   /** Поток «несу» — с углом переворота: остальные видят карту в движении (не чаще `CARRY_EVERY_MS`). */
   const pushCarry = (): void => {

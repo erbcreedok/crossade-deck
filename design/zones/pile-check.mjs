@@ -491,6 +491,8 @@ await tidy();
       const sF = await pileNow();
       const tab2 = await ev(() => window.__top.test.tabs()[0]);
       await p.mouse.move(tab2.x, tab2.y); await p.mouse.down(); await p.mouse.move(tab2.x + 12, tab2.y, { steps: 3 }); await p.mouse.move(tab2.x + 75, tab2.y - 25, { steps: 8 }); await p.waitForTimeout(500);
+      const tabNow = await ev(() => window.__top.test.tabs()[0]);
+      check("тянешь за язычок — под пальцем язычок, а не середина стопки", !!tabNow && Math.hypot(tabNow.x - (tab2.x + 75), tabNow.y - (tab2.y - 25)) < 30, { tab: tabNow, finger: [tab2.x + 75, tab2.y - 25] });
       await p.keyboard.press("f"); await p.waitForTimeout(600);
       await p.mouse.up(); await p.waitForTimeout(1200);
       const s2 = await pileNow();
