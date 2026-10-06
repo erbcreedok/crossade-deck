@@ -7,7 +7,7 @@ const host = process.argv[2] ?? "localhost";
 const browser = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader"] });
 const p = await (await browser.newContext({ viewport: { width: 430, height: 1000 } })).newPage();
 const errors = [], checks = [];
-p.on("pageerror", (e) => errors.push(e.message));
+p.on("pageerror", (e) => errors.push(e.message + " @ " + (e.stack || "").split("\n").slice(1, 3).map((l) => l.trim().slice(0, 140)).join(" | ")));
 const check = (name, ok, got) => checks.push({ name, ok, got });
 await p.goto(`http://${host}:9588/pile.html`);
 await p.waitForTimeout(3000);
@@ -73,6 +73,12 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
   const setCtl = (key) => clickIn(`#who-top [data-k="${key}"]`);
   const drag = async (from, to, steps = 10) => { await p.mouse.move(from.x, from.y); await p.mouse.down(); await p.mouse.move(from.x + 10, from.y - 6, { steps: 3 }); await p.mouse.move(to.x, to.y, { steps }); await p.waitForTimeout(250); await p.mouse.up(); await p.waitForTimeout(900); };
   const screen = (id) => f.evaluate((i) => window.__top.test.screenOf(i), id);
+  // позиция на экране ВЕРХНЕЙ сцены, когда она перестала меняться (карты после переноса ещё возвращаются на место)
+  const stableTop = async (id) => { let prev = null; for (let k = 0; k < 40; k++) { const cur = await screen(id); if (prev && Math.hypot(cur.x - prev.x, cur.y - prev.y) < 0.3) return cur; prev = cur; await p.waitForTimeout(150); } return prev; };
+  // перенос стопки к краю кадра двигает камеру (как у карты): перед следующей проверкой камеры возвращаем в исходное
+  const homeCams = async () => { await f.evaluate(() => { window.__top.home(); window.__first.home(); }); await p.waitForTimeout(1600); };
+  // позиция на экране ПЕРВОЙ сцены, когда она перестала меняться
+  const stable = async (id) => { let prev = null; for (let k = 0; k < 40; k++) { const cur = await f.evaluate((i) => window.__first.test.screenOf(i), id); if (prev && Math.hypot(cur.x - prev.x, cur.y - prev.y) < 0.3) return cur; prev = cur; await p.waitForTimeout(150); } return prev; };
   // зелёный: нельзя снять верхнюю карту; показ включён — стопка кивает
   await setCtl("green");
   await clickIn('#rules-body .rrow[data-rule="take"] [data-k="green"]'); await clickIn('#rules-body [data-show="take"]'); await p.waitForTimeout(300);
@@ -135,6 +141,19 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
     await p.mouse.up(); await p.waitForTimeout(900);
     await f.evaluate(() => window.__me.send({ t: "deckMove", pile: window.__me.state.piles[0].id, x: 0, y: 0.8, angle: -8 })); await p.waitForTimeout(600);
   }
+  // ЧИСЛО НА ЯЗЫЧКЕ: вытащил верхнюю карту — пока её несут, во ВСЕХ сценах на единицу меньше
+  {
+    await homeCams();
+    const info = await f.evaluate(() => { const pl = window.__me.state.piles[0]; return { id: pl.id, n: pl.cards.length, top: pl.cards.at(-1).id }; });
+    const at = await stableTop(info.top);
+    await p.mouse.move(at.x, at.y); await p.mouse.down(); await p.mouse.move(at.x + 14, at.y - 8, { steps: 4 });
+    let counts = null;
+    for (let k = 0; k < 40; k++) { await p.waitForTimeout(150); counts = await f.evaluate((id) => ({ top: window.__top.test.tabs().find((t) => t.pile === id)?.count, first: window.__first.test.tabs().find((t) => t.pile === id)?.count }), info.id); if (counts.top === info.n - 1 && counts.first === info.n - 1) break; }
+    check("число на язычке: карту вытащили — в обеих сценах на единицу меньше, пока её несут", counts.top === info.n - 1 && counts.first === info.n - 1, { n: info.n, counts });
+    await p.mouse.up(); await p.waitForTimeout(700);
+    await f.evaluate(([id, pile]) => { window.__me.send({ t: "grab", id }); window.__me.send({ t: "drop", id, to: { in: "deck", pile } }); }, [info.top, info.id]);
+    await p.waitForTimeout(900);
+  }
   // СТОПКА В РУКЕ ВЫГЛЯДИТ КАК НЕСОМАЯ КАРТА: от первого лица наклонена к глазу (а не лежит плашмя), а у соседа светится только нижняя карта
   {
     const ids = await f.evaluate(() => window.__me.state.piles[0].cards.map((c) => c.id));
@@ -152,8 +171,37 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
     await p.mouse.up(); await p.waitForTimeout(900);
     await f.evaluate(() => window.__me.send({ t: "deckMove", pile: window.__me.state.piles[0].id, x: 0, y: 0.8, angle: -8 })); await p.waitForTimeout(600);
   }
+  // СТОПКА В РУКЕ ДЕРЖИТСЯ ТОЧНО КАК КАРТА: в одной и той же точке экрана несомая карта и несомая стопка (от первого лица) стоят на той же высоте, тем же размером и повёрнуты одинаково
+  {
+    await homeCams();
+    const pose = (id) => f.evaluate((i) => window.__first.test.cardPose(i), id);
+    const quatAngle = (a, b) => 2 * Math.acos(Math.min(1, Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3])));
+    const lone = await f.evaluate(() => { const id = window.__me.state.piles[0].cards.at(-1).id; window.__me.send({ t: "grab", id }); window.__me.send({ t: "drop", id, to: { in: "felt", x: 1.7, y: 0.8, up: true, angle: 0 } }); return id; });
+    await p.waitForTimeout(1200);
+    const mainTop = await f.evaluate(() => window.__me.state.piles[0].cards.at(-1).id);
+    const home0 = await stable(mainTop);
+    const spot = { x: home0.x + 110, y: home0.y - 25 }; // не над стопкой: над стопкой карта садится на неё (и это не «под пальцем»)
+    // 1. одна карта в точке
+    const lonePos = await stable(lone);
+    await p.mouse.move(lonePos.x, lonePos.y); await p.mouse.down(); await p.mouse.move(lonePos.x + 8, lonePos.y - 8, { steps: 3 }); await p.mouse.move(spot.x, spot.y, { steps: 8 });
+    await p.waitForTimeout(900);
+    const cardPose1 = await pose(lone);
+    await p.mouse.up(); await p.waitForTimeout(900);
+    // 2. стопка за язычок в той же точке
+    const tab = await f.evaluate(() => window.__first.test.tabs()[0]);
+    await p.mouse.move(tab.x, tab.y); await p.mouse.down(); await p.mouse.move(tab.x + 12, tab.y, { steps: 3 }); await p.mouse.move(spot.x, spot.y, { steps: 8 });
+    await p.waitForTimeout(1200);
+    const pilePose = await pose(mainTop);
+    await p.mouse.up(); await p.waitForTimeout(900);
+    const turn = quatAngle(cardPose1.quat, pilePose.quat), dy = Math.abs(cardPose1.pos[1] - pilePose.pos[1]);
+    check("стопка в руке от первого лица в той же точке повёрнута, как несомая карта (поворот почти один, размер тот же, высота та же)", turn < 0.12 && Math.abs(cardPose1.scale - pilePose.scale) < 0.01 && dy < 0.15, { turn: +turn.toFixed(3), scale: [cardPose1.scale, pilePose.scale], dy: +dy.toFixed(3) });
+    await f.evaluate((id) => { window.__me.send({ t: "grab", id }); window.__me.send({ t: "drop", id, to: { in: "deck", pile: "deck" } }); }, lone);
+    await p.waitForTimeout(900);
+    await f.evaluate(() => window.__me.send({ t: "deckMove", pile: window.__me.state.piles[0].id, x: 0, y: 0.8, angle: -8 })); await p.waitForTimeout(600);
+  }
   // ЯЗЫЧОК ТЯНЕТСЯ: за него берут всю стопку и переносят (на стенде тот же жест, что в игре)
   {
+    await homeCams();
     const before = await f.evaluate(() => { const pl = window.__me.state.piles[0]; return { x: pl.x, y: pl.y, n: pl.cards.length }; });
     const tab = await f.evaluate(() => window.__top.test.tabs()[0]);
     await p.mouse.move(tab.x, tab.y); await p.mouse.down(); await p.mouse.move(tab.x + 12, tab.y, { steps: 3 }); await p.mouse.move(tab.x + 70, tab.y - 20, { steps: 8 }); await p.waitForTimeout(300);

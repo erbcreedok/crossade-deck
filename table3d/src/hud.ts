@@ -29,7 +29,7 @@ import { tableSound } from "../../server/table-client/sound.js";
 import { tableHaptic } from "../../server/table-client/haptic.js";
 import { FEEL_LIVE, FEEL_OLD, tableFeel, type FeelKind } from "../../server/table-client/feel.js";
 import { tableMotion } from "../../server/table-client/motion.js";
-import { mountPileDrag } from "./pileDrag.js";
+import { mountPileTap } from "./pileDrag.js";
 import { mountTalk, type WordAnchor } from "../../server/table-client/talk.js";
 import { HOST } from "../../server/table-client/host.js";
 import type { TableStore } from "../../server/table-client/store.js";
@@ -838,13 +838,12 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
    * ЯЗЫЧОК СТОПКИ (лежит на столе, рисует сцена — `scene.onTab`): тянешь — стопка и язычок под пальцем, как несомая карта;
    * отпустил — в руку, в стопку или на сукно; тап — окно, двойной — перевернуть.
    */
-  scene.onTab(mountPileDrag(scene, store, {
-    start: (pile) => { local.deckTip = null; local.deckCarry = pile; },
-    current: (pile) => local.deckCarry === pile,
-    end: () => { local.deckCarry = null; },
+  // Стопку берут за язычок и несут сама сцена (тот же движок, что у карты); худу доходит тап и то, какую стопку несут.
+  scene.onTab(mountPileTap(scene, store, {
     tap: (pile) => { local.deckTip = local.deckTip === pile ? null : pile; },
     redraw: () => draw(),
-  }, () => myChair()?.angle ?? 0));
+  }));
+  scene.onPileHeld((pile) => { local.deckCarry = pile; if (pile) local.deckTip = null; draw(); });
 
   function follow(e: PointerEvent, move: (ev: PointerEvent) => void, up: (ev: PointerEvent) => void): void {
     const m = (ev: PointerEvent) => { if (ev.pointerId === e.pointerId) move(ev); };
