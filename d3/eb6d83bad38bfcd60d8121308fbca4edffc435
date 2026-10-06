@@ -1,0 +1,29 @@
+table3d/src/pileDrag.ts
+  s_73107c3d804131::t_0660500d341c72 1-2,8,13,15
+table3d/src/scene.ts
+  s_73107c3d804131::t_778f8869b409c2 1803,1805,2692,3428-3430,3435-3438,3442-3443,3450-3451,3453,3465-3467,3469-3470,3474
+  s_73107c3d804131::t_d97f6b64ea6195 3122-3124,3128,3132-3133,3243-3244,3341,3351
+  s_73107c3d804131::t_39f908f87370a3 1804,1807-1811,3393-3396,3412-3427,3456,3468
+table3d/src/hud.ts
+  s_73107c3d804131::t_0660500d341c72 540
+design/zones/pile-check.mjs
+  s_73107c3d804131::t_2140df33d37c42 476,482
+  s_73107c3d804131::t_b088d1fc001146 502
+  s_73107c3d804131::t_a3b469882729f1 79,462-475,477-481,483-501,503-508
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d3eb6d83bad38bfcd60d8121308fbca4edffc435",
+  "prompts": {},
+  "sessions": {
+    "s_73107c3d804131": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e85b33e2-d0a6-4a90-b535-037e1d4326e5",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
