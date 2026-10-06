@@ -571,6 +571,10 @@ await tidy();
       await p.waitForTimeout(600);
       const held2 = await snap();
       check("карта над картой поднята удержанием: одна стопка из двух в руке, на язычке два", !!held && held2.piles.length === 1 && held2.piles[0].n === 2 && held2.piles[0].tab === 2 && held2.felt === 0, held2);
+      // ведут вместе: на ходу обе карты рядом, а не одна тянет другую за собой
+      let worst = 0;
+      for (let k = 1; k <= 6; k++) { await p.mouse.move(B.x + k * 25, B.y + k * 12); const d = await f.evaluate(([x, y]) => { const u = window.__top.test.screenOf(x), v = window.__top.test.screenOf(y); return Math.hypot(u.x - v.x, u.y - v.y); }, [a, b]); worst = Math.max(worst, d); }
+      check("несомая стопка из двух: на ходу обе карты идут вместе (расстояние между ними на экране мало)", worst < 12, { worst });
       await clock(0); await p.mouse.up(); await p.waitForTimeout(1200);
       await f.evaluate(() => { const other = window.__me.state.piles.find((x) => x.id !== "deck"); if (other) window.__me.send({ t: "pileDrop", pile: other.id, to: { in: "deck", pile: "deck" } }); }); await p.waitForTimeout(900);
       await home();

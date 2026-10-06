@@ -2155,7 +2155,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       if (!g.userData.placed) { g.position.copy(t.pos); g.quaternion.copy(t.quat); g.scale.setScalar(t.scale); g.userData.placed = true; g.userData.v = new THREE.Vector3(); g.userData.sv = 0; continue; }
       // ПРУЖИНА: ускорение к месту, затухание скоростью; поворот догоняет плавно.
       // Мелкими шагами: жёсткая пружина на целом кадре разлетается.
-      const rising = rise && drag?.pile === rise.pile && drag.members.includes(id) && performance.now() < rise.until, sp = rising ? { k: rise!.k, damp: 1 } : drag?.id === id ? SPRING_HELD : slamming.has(id) ? SPRING_SLAM : gathering?.has(id) ? (gather!.fast ? SPRING_HELD : GATHER.spring) : SPRING, c = 2 * Math.sqrt(sp.k) * sp.damp;
+      const rising = rise && drag?.pile === rise.pile && drag.members.includes(id) && performance.now() < rise.until, sp = rising ? { k: rise!.k, damp: 1 } : drag?.id === id || (drag?.moved && drag.pile && drag.members.includes(id)) ? SPRING_HELD : slamming.has(id) ? SPRING_SLAM : gathering?.has(id) ? (gather!.fast ? SPRING_HELD : GATHER.spring) : SPRING, c = 2 * Math.sqrt(sp.k) * sp.damp;
       const v = g.userData.v as THREE.Vector3, steps = Math.ceil(dt * (sp.k > 5000 ? 960 : 240)), h = dt / steps, d = new THREE.Vector3();
       let sc = g.scale.x, sv = g.userData.sv as number;
       // ПЕРЕВОРОТ НА СТОЛЕ: пока карта наклонена, её край уходит вниз на полширины·sin(наклона) — цель поднята на столько, чтобы край не прошёл сквозь стол.
@@ -2185,7 +2185,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       g.scale.setScalar(sc);
       d.copy(t.pos).sub(g.position);
       const ds = t.scale - sc;
-      g.quaternion.slerp(t.quat, 1 - Math.exp(-dt * (drag?.id === id ? 30 : slamming.has(id) ? 90 : 14)));
+      g.quaternion.slerp(t.quat, 1 - Math.exp(-dt * (drag?.id === id || (drag?.moved && drag.pile && drag.members.includes(id)) ? 30 : slamming.has(id) ? 90 : 14)));
       // Пол по уже повёрнутой карте: край не может оказаться под столом ни в один кадр, даже если пружина запаздывает за поворотом.
       if (!t.onCamera && t.pos.y < 0.5 && drag?.id !== id) g.position.y = Math.max(g.position.y, t.pos.y + (CARD_W / 2) * Math.sin(Math.acos(Math.min(1, Math.abs(new THREE.Vector3(0, 0, 1).applyQuaternion(g.quaternion).y)))) * g.scale.x);
       if (d.lengthSq() < 1e-6 && v.lengthSq() < 1e-6 && Math.abs(ds) < 1e-4 && g.quaternion.angleTo(t.quat) < 1e-3) { g.position.copy(t.pos); g.quaternion.copy(t.quat); g.scale.setScalar(t.scale); v.set(0, 0, 0); g.userData.sv = 0; }
