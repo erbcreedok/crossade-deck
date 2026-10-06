@@ -1,0 +1,48 @@
+table3d/slam-check.mjs
+  s_73107c3d804131::t_ad2564d738857d 16-17
+server/src/table/table.ts
+  s_73107c3d804131::t_34ff2b6c9fd272 56,872-874,884
+table3d/src/pileDrag.ts
+  s_73107c3d804131::t_adb4e571e43585 50-51
+design/zones/pile-check.mjs
+  s_73107c3d804131::t_ed9b7a44593c6f 21-22
+  s_73107c3d804131::t_daef73e2822a19 20
+  s_73107c3d804131::t_518b5714dc8e5c 192-193,210,219
+  s_73107c3d804131::t_a3a04e6755ecf8 186,188-189
+  s_73107c3d804131::t_63db7de8c6ff91 49-51
+  s_73107c3d804131::t_f19d3b01ec079d 185,194-195,197,205-208,211,214,221-222
+  s_73107c3d804131::t_11f0a2e3dbc7ae 70,154,156,160,168,180-181,183,224
+  s_73107c3d804131::t_1600b40d13aeae 152-153,155,157-159,164-167,169-179,182,184,187,190-191,196,198-204,209,212-213,215-218,220,223
+  s_73107c3d804131::t_ee3d299bcf8252 161-163
+server/src/table/intent.ts
+  s_73107c3d804131::t_34ff2b6c9fd272 9,127
+table3d/src/scene.ts
+  s_73107c3d804131::t_ed9b7a44593c6f 3340-3341,3368-3369,3726-3727
+  s_73107c3d804131::t_adb4e571e43585 433-434,2317,2325-2330,3153,3336-3339,3342-3367,3370-3390,3436-3437,3723-3724,3982
+  s_73107c3d804131::t_8124998daa45e8 2179
+  s_73107c3d804131::t_3ad8c8c6030be7 3725
+design/zones/pile-scenes.html
+  s_73107c3d804131::t_11f0a2e3dbc7ae 231,236,265-270,276
+table3d/pile-edge-check.mjs
+  s_73107c3d804131::t_ad2564d738857d 17-18
+server/src/table/contract.ts
+  s_73107c3d804131::t_34ff2b6c9fd272 292-293,296,298-299,302-303,553
+server/src/table/pileRules.test.ts
+  s_73107c3d804131::t_34ff2b6c9fd272 48-53,113-114,119,127-128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8d9d0499727ff7a9234c34f14d3f6341a1f935a7",
+  "prompts": {},
+  "sessions": {
+    "s_73107c3d804131": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e85b33e2-d0a6-4a90-b535-037e1d4326e5",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
