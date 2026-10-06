@@ -1,0 +1,50 @@
+server/table-client/feelPreset.json
+  s_73107c3d804131::t_ac314c8647cc6c 1-247
+server/src/table/hands.test.ts
+  s_73107c3d804131::t_97864e939f7598 151,154
+server/src/table/deckSpot.test.ts
+  s_73107c3d804131::t_3d03330dcb70d9 200
+  s_73107c3d804131::t_a37398dbd7760c 454,457-458,460,462,465,467-471
+  s_73107c3d804131::t_e7ec2c6903c9ef 63,66,70,86,178-180,206,208-209,213,216-217,221-226
+  s_73107c3d804131::t_607bdf56504868 252-253,407-413,437
+server/src/table/intent.ts
+  s_73107c3d804131::t_974f7067bb7cc9 128-132
+  s_73107c3d804131::t_2c96e648518e97 9
+server/table-client/optimistic.ts
+  s_73107c3d804131::t_fd7711aa7f2fb8 10
+  s_73107c3d804131::t_467733cac8d36c 82,96-104,109,117,120-128,130
+server/src/table/table.test.ts
+  s_73107c3d804131::t_1613e1f84e49e4 76,111
+  s_73107c3d804131::t_8db703ec03b3a0 35,40,42,49,53-64,81-85,87-89
+  s_73107c3d804131::t_97864e939f7598 498
+  s_73107c3d804131::t_c76f8d135430ef 481
+server/src/table/pileRules.test.ts
+  s_73107c3d804131::t_2c96e648518e97 6,131-162,169,172-173,176-178
+  s_73107c3d804131::t_a53cb34a8cd26f 163-168,170-171,174-175
+server/src/table/table.ts
+  s_73107c3d804131::t_7c858caefff619 57-61,867,970-973,975,977-979,984,1050-1051,1148-1152
+  s_73107c3d804131::t_fb294ed1ed759d 685,938,974,976
+  s_73107c3d804131::t_5de18677849232 874,887-895,902
+  s_73107c3d804131::t_2cbe80cfcaab0b 1438-1442,1445
+server/table-client/soundsCustom.json
+  s_73107c3d804131::t_9a8b60b51619f4 1-6
+server/src/table/contract.ts
+  s_73107c3d804131::t_2c96e648518e97 584
+  s_73107c3d804131::t_0b1ba04551753a 298,302-332,718,740-741
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d49a7f929ac7eb91d3437de3cac47e2a8e6a5bef",
+  "prompts": {},
+  "sessions": {
+    "s_73107c3d804131": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e85b33e2-d0a6-4a90-b535-037e1d4326e5",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
