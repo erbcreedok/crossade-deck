@@ -123,6 +123,18 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
     const a = await tabBelow("__top"), b = await tabBelow("__first");
     check("язычок виден в обеих сценах и лежит ниже стопки на экране (ближе к камере), в том числе от первого лица", !!a && !!b && a.tab > a.pile && b.tab > b.pile, { top: a, first: b });
   }
+  // СТОПКУ ВИДНО НА ДРУГОМ ЭКРАНЕ ВО ВРЕМЯ ПЕРЕНОСА, а не только после отпускания
+  {
+    const topId2 = await f.evaluate(() => window.__me.state.piles[0].cards.at(-1).id);
+    const tab = await f.evaluate(() => window.__top.test.tabs()[0]);
+    const before = await f.evaluate((i) => window.__first.test.screenOf(i), topId2);
+    await p.mouse.move(tab.x, tab.y); await p.mouse.down(); await p.mouse.move(tab.x + 12, tab.y, { steps: 3 }); await p.mouse.move(tab.x + 75, tab.y - 25, { steps: 8 });
+    let during = null, stacks = 0;
+    for (let k = 0; k < 40; k++) { await p.waitForTimeout(150); stacks = await f.evaluate(() => window.__proxy.first.stacks.length); during = await f.evaluate((i) => window.__first.test.screenOf(i), topId2); if (stacks === 1 && Math.hypot(during.x - before.x, during.y - before.y) > 15) break; }
+    check("перенос стопки виден на другом экране, пока её несут (стопка в воздухе у соседа и сдвинулась на его экране)", stacks === 1 && Math.hypot(during.x - before.x, during.y - before.y) > 15, { stacks, before, during });
+    await p.mouse.up(); await p.waitForTimeout(900);
+    await f.evaluate(() => window.__me.send({ t: "deckMove", pile: window.__me.state.piles[0].id, x: 0, y: 0.8, angle: -8 })); await p.waitForTimeout(600);
+  }
   // ЯЗЫЧОК ТЯНЕТСЯ: за него берут всю стопку и переносят (на стенде тот же жест, что в игре)
   {
     const before = await f.evaluate(() => { const pl = window.__me.state.piles[0]; return { x: pl.x, y: pl.y, n: pl.cards.length }; });

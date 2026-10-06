@@ -114,7 +114,10 @@ const asPlayer = (viewpoint, which) => { const other = which === "top" ? "first"
   if (k === "command") return (c) => setTimeout(() => views[controller[which]].command(c), lat[which] + Math.random() * jit[which]);
   if (k === "carry") return (out) => note(which, out);
   if (k === "onChange") return (l) => { hear[which].push(l); viewpoint.onChange(l); };
-  if (k === "carries") { const out = heard(which); const c = out ? carryOf(viewpoint.state, out.id, viewpointOf[other], out.over) : null; return c ? [{ ...c, ...(out.flip ? { flip: out.flip } : {}), ...(out.tilt ? { tilt: out.tilt } : {}), ...(out.spin ? { spin: out.spin } : {}), ...(out.fx ? { fx: out.fx } : {}) }] : []; }
+  // Одна карта в воздухе — `carries`; целая стопка (id стопки) — отдельный список `stacks`, как у настоящего хранилища: её несут целиком, и она живёт, пока держат (замок), а не 0,4 с после последнего слова.
+  const wholePile = (out) => !!out && viewpoint.state.piles.some((x) => x.id === out.id);
+  if (k === "carries") { const out = heard(which); if (wholePile(out)) return []; const c = out ? carryOf(viewpoint.state, out.id, viewpointOf[other], out.over) : null; return c ? [{ ...c, ...(out.flip ? { flip: out.flip } : {}), ...(out.tilt ? { tilt: out.tilt } : {}), ...(out.spin ? { spin: out.spin } : {}), ...(out.fx ? { fx: out.fx } : {}) }] : []; }
+  if (k === "stacks") { const e = inbox[which], out = e && e.out && performance.now() - e.at < 2500 ? e.out : null; if (!wholePile(out) || !viewpoint.state.locks[out.id]) return []; const c = carryOf(viewpoint.state, out.id, viewpointOf[other], out.over); return c ? [c] : []; }
   if (CTL_KEYS.has(k)) return (...a) => views[controller[which]][k](...a);
   return Reflect.get(t, k, t);
 } }); };const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -126,7 +129,9 @@ const FW = $("f-top").clientWidth, FH = 300;
 sizeStage($("s-top"), 820, 820, FW, FH);
 sizeStage($("s-first"), 1000, 1000, FW, FH);
 await wait(200);
-const top = mountScene($("s-top"), asPlayer(me, "top")), first = mountScene($("s-first"), asPlayer(alia, "first"));
+const proxies = { top: asPlayer(me, "top"), first: asPlayer(alia, "first") };
+window.__proxy = proxies;
+const top = mountScene($("s-top"), proxies.top), first = mountScene($("s-first"), proxies.first);
 top.setCamMode("top"); first.setCamMode("head");
 top.setFigures(false); first.setFigures(false);
 top.test.setBareTable(true); first.test.setBareTable(true);
@@ -312,7 +317,7 @@ for (const which of ["top", "first"]) {
 // ТЯНУТЬ СТОПКУ ЗА ЯЗЫЧОК — тот же жест, что в игре (`pileDrag.ts`): худа на стенде нет, поэтому подключаем его к каждой сцене сами.
 {
   const { mountPileDrag } = await import("/src/pileDrag.ts");
-  for (const [which, scene, eye] of [["top", top, "eye-top"], ["first", first, "eye-first"]]) scene.onTab(mountPileDrag(scene, asPlayer(views[eye], which), {}, () => views[eye].state.chairs.find((c) => c.owner === eye)?.angle ?? 0));
+  for (const [which, scene, eye] of [["top", top, "eye-top"], ["first", first, "eye-first"]]) scene.onTab(mountPileDrag(scene, proxies[which], {}, () => views[eye].state.chairs.find((c) => c.owner === eye)?.angle ?? 0));
 }
 const scenes = { top, first };
 window.__top = top; window.__first = first; window.__me = me; window.__alia = alia; window.__ready = true;
