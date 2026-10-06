@@ -1,0 +1,21 @@
+table3d/src/scene.ts
+  s_73107c3d804131::t_05744961cd6f3c 2412
+design/zones/pile-check.mjs
+  s_73107c3d804131::t_05744961cd6f3c 559-577
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9ffb6f73f289f269cf2dfa777ea1a8d0af7379b6",
+  "prompts": {},
+  "sessions": {
+    "s_73107c3d804131": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e85b33e2-d0a6-4a90-b535-037e1d4326e5",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
