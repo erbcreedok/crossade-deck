@@ -537,7 +537,7 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     const gapAt = zone && zone.pile === pile.id ? zone.i : null;
     const held = zone && zone.pile === pile.id ? heldHtml(s, zone, cw) : "";
     const admin = s.rights.includes("pile.guard"), topId = pile.cards.at(-1)?.id;
-    const acts: [string, string, string][] = [["shuffle", GLYPH.shuffle, "Перемешать"], ["sort", GLYPH.suit, "Отсортировать"], ["flip", GLYPH.reverse, "Перевернуть"]];
+    const acts: [string, string, string][] = [["shuffle", GLYPH.shuffle, "Перемешать"], ["sort", GLYPH.suit, "Отсортировать"]];
     const html = shell + `<div data-g="deck-tip" data-pile="${pile.id}" data-lock="${pile.lock}" style="position:absolute;left:0;top:0;width:${w}px;height:${h}px;box-sizing:border-box;padding:12px">`
       + `<div style="display:flex;align-items:center;gap:9px;height:30px;padding-bottom:8px"><span data-panel-drag data-tip-drag style="font:400 14px Tiny5,monospace;color:${T.ink};flex:1;min-width:0;overflow:hidden;white-space:nowrap;align-self:stretch;display:flex;align-items:center;touch-action:none;cursor:move">${esc(pile.name ?? "Колода")} · ${pile.cards.length}</span>`
       + `<span data-deck-shut role="button" style="cursor:pointer;font:400 11px Tiny5,monospace;border-radius:8px;padding:6px 10px;box-shadow:inset 0 0 0 2px ${T.wood};color:${T.inkDim}">Закрыть</span></div>`

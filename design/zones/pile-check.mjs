@@ -76,7 +76,7 @@ await tidy();
 // ПРАВИЛА И НАСТРОЙКИ СТОПКИ (панели страницы): запреты для выбранных игроков с показом отказа; предел карт; сторона укладки; действия кнопками.
 {
   const panels = await f.evaluate(() => ({ rules: document.querySelectorAll("#rules-body .rrow").length, chips: document.querySelectorAll('#rules-body .rrow[data-rule="take"] [data-k]').length, sides: document.querySelectorAll("#knobs-body [data-side]").length, limit: !!document.getElementById("limit"), acts: [...document.querySelectorAll("#acts-body [data-act]")].map((b) => b.dataset.act) }));
-  check("панели: девять правил (в том числе «за язычок» и «скрыть язычок») с цветными флажками, предел карт, три стороны укладки, четыре действия кнопками", panels.rules === 9 && panels.chips === 4 && panels.sides === 3 && panels.limit && panels.acts.join() === "shuffle,sort,flip,move", panels);
+  check("панели: девять правил (в том числе «за язычок» и «скрыть язычок») с цветными флажками, предел карт, три стороны укладки, три действия кнопками", panels.rules === 9 && panels.chips === 4 && panels.sides === 3 && panels.limit && panels.acts.join() === "shuffle,sort,move", panels);
   const state = () => f.evaluate(() => { const s = window.__me.state, pl = s.piles[0]; return { n: pl.cards.length, top: pl.cards.at(-1)?.id, order: pl.cards.map((c) => c.id).join(), felt: s.felt.map((c) => c.id), feltUp: s.felt.map((c) => c.up), rules: s.pileRules?.[pl.id] ?? null, topUp: pl.cards.at(-1)?.up === true }; });
   const clickIn = (sel) => f.evaluate((q) => document.querySelector(q).click(), sel);
   const setCtl = (key) => clickIn(`#who-top [data-k="${key}"]`);
@@ -458,6 +458,53 @@ await tidy();
       check("отпускание в режиме «перевернуть»: карта в стопке и лежит рубашкой, как вся стопка", (await deckN()) === nb + 1 && topSide === false, { n: await deckN(), nb, topSide });
       await clickMode("tableDropSides", "refuse"); await p.waitForTimeout(400);
       await home();
+    }
+    // Е. СТОПКА КАК КАРТА: переворот и поворот теми же жестами (F в руке, меню и правая кнопка на столе); двойной тап по язычку не переворачивает.
+    {
+      const ev = (fn, a) => f.evaluate(fn, a);
+      const pileNow = () => ev(() => { const q = window.__me.state.piles[0]; return { n: q.cards.length, order: q.cards.map((c) => c.id).join(), up: q.cards.at(-1)?.up === true, angle: q.angle ?? 0, x: q.x, y: q.y, top: q.cards.at(-1).id }; });
+      const camsHome = async () => { await f.evaluate(() => { window.__top.home(); window.__first.home(); }); await p.waitForTimeout(1500); };
+      await home(); await camsHome();
+      // 1. двойной тап по язычку не переворачивает
+      const s0 = await pileNow();
+      const tab = await ev(() => window.__top.test.tabs()[0]);
+      await p.mouse.click(tab.x, tab.y); await p.waitForTimeout(80); await p.mouse.click(tab.x, tab.y); await p.waitForTimeout(700);
+      const s1 = await pileNow();
+      check("двойной тап по язычку больше не переворачивает стопку (порядок и сторона те же)", s1.order === s0.order && s1.up === s0.up, { s0: s0.up, s1: s1.up });
+      await camsHome();
+      // 2. в руке: F переворачивает несомую стопку; отпустили — на столе она перевёрнута (порядок наоборот, сторона другая)
+      const sF = await pileNow();
+      const tab2 = await ev(() => window.__top.test.tabs()[0]);
+      await p.mouse.move(tab2.x, tab2.y); await p.mouse.down(); await p.mouse.move(tab2.x + 12, tab2.y, { steps: 3 }); await p.mouse.move(tab2.x + 75, tab2.y - 25, { steps: 8 }); await p.waitForTimeout(500);
+      await p.keyboard.press("f"); await p.waitForTimeout(600);
+      await p.mouse.up(); await p.waitForTimeout(1200);
+      const s2 = await pileNow();
+      check("в руке: F переворачивает несомую стопку — после отпускания она лежит лицом вверх, порядок наоборот", s2.up !== sF.up && s2.order === sF.order.split(",").reverse().join(","), { up: [sF.up, s2.up] });
+      await home(); await camsHome();
+      // 3. меню (правая кнопка без движения): «Перевернуть» и «Повернуть на 90°»
+      const topAt = await stableTop((await pileNow()).top);
+      await p.mouse.click(topAt.x, topAt.y, { button: "right" }); await p.waitForTimeout(400);
+      const menu = await ev(() => [...document.querySelectorAll("body > div button")].map((b) => b.textContent));
+      check("правая кнопка по стопке на столе открывает меню: «Перевернуть» и «Повернуть на 30/60/90°»", menu.includes("Перевернуть") && menu.includes("Повернуть на 90°") && menu.includes("Повернуть на 30°"), menu);
+      const before = await pileNow();
+      await ev(() => [...document.querySelectorAll("body > div button")].find((b) => b.textContent === "Перевернуть")?.click());
+      await p.waitForTimeout(800);
+      const after = await pileNow();
+      check("меню: «Перевернуть» — стопка перевёрнута целиком", after.up !== before.up && after.order === before.order.split(",").reverse().join(","), { before: before.up, after: after.up });
+      await p.mouse.click(topAt.x, topAt.y, { button: "right" }); await p.waitForTimeout(400);
+      await ev(() => [...document.querySelectorAll("body > div button")].find((b) => b.textContent === "Повернуть на 90°")?.click());
+      await p.waitForTimeout(800);
+      const turned = await pileNow();
+      check("меню: «Повернуть на 90°» — стопка повёрнута на месте", Math.abs((((turned.angle - after.angle) % 360) + 360) % 360 - 90) < 1 && Math.hypot(turned.x - after.x, turned.y - after.y) < 0.01, { a0: after.angle, a1: turned.angle });
+      // 4. правая кнопка с движением вращает стопку на месте
+      await camsHome();
+      const c = await stableTop((await pileNow()).top), a0 = (await pileNow()).angle;
+      await p.mouse.move(c.x + 22, c.y); await p.mouse.down({ button: "right" }); await p.mouse.move(c.x, c.y + 22, { steps: 8 }); await p.waitForTimeout(200); await p.mouse.up({ button: "right" }); await p.waitForTimeout(900);
+      const rot = await pileNow();
+      check("правая кнопка с движением вращает стопку вокруг центра (место то же, угол сменился)", Math.abs((((rot.angle - a0) % 360) + 540) % 360 - 180) > 20 && Math.hypot(rot.x - turned.x, rot.y - turned.y) < 0.01, { a0, a1: rot.angle });
+      // вернуть как было для проверок дальше
+      await ev(() => window.__me.send({ t: "deckMove", pile: "deck", x: 0, y: 0.8, angle: -8 })); await p.waitForTimeout(500);
+      await ev(() => { if (window.__me.state.piles[0].cards.at(-1)?.up === true) window.__me.send({ t: "deckDo", pile: "deck", how: "flip" }); }); await p.waitForTimeout(500);
     }
   }
   // действия кнопками: перемешать

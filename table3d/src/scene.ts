@@ -1800,8 +1800,15 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (o) o.target = above(gap!);
     if (foreign) foreign.target = above(fgap!);
   }
-  const pileAngle = (p: Pile) => (p as Pile & { angle?: number }).angle ?? 0;
+  /** Стопку на столе вращают правой кнопкой на месте: пока ведут, её угол — этот (потом `deckMove`). */
+  let spinPile: { pile: string; angle: number; until: number } | null = null;
+  const pileAngle = (p: Pile) => (spinPile?.pile === p.id ? spinPile.angle : (p as Pile & { angle?: number }).angle ?? 0);
   function layout(s: Snapshot): void {
+    // Повёрнутая стопка: свой угол держится, пока стол не ответит тем же (или не прошло время).
+    if (spinPile && !spin) {
+      const p = s.piles.find((q) => q.id === spinPile!.pile);
+      if (!p || performance.now() > spinPile.until || Math.abs((((((p as Pile & { angle?: number }).angle ?? 0) - spinPile.angle) % 360) + 540) % 360 - 180) < 0.5) spinPile = null;
+    }
     hearOthers();
     syncSeatAngle();
     drawBodies(s);
@@ -2682,7 +2689,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** `group` — несут выделенное лассо: отпустил — все выделенные туда же (`moveMany`), одним намерением. */
   /** Что слышно от чужих пальцев (`hearOthers`). */
   const heard = new Map<string, { up: boolean | undefined; angle: number; tick: number; fx: boolean }>();
-  let spin: { id: string; pid: number; cx: number; cy: number; a0: number; base: number; x0: number; y0: number; moved: boolean; angle: number } | null = null;
+  let spin: { id: string; pile?: string; pid: number; cx: number; cy: number; a0: number; base: number; x0: number; y0: number; moved: boolean; angle: number } | null = null;
   let drag: { id: string; x: number; y: number; moved: boolean; hold: number; up: boolean; angle: number; rot: number; gap: number | null; place: Place | null; where: Where | null; spot: { x: number; y: number; w: number; angle: number } | null; zone: { pile?: string; chair?: string; i: number } | null; fingerHand: boolean; latch0: string | null; scrubbed: boolean; pile: string | null; members: string[] } | null = null;
   let zoneFn: Parameters<SceneApi["setZone"]>[0] = null;
   let restRight: { x: number; y: number } | null = null;
@@ -3112,14 +3119,18 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     store.carry({ id: drag.pile ?? drag.id, over: drag.where, ...(flipDeg ? { flip: Math.round(flipDeg) } : {}), ...(tilt ? { tilt } : {}), ...(drag.rot ? { spin: Math.round(drag.rot) } : {}) });
   };
   /** Щёлкнуло: сторона сменилась, карта доворачивается сама (пружина), угол в воздухе сброшен. */
+  /** Нельзя ли перевернуть то, что несу: карте — правило карты, стопке — правило стопки. */
+  const flipBarred = (d: { id: string; pile: string | null }): boolean => (d.pile ? pileBarred(d.pile, "flip") : cardRule(d.id, "turn"));
+  const flipDeny = (d: { id: string; pile: string | null }): void => { if (d.pile) denyPile(d.pile, "flip"); else deny(d.id, "turn"); };
   const flipClick = (): void => {
     const d = drag;
     if (!d?.moved) return;
-    if (cardRule(d.id, "turn")) { deny(d.id, "turn"); return; }
+    if (flipBarred(d)) { flipDeny(d); return; }
     d.up = !d.up;
     feel("flip", d.id, 1);
     // Стол сам помнит, какой стороной карту положат: при броске он берёт сторону карты, а не метку жеста, поэтому переворот — обычное намерение «перевернуть» над удерживаемой картой.
-    store.send({ t: "turn", id: d.id });
+    // Стопку в воздухе переворачивают целиком: стол узнает об этом, когда её отпустят (`endPile`).
+    if (!d.pile) store.send({ t: "turn", id: d.id });
     flipDeg = 0;
     d.where = target({ clientX: lastFinger.x, clientY: lastFinger.y }, d);
     d.place = dragPlace(lastFinger.x, lastFinger.y);
@@ -3229,6 +3240,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       if (to.in === "felt") { const kind = lastThrow > 0.5 ? "throw" : "lay", energy = lastThrow > 0.5 ? lastThrow : 0.6, id = d.id; feel(kind, id, energy, true, true); onLand(id, () => feel(kind, id, energy), 1200, 250); }
       else feel("lay", d.id, 0.4);
     }
+    // Стопку перевернули в воздухе — переворачиваем и на столе: порядок наоборот, каждая карта другой стороной (потом кладём).
+    if ((store.state.piles.find((p) => p.id === pile)?.cards.at(-1)?.up === true) !== d.up) store.send({ t: "deckDo", pile, how: "flip" });
     if (to.in === "hand" || to.in === "deck") store.send({ t: "pileDrop", pile, to });
     else store.send({ t: "deckMove", pile, x: to.x, y: to.y, angle: to.angle });
     layout(store.state);
@@ -3325,7 +3338,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const dx = Math.abs(e.clientX - t.x0), dy = Math.abs(e.clientY - t.y0);
       if (Math.max(dx, dy) < SPIN.dead) return;
       t.mode = dy > dx ? "turn" : "flip";
-      if (t.mode === "flip" && drag && cardRule(drag.id, "turn")) deny(drag.id, "turn");
+      if (t.mode === "flip" && drag && flipBarred(drag)) flipDeny(drag);
       if (t.mode === "turn" && drag && cardRule(drag.id, "rotate")) deny(drag.id, "rotate");
     }
     if (!drag) return;
@@ -3335,7 +3348,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       advanceDrag(lastFinger.x, lastFinger.y);
       return;
     }
-    if (cardRule(drag.id, "turn")) return;
+    if (flipBarred(drag)) return;
     const r = t.fl.move(e.clientX);
     if (r.click) flipClick();
     else if (!t.fl.clicked) flipDeg = r.angle;
@@ -3377,6 +3390,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   const MENU_TURNS = [30, 60, 90] as const;
   function openCardMenu(x: number, y: number, id: string): void {
     closeMenu();
+    // Одну карту в стопке и в руке не перевернуть (рука и стопка всегда одной стороны): у верха стопки — меню всей стопки, у карты руки меню нет.
+    const where = fromOf.get(id);
+    if (where?.in === "pile") { openPileMenu(x, y, where.pile); return; }
+    if (where?.in === "hand") return;
     const m = document.createElement("div");
     m.style.cssText = `position:fixed;z-index:60;left:${x}px;top:${y}px;background:#3a2a1d;box-shadow:0 0 0 2px #0b0704,inset 0 0 0 2px #6b4d2c;padding:4px;font:400 13px 'Tiny5',monospace`;
     const item = (label: string, run: () => void): void => {
@@ -3392,27 +3409,51 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     document.body.append(m);
     cardMenu = m;
   }
+  /** Меню стопки на столе: перевернуть целиком (порядок наоборот) и повернуть на месте — как у карты. */
+  function openPileMenu(x: number, y: number, pile: string): void {
+    closeMenu();
+    const p = store.state.piles.find((q) => q.id === pile);
+    if (!p) return;
+    const m = document.createElement("div");
+    m.style.cssText = `position:fixed;z-index:60;left:${x}px;top:${y}px;background:#3a2a1d;box-shadow:0 0 0 2px #0b0704,inset 0 0 0 2px #6b4d2c;padding:4px;font:400 13px 'Tiny5',monospace`;
+    const item = (label: string, run: () => void): void => {
+      const b = document.createElement("button");
+      b.textContent = label;
+      b.style.cssText = "display:block;width:100%;font:inherit;color:#f5ead0;background:transparent;border:0;padding:6px 10px;cursor:pointer;text-align:left";
+      b.onclick = () => { closeMenu(); run(); };
+      m.append(b);
+    };
+    item("Перевернуть", () => { if (pileBarred(pile, "flip")) denyPile(pile, "flip"); else { feel("flip", p.cards.at(-1)?.id ?? null, 1); store.send({ t: "deckDo", pile, how: "flip" }); } });
+    for (const deg of MENU_TURNS) item(`Повернуть на ${deg}°`, () => { if (pileBarred(pile, "move")) denyPile(pile, "move"); else { feel("spin", p.cards.at(-1)?.id ?? null, 1); store.send({ t: "deckMove", pile, x: p.x, y: p.y, angle: (pileAngle(p) + deg) % 360 }); } });
+    document.body.append(m);
+    cardMenu = m;
+  }
   // Правая кнопка по карте на столе: повёл мышью — карта вращается вокруг своего центра следом за мышью; отпустил, не двигая (клик или долгий клик), — меню.
   renderer.domElement.addEventListener("pointerdown", (e) => {
     if (e.button !== 2 || drag || reseat || store.replay?.on) return;
     const id = hitCard(e), f = id ? store.state.felt.find((c) => c.id === id) : undefined, c = id ? screenOf(id) : null;
-    if (!id || !f || !c || !takeable(id)) return;
+    // Стопка на столе вращается так же, как карта: правая кнопка по ней — поворот на месте, без движения — меню.
+    const from = id ? fromOf.get(id) : undefined, pile = !f && from?.in === "pile" && from.top ? store.state.piles.find((q) => q.id === from.pile) : undefined;
+    if (!id || (!f && !pile) || !c || !takeable(id)) return;
+    const base = f ? f.angle : pileAngle(pile!);
     e.stopImmediatePropagation();
     e.preventDefault();
     try { renderer.domElement.setPointerCapture(e.pointerId); } catch { /* нет такого указателя */ }
-    spin = { id, pid: e.pointerId, cx: c.x, cy: c.y, a0: Math.atan2(e.clientY - c.y, e.clientX - c.x) / DEG, base: f.angle, x0: e.clientX, y0: e.clientY, moved: false, angle: f.angle };
-    lastSpinTick = f.angle;
+    spin = { id, ...(pile ? { pile: pile.id } : {}), pid: e.pointerId, cx: c.x, cy: c.y, a0: Math.atan2(e.clientY - c.y, e.clientX - c.x) / DEG, base, x0: e.clientX, y0: e.clientY, moved: false, angle: base };
+    lastSpinTick = base;
   }, { capture: true });
   renderer.domElement.addEventListener("pointermove", (e) => {
     const s = spin;
     if (!s || e.pointerId !== s.pid) return;
     e.stopImmediatePropagation();
     if (!s.moved && Math.hypot(e.clientX - s.x0, e.clientY - s.y0) < 6) return;
-    if (!s.moved && cardRule(s.id, "rotate")) deny(s.id, "rotate");
+    const barred = s.pile ? pileBarred(s.pile, "move") : cardRule(s.id, "rotate");
+    if (!s.moved && barred) { if (s.pile) denyPile(s.pile, "move"); else deny(s.id, "rotate"); }
     s.moved = true;
-    if (cardRule(s.id, "rotate")) return;
+    if (barred) return;
     const turn = Math.atan2(e.clientY - s.cy, e.clientX - s.cx) / DEG - s.a0;
     s.angle = ((((s.base + turn) % 360) + 360) % 360);
+    if (s.pile) spinPile = { pile: s.pile, angle: s.angle, until: Infinity };
     if (Math.abs((((s.angle - lastSpinTick) % 360) + 540) % 360 - 180) >= 15) { lastSpinTick = s.angle; feel("spin", s.id, 1); }
     layout(store.state); draw();
   }, { capture: true });
@@ -3421,12 +3462,16 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!s || e.pointerId !== s.pid) return;
     e.stopImmediatePropagation();
     spin = null;
-    if (!s.moved) { openCardMenu(e.clientX, e.clientY, s.id); return; }
-    if (!cardRule(s.id, "rotate")) store.send({ t: "spin", id: s.id, angle: Math.round(s.angle * 100) / 100 });
+    if (!s.moved) { spinPile = null; openCardMenu(e.clientX, e.clientY, s.id); return; }
+    if (s.pile) {
+      const p = store.state.piles.find((q) => q.id === s.pile);
+      if (p && !pileBarred(s.pile, "move")) { spinPile = { pile: s.pile, angle: s.angle, until: performance.now() + 1500 }; store.send({ t: "deckMove", pile: s.pile, x: p.x, y: p.y, angle: Math.round(s.angle * 100) / 100 }); }
+      else spinPile = null;
+    } else if (!cardRule(s.id, "rotate")) store.send({ t: "spin", id: s.id, angle: Math.round(s.angle * 100) / 100 });
     layout(store.state); draw();
   };
   renderer.domElement.addEventListener("pointerup", spinUp, { capture: true });
-  renderer.domElement.addEventListener("pointercancel", (e) => { if (spin && e.pointerId === spin.pid) { spin = null; layout(store.state); draw(); } }, { capture: true });
+  renderer.domElement.addEventListener("pointercancel", (e) => { if (spin && e.pointerId === spin.pid) { spin = null; spinPile = null; layout(store.state); draw(); } }, { capture: true });
   // Системное меню по правой кнопке на карте гасим всегда; своё показываем на отпускании (мышь) или здесь (долгое касание пальцем).
   renderer.domElement.addEventListener("contextmenu", (e) => {
     if (drag?.moved) { e.preventDefault(); return; }
