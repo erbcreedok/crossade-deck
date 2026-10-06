@@ -1,0 +1,28 @@
+table3d/src/scene.ts
+  s_73107c3d804131::t_a440c49bb0fbac 328,2222
+design/zones/pile-scenes.html
+  s_73107c3d804131::t_a440c49bb0fbac 306-310
+table3d/src/hud.ts
+  s_73107c3d804131::t_fd9119b06f4d7c 32,841-847
+design/zones/pile-check.mjs
+  s_73107c3d804131::t_9984530e3170a7 32-34
+  s_73107c3d804131::t_883f98f305aebb 121-132
+table3d/src/pileDrag.ts
+  s_73107c3d804131::t_fd9119b06f4d7c 1-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f1475c9ff56d34302d2810f6acfaf9d85e2576e4",
+  "prompts": {},
+  "sessions": {
+    "s_73107c3d804131": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e85b33e2-d0a6-4a90-b535-037e1d4326e5",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
