@@ -1,0 +1,24 @@
+design/zones/pile-scenes.html
+  s_73107c3d804131::t_82f548eb6414dc 117-119,132-134,320
+  s_73107c3d804131::t_5e0bb424a94b64 120
+design/zones/piles-scenes.html
+  s_73107c3d804131::t_82f548eb6414dc 89-92
+design/zones/pile-check.mjs
+  s_73107c3d804131::t_f8b6b3463bb184 126-137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5fcb498a5c99bdf12c35f5965b884643a4aec4f5",
+  "prompts": {},
+  "sessions": {
+    "s_73107c3d804131": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e85b33e2-d0a6-4a90-b535-037e1d4326e5",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
