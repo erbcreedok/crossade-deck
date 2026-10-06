@@ -7,7 +7,7 @@
 //
 // Чистые функции «снимок → снимок»: ни хранилища, ни экрана, ни времени. Кто я — приходит параметром.
 
-import { DEFAULT_SPOT, type Face, type Intent, type Pile, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
+import { DEFAULT_SPOT, mergeKnobs, type Face, type Intent, type Pile, type SeenCard, type Snapshot, type Where } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
 
 /** Намерения, которые экран показывает пачкой сразу. */
@@ -79,7 +79,7 @@ export const touchable = (s: Snapshot, id: string, me: string): boolean => (!s.l
 export function predict(st: Snapshot, intent: BatchIntent, me: string): Snapshot {
   let s = st;
   if (intent.t === "turnMany") {
-    for (const id of intent.ids) if (touchable(s, id, me)) s = flipIn(s, id, !sideIn(s, id)?.up);
+    for (const id of intent.ids) if (touchable(s, id, me) && whereIs(s, id)?.in === "felt") s = flipIn(s, id, !sideIn(s, id)?.up);
     return s;
   }
   if (intent.t === "moveMany") {
@@ -93,12 +93,20 @@ export function predict(st: Snapshot, intent: BatchIntent, me: string): Snapshot
       s = { ...s, piles: [...s.piles, { ...DEFAULT_SPOT, id: pile, x: at.x, y: at.y, angle: at.angle, forever: false, below: s.felt.map((c) => c.id), cards: [], shuffles: 0 }] };
     } else if (pileOf(s, pile)?.shut) return st;
     const sources = new Set<string>();
+    // Сбор строгий: вся стопка одной стороны — как сказано, иначе стороны цели, а без неё — первой собираемой.
+    const rest = pileOf(s, pile)?.cards ?? [];
+    const targetSide = rest.length > 0 && rest.every((c) => (c.up === true) === (rest[0]!.up === true)) ? rest[0]!.up === true : undefined;
+    const ruled = s.pileRules?.[pile]?.side;
+    const first = intent.ids.find((id) => {
+      const from = whereIs(s, id);
+      return from && touchable(s, id, me) && !(from.in === "deck" && (from.pile === pile || pileOf(s, from.pile)?.shut));
+    });
+    const common = intent.side === "up" ? true : intent.side === "down" ? false : ruled === "up" ? true : ruled === "down" ? false : targetSide ?? (first !== undefined ? shownUp(s, first) : false);
     for (const id of intent.ids) {
       const from = whereIs(s, id);
       if (!from || !touchable(s, id, me) || (from.in === "deck" && (from.pile === pile || pileOf(s, from.pile)?.shut))) continue;
       if (from.in === "deck") sources.add(from.pile);
-      const up = intent.side === "up" ? true : intent.side === "down" ? false : shownUp(s, id);
-      s = relocate(s, id, { in: "deck", pile }, up, me);
+      s = relocate(s, id, { in: "deck", pile }, common, me);
     }
     for (const one of sources) s = collapse(s, one, me);
     return collapse(s, pile, me);
@@ -106,11 +114,20 @@ export function predict(st: Snapshot, intent: BatchIntent, me: string): Snapshot
   const source = pileOf(s, intent.pile);
   const into = intent.to.in === "deck" ? pileOf(s, intent.to.pile) : undefined;
   if (!source || source.pin || source.shut || source.seal || into?.shut || into?.seal || !source.cards.every((c) => touchable(s, c.id, me))) return st;
-  // В стопку одной стороной — её стороной; вперемешку или пустую — как лежали.
+  // В стопку одной стороны — её стороной; другой — по настройке: отказ или переворот целиком (порядок наоборот).
   const pack = into?.cards.map((c) => c.up === true) ?? [];
   const even = pack.length > 0 && pack.every((up) => up === pack[0]) ? pack[0] : undefined;
+  let flipped = false;
+  if (intent.to.in === "deck" && even !== undefined) {
+    const mine = source.cards.map((c) => c.up === true);
+    if (!mine.every((up) => up === mine[0])) return st;
+    if (mine[0] !== even) {
+      if (mergeKnobs(s.pileRules, intent.to.pile).drop === "refuse") return st;
+      flipped = true;
+    }
+  }
   let i = intent.to.i;
-  for (const c of source.cards) {
+  for (const c of flipped ? [...source.cards].reverse() : source.cards) {
     const to: Where = intent.to.in === "hand" ? { in: "hand", chair: intent.to.chair, i: i ?? 0 } : { in: "deck", pile: intent.to.pile, ...(i !== undefined && !into?.lock ? { i } : {}) };
     s = relocate(s, c.id, to, even ?? c.up === true, me);
     if (i !== undefined) i += 1;

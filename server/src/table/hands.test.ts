@@ -148,10 +148,10 @@ describe("РОВНАЯ РУКА КРУПЬЕ: вся одной стороной
     expect(t.act("Аня", { t: "turn", id: card }, 0)).toEqual({ refused: "even-hand" });
   });
 
-  it("в обычной руке одну карту перевернуть можно — это отличие крупье, а не общий запрет", () => {
+  it("одну карту в руке не перевернуть нигде — рука целиком одной стороны", () => {
     const t = table("Аня");
     const card = toHand(t, "Аня", seatOf(t, "Аня"));
-    ok(t.act("Аня", { t: "turn", id: card }, 0));
+    expect(t.act("Аня", { t: "turn", id: card }, 0)).toEqual({ refused: "one-side" });
   });
 });
 

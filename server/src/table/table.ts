@@ -54,6 +54,11 @@ import {
   NO_CARD_RULES,
   NO_PILE_RULES,
   HOLD_MS_RANGE,
+  MERGE_MS_RANGE,
+  SIDE_MODES,
+  TABLE_PILE,
+  mergeKnobs,
+  type SideMode,
   PILE_LIMIT_MAX,
   PILE_RULES,
   type PileRule,
@@ -677,7 +682,7 @@ export class Table {
       case "moveMany":
         return this.moveMany(by, intent.moves, now, auto);
       case "pileDrop":
-        return this.pileDrop(by, intent.pile, intent.to, now);
+        return this.pileDrop(by, intent.pile, intent.to, now, auto);
       case "turnMany":
         return this.turnMany(by, intent.ids, now);
       case "unpick": {
@@ -859,13 +864,14 @@ export class Table {
     if (clear) this.cardRules.delete(id); else this.cardRules.set(id, next);
     return { ops: this.commit([{ t: "cardRules", id, rules: clear ? null : next }]) };
   }
+  private pileRulesObj(): Record<string, PileRules> { return Object.fromEntries(this.pileRules); }
   /** Нельзя ли этому человеку это со стопкой (`PileRules`). */
   private pileBarred(by: string, pile: string, rule: PileRule): boolean {
     return this.pileRules.get(pile)?.[rule].includes(by) ?? false;
   }
   private pileRule(by: string, pile: unknown, rule: unknown, who: unknown, on: unknown, value: unknown): Result {
     if (!this.may(by, "pile.guard")) return { refused: "not-yours" };
-    if (typeof pile !== "string" || !this.piles.has(pile)) return { refused: "gone" };
+    if (typeof pile !== "string" || (pile !== TABLE_PILE && !this.piles.has(pile))) return { refused: "gone" };
     const now = this.pileRules.get(pile) ?? NO_PILE_RULES;
     const next: PileRules = { ...now, ...Object.fromEntries(PILE_RULES.map((one) => [one, [...now[one]]])), notice: { ...now.notice } };
     const named = (x: unknown): x is PileRule => (PILE_RULES as readonly unknown[]).includes(x);
@@ -878,13 +884,22 @@ export class Table {
     } else if (rule === "side") {
       if (value !== "keep" && value !== "down" && value !== "up") return { refused: "bad" };
       next.side = value;
+    } else if (rule === "delayMs" || rule === "glowMs" || rule === "liftMs") {
+      const range = MERGE_MS_RANGE[rule === "delayMs" ? "delay" : rule === "glowMs" ? "glow" : "lift"];
+      if (value === null) delete next[rule];
+      else if (typeof value !== "number" || !Number.isInteger(value) || value < range.min || value > range.max) return { refused: "bad" };
+      else next[rule] = value;
+    } else if (rule === "dropSides" || rule === "holdSides") {
+      if (value === null) delete next[rule];
+      else if (!(SIDE_MODES as readonly unknown[]).includes(value)) return { refused: "bad" };
+      else next[rule] = value as SideMode;
     } else if (typeof on !== "boolean") return { refused: "bad" };
     else if (rule === "notice" && named(who)) next.notice[who] = on;
     else if (named(rule) && typeof who === "string") {
       const list = next[rule].filter((key) => key !== who);
       next[rule] = on ? [...list, who] : list;
     } else return { refused: "bad" };
-    const clear = PILE_RULES.every((one) => !next[one].length && !next.notice[one]) && next.limit === 0 && next.side === "keep" && next.holdMs === HOLD_MS_RANGE.def;
+    const clear = PILE_RULES.every((one) => !next[one].length && !next.notice[one]) && next.limit === 0 && next.side === "keep" && next.holdMs === HOLD_MS_RANGE.def && next.delayMs === undefined && next.glowMs === undefined && next.liftMs === undefined && next.dropSides === undefined && next.holdSides === undefined;
     if (clear) this.pileRules.delete(pile); else this.pileRules.set(pile, next);
     return { ops: this.commit([{ t: "pileRules", pile, rules: clear ? null : next }]) };
   }
@@ -920,7 +935,7 @@ export class Table {
   }
 
   /** ПЕРЕЛОЖИТЬ СТОПКУ ЦЕЛИКОМ (`Intent.pileDrop`). Одним патчем; опустевшая невечная стопка уходит со стола. */
-  private pileDrop(by: string, id: string, to: unknown, now: number): Result {
+  private pileDrop(by: string, id: string, to: unknown, now: number, auto = false): Result {
     const source = this.piles.get(id);
     if (!source) return { refused: "gone" };
     const target = this.clean(to as Where);
@@ -952,11 +967,21 @@ export class Table {
     // СТОРОНА: цель вся одной стороной — ею; вперемешку или пустая — как лежали.
     const pack = into ? into.cards.map((one) => this.turned.has(one)) : [];
     const side = pack.length > 0 && pack.every((up) => up === pack[0]) ? pack[0] : undefined;
+    // СЛИЯНИЕ СТОРОНАМИ: стопка смешанных сторон в стопку не кладётся; другой стороны — по настройке (отказ или переворот целиком, порядок наоборот).
+    let flipped = false;
+    if (target.in === "deck" && side !== undefined) {
+      const mine = source.cards.map((one) => this.turned.has(one));
+      if (!auto && !mine.every((up) => up === mine[0])) return { refused: "mismatch" };
+      if (mine[0] !== side) {
+        if (!auto && mergeKnobs(this.pileRulesObj(), target.pile).drop === "refuse") return { refused: "mismatch" };
+        flipped = true;
+      }
+    }
     // В РУКУ — лицом к хозяину; в РОВНУЮ руку — как лежит рука (пустая — лицом к хозяину): стопка
     // целиком подчиняется тому же, что и одна карта.
     const evenUp = target.in === "hand" ? this.evenSide(target.chair) : undefined;
     const ops: Op[] = [];
-    const cards = [...source.cards];
+    const cards = flipped ? [...source.cards].reverse() : [...source.cards];
     let i = target.in === "hand" ? target.i : into!.spot.lock ? undefined : target.i;
     for (const one of cards) {
       const from = this.whereIs(one)!;
@@ -1022,6 +1047,8 @@ export class Table {
     // которую потом никто не заметит; поэтому её не сделать, а не «не советуем».
     // Причина своя: «Занято» посылало искать того, кто держит карту, а держать её некому.
     if (at.in === "hand" && this.chairs.get(at.chair)?.even) return { refused: "even-hand" };
+    // РУКА И СТОПКА ВСЕГДА ОДНОЙ СТОРОНЫ: одну карту в них не перевернуть — вытащить на сукно и перевернуть там.
+    if (at.in !== "felt") return { refused: "one-side" };
     let up: boolean;
     if (at.in === "felt") {
       const one = this.felt.find((f) => f.id === id)!;
@@ -1118,6 +1145,11 @@ export class Table {
     const pack = into && !auto ? into.cards.filter((one) => one !== id).map((one) => this.turned.has(one)) : [];
     const packSide = pack.length > 0 && pack.every((up) => up === pack[0]) ? pack[0] : undefined;
     const pileSide = into && !auto && target.in === "deck" ? this.pileRules.get(target.pile)?.side : undefined;
+    // СЛИЯНИЕ СТОРОНАМИ: в стопку, что вся одной стороной, карта другой стороны не ложится (строго) — или ложится перевёрнутой, как скажет настройка.
+    if (into && !auto && target.in === "deck" && packSide !== undefined && !(from.in === "deck" && from.pile === target.pile) && pileSide !== "up" && pileSide !== "down") {
+      const held = this.sideOf(by, id, from);
+      if (held !== packSide && mergeKnobs(this.pileRulesObj(), target.pile).drop === "refuse") return { refused: "mismatch" };
+    }
     const faceUp = pileSide === "up" || pileSide === "down" ? pileSide === "up" : auto && target.in === "felt" ? target.up : (packSide ?? this.sideOf(by, id, from));
     if (target.in === "felt") target.up = faceUp;
     this.turned.delete(id);
@@ -1403,9 +1435,14 @@ export class Table {
     }
     const sweep = new Set<string>();
     const chairs = new Set<string>();
+    // СБОР СТРОГИЙ: вся стопка выйдет одной стороной, собственные стороны карт не в счёт. Сторона — как сказано; иначе у стопки-цели, а если её нет — у первой из собираемых.
+    const rest = this.piles.get(pileId)!.cards;
+    const targetSide = rest.length > 0 && rest.every((one) => this.turned.has(one) === this.turned.has(rest[0]!)) ? this.turned.has(rest[0]!) : undefined;
+    const pileSide = this.pileRules.get(pileId)?.side;
+    const common = side === "up" ? true : side === "down" ? false : pileSide === "up" ? true : pileSide === "down" ? false : targetSide ?? this.sideOf(by, taken[0]!, this.whereIs(taken[0]!)!);
     for (const id of taken) {
       const from = this.whereIs(id)!;
-      const up = side === "up" ? true : side === "down" ? false : this.sideOf(by, id, from);
+      const up = common;
       const trail = this.trailOf(id, by, from, "deck", now);
       this.take(id, from);
       this.turned.delete(id);

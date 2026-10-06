@@ -32,23 +32,34 @@ function deal(t: Table, by: string, chairId: string) {
 describe("Table: переворот карты", () => {
   const handOf = (t: Table, viewer: string, id: string) => t.seenBy(viewer).chairs.find((c) => c.id === id)!.hand;
 
-  it("в руке: перевёрнутая — рубашкой к хозяину и лицом наружу; скрытый стул — рубашки всем", () => {
+  it("в руке: перевёрнутая рука — рубашкой к хозяину и лицом наружу; скрытый стул — рубашки всем", () => {
     const t = seated("a", "b");
     const a = seatOf(t, "a");
     const card = deal(t, "a", a);
     deal(t, "a", a);
-    ops(t.act("a", { t: "turn", id: card }, 5));
+    ops(t.act("a", { t: "flip", chair: a }, 5));
     // Скрыт (по умолчанию): лицо не видно никому — ни хозяину, ни другим.
-    expect(handOf(t, "a", a).find((c) => c.id === card)).toEqual({ id: card, up: true });
+    expect(handOf(t, "a", a).every((c) => c.up)).toBe(true);
     expect(handOf(t, "b", a).every((c) => !c.face)).toBe(true);
-    expect(handOf(t, "a", a).find((c) => c.id !== card)!.face).toBeDefined();
     // Не скрыт: другим лица приходят все — худ рисует неперевёрнутые, стул — перевёрнутые.
     ops(t.act("a", { t: "flag", chair: a, flag: "hide", on: false }, 6));
     expect(handOf(t, "b", a).every((c) => c.face)).toBe(true);
     expect(handOf(t, "b", a).find((c) => c.id === card)!.up).toBe(true);
     expect(handOf(t, "a", a).find((c) => c.id === card)!.face).toBeDefined();
-    ops(t.act("a", { t: "turn", id: card }, 7));
+    ops(t.act("a", { t: "flip", chair: a }, 7));
     expect(handOf(t, "b", a).find((c) => c.id === card)!.up).toBeUndefined();
+  });
+
+  it("одну карту в руке и в стопке не перевернуть — «one-side»; на сукне можно", () => {
+    const t = seated("a", "b");
+    const a = seatOf(t, "a");
+    const card = deal(t, "a", a);
+    expect(t.act("a", { t: "turn", id: card }, 5)).toEqual({ refused: "one-side" });
+    expect(t.act("a", { t: "turn", id: "c7" }, 5)).toEqual({ refused: "one-side" });
+    expect(t.act("a", { t: "turnMany", ids: [card, "c7"] }, 5)).toEqual({ refused: "bad" });
+    ops(t.act("a", { t: "grab", id: card }, 6));
+    ops(t.act("a", { t: "drop", id: card, to: { in: "felt", x: 0, y: 0, up: true, angle: 0 } }, 7));
+    ops(t.act("a", { t: "turn", id: card }, 8));
   });
 
   it("можно там же, где можно взять: чужой лок, не верхняя колоды, закрытый стул — отказ", () => {
@@ -62,19 +73,20 @@ describe("Table: переворот карты", () => {
     ops(t.act("b", { t: "drop", id: "c7", to: { in: "hand", chair: b, i: 0 } }, 0));
     ops(t.act("b", { t: "flag", chair: b, flag: "lock", on: true }, 0));
     expect(t.act("a", { t: "turn", id: "c7" }, 0)).toEqual({ refused: "chair-locked" });
-    expect("ops" in t.act("b", { t: "turn", id: "c7" }, 0)).toBe(true);
+    expect(t.act("b", { t: "turn", id: "c7" }, 0)).toEqual({ refused: "one-side" });
   });
 
   it("колода: верхняя лицом вверх видна всем; на сукне переворот меняет только сторону", () => {
     const t = seated("a", "b");
-    ops(t.act("a", { t: "turn", id: "c7" }, 0));
-    expect(t.seenBy("b").piles[0]!.cards.at(-1)).toEqual({ id: "c7", face: cards[7]!.face, up: true });
-    ops(t.act("a", { t: "grab", id: "c7" }, 0));
-    ops(t.act("a", { t: "drop", id: "c7", to: { in: "felt", x: 1, y: 2, up: false, angle: 30 } }, 0));
+    ops(t.act("a", { t: "deckDo", pile: "deck", how: "flip" }, 0));
+    expect(t.seenBy("b").piles[0]!.cards.at(-1)).toMatchObject({ face: expect.anything(), up: true });
+    const topId = t.seenBy("b").piles[0]!.cards.at(-1)!.id;
+    ops(t.act("a", { t: "grab", id: topId }, 0));
+    ops(t.act("a", { t: "drop", id: topId, to: { in: "felt", x: 1, y: 2, up: false, angle: 30 } }, 0));
     // С колоды — как лежала: лицом вверх.
-    expect(t.seenBy("b").felt[0]).toMatchObject({ id: "c7", up: true, x: 1, y: 2, angle: 30, face: cards[7]!.face });
-    ops(t.act("b", { t: "turn", id: "c7" }, 0));
-    expect(t.seenBy("b").felt[0]).toEqual({ id: "c7", up: false, x: 1, y: 2, angle: 30 });
+    expect(t.seenBy("b").felt[0]).toMatchObject({ id: topId, up: true, x: 1, y: 2, angle: 30, face: expect.anything() });
+    ops(t.act("b", { t: "turn", id: topId }, 0));
+    expect(t.seenBy("b").felt[0]).toEqual({ id: topId, up: false, x: 1, y: 2, angle: 30 });
   });
 
   it("след: перевернул я, а «откуда» — из руки того, кто положил", () => {
@@ -96,7 +108,7 @@ describe("Table: переворот карты", () => {
     expect(t.seenBy("b").felt[0]!.up).toBe(true);
     ops(t.act("a", { t: "grab", id: card }, 0));
     ops(t.act("a", { t: "drop", id: card, to: { in: "hand", chair: a, i: 0 } }, 0));
-    ops(t.act("a", { t: "turn", id: card }, 0));
+    ops(t.act("a", { t: "flip", chair: a }, 0));
     ops(t.act("a", { t: "grab", id: card }, 0));
     ops(t.act("a", { t: "drop", id: card, to: { in: "felt", x: 0, y: 0, up: true, angle: 0 } }, 0));
     expect(t.seenBy("b").felt[0]!.up).toBe(false);
@@ -466,9 +478,7 @@ describe("патч клиента совпадает с сервером", () =>
     step("b", { t: "drop", id: "c6", to: { in: "hand", chair: b, i: 0 } });
     step("b", { t: "flag", chair: b, flag: "hide", on: false });
     step("a", { t: "flip" });
-    step("a", { t: "turn", id: "c7" });
-    step("b", { t: "turn", id: "c6" });
-    step("a", { t: "turn", id: "c5" });
+    step("b", { t: "flip" });
     step("a", { t: "arrange", how: "shuffle" });
     step("b", { t: "pose", chair: b, pose: { shrink: true } });
     step("a", { t: "pose", chair: b, pose: { tuck: true } });
@@ -483,9 +493,9 @@ describe("патч клиента совпадает с сервером", () =>
     step("c", { t: "deckDo", pile: "deck", how: "shuffle" });
     // После перемешивания у карт колоды новые id — берутся по месту.
     const mid = t.seenBy("b").piles[0]!.cards[2]!.id;
-    step("b", { t: "turn", id: mid });
     step("b", { t: "grab", id: mid });
     step("b", { t: "drop", id: mid, to: { in: "deck", pile: "deck", i: 0 } });
+    step("a", { t: "pileRule", pile: "*", rule: "dropSides", value: "flip" });
     step("a", { t: "deckGuard", pile: "deck", guard: "lock", on: true });
     const top = t.seenBy("b").piles[0]!.cards.at(-1)!.id;
     step("b", { t: "grab", id: top });
@@ -516,7 +526,6 @@ describe("патч клиента совпадает с сервером", () =>
     step("a", { t: "pick", ids: ["c6", t.seenBy("a").chairs[0]!.hand[0]?.id ?? "c5"], on: true });
     step("b", { t: "pick", ids: ["c6"], on: false });
     step("a", { t: "unpick" });
-    step("a", { t: "turnMany", ids: [t.seenBy("a").piles[0]!.cards[1]!.id, "c6"] });
     step("a", { t: "moveMany", moves: [
       { id: t.seenBy("a").piles[0]!.cards.at(-1)!.id, to: { in: "felt", x: 2, y: -2, up: false, angle: 5 } },
       { id: t.seenBy("a").piles[0]!.cards.at(-2)!.id, to: { in: "hand", chair: a, i: 0 } },

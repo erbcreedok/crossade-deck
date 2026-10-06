@@ -295,10 +295,41 @@ export const NO_CARD_RULES: CardRules = { lift: [], move: [], turn: [], rotate: 
  */
 export const PILE_RULES = ["take", "put", "move", "grip", "tab", "hold", "flip", "shuffle", "sort"] as const;
 export type PileRule = (typeof PILE_RULES)[number];
-export interface PileRules { take: string[]; put: string[]; move: string[]; grip: string[]; tab: string[]; hold: string[]; flip: string[]; shuffle: string[]; sort: string[]; notice: Record<PileRule, boolean>; limit: number; side: GatherSide; holdMs: number }
+export interface PileRules { take: string[]; put: string[]; move: string[]; grip: string[]; tab: string[]; hold: string[]; flip: string[]; shuffle: string[]; sort: string[]; notice: Record<PileRule, boolean>; limit: number; side: GatherSide; holdMs: number; delayMs?: number; glowMs?: number; liftMs?: number; dropSides?: SideMode; holdSides?: SideMode }
 export const NO_PILE_RULES: PileRules = { take: [], put: [], move: [], grip: [], tab: [], hold: [], flip: [], shuffle: [], sort: [], notice: { take: false, put: false, move: false, grip: false, tab: false, hold: false, flip: false, shuffle: false, sort: false }, limit: 0, side: "keep", holdMs: 1500 };
 /** Предел карт в стопке, который можно задать. */
 export const PILE_LIMIT_MAX = 99;
+/**
+ * СЛИЯНИЕ: что делать, когда стороны не совпали. `refuse` — не принимать (не поднимать), `flip` — принять и перевернуть удерживаемое (поднять и перевернуть поднимаемое).
+ * Настройка стола — стопка с id `TABLE_PILE`; своя у стопки перекрывает её.
+ */
+export const SIDE_MODES = ["refuse", "flip"] as const;
+export type SideMode = (typeof SIDE_MODES)[number];
+export const TABLE_PILE = "*";
+/** Времена слияния, мс: сколько ждать до посадки, ровный свет, мигание (это `holdMs`), подъём; их пределы. */
+export const MERGE_MS = { delay: 250, glow: 200, blink: 1500, lift: 350 } as const;
+export const MERGE_MS_RANGE = { delay: { min: 0, max: 3000 }, glow: { min: 0, max: 3000 }, lift: { min: 0, max: 2000 } } as const;
+/** Вид вещи: сливаются только вещи одного вида. Пока все вещи стола — карты. */
+export type ThingKind = "card" | "piece" | "chip";
+export interface MergeSide { kind: ThingKind; up: boolean }
+/** Совместимы ли две вещи: `ok` — да; `flip` — только если перевернуть то, что несут; `no` — нет. Вид должен совпасть всегда, сторона — как скажет режим. */
+export function mergeCheck(held: MergeSide, under: MergeSide, mode: SideMode): "ok" | "flip" | "no" {
+  if (held.kind !== under.kind) return "no";
+  if (held.up === under.up) return "ok";
+  return mode === "flip" ? "flip" : "no";
+}
+/** Режим слияния и времена стопки с учётом стола. */
+export function mergeKnobs(rules: Record<string, PileRules> | undefined, pile: string): { drop: SideMode; hold: SideMode; delay: number; glow: number; blink: number; lift: number } {
+  const own = rules?.[pile], all = rules?.[TABLE_PILE];
+  return {
+    drop: own?.dropSides ?? all?.dropSides ?? "refuse",
+    hold: own?.holdSides ?? all?.holdSides ?? "refuse",
+    delay: own?.delayMs ?? MERGE_MS.delay,
+    glow: own?.glowMs ?? MERGE_MS.glow,
+    blink: own?.holdMs ?? MERGE_MS.blink,
+    lift: own?.liftMs ?? MERGE_MS.lift,
+  };
+}
 /** Сколько мс держать, чтобы стопка поднялась: пределы и значение по умолчанию. */
 export const HOLD_MS_RANGE = { min: 300, max: 5000, def: 1500 } as const;
 
@@ -550,7 +581,7 @@ export type Intent =
   /** Правило карты: `rule` — `lift`/`move`/`turn` для человека `who`, или `notice` — показывать ли отказ по запрету `who` (`lift`/`move`/`turn`), для всех. Ставит админ. */
   | { t: "cardRule"; id: string; rule: CardRule | "notice"; who?: string; on: boolean }
   /** Правило стопки: `rule` — одно из `PileRule` для человека `who`, или `notice` (показывать отказ) по правилу `who`, или `limit` / `side` со значением `value`. Ставит админ. */
-  | { t: "pileRule"; pile: string; rule: PileRule | "notice" | "limit" | "side" | "holdMs"; who?: string; on?: boolean; value?: number | string }
+  | { t: "pileRule"; pile: string; rule: PileRule | "notice" | "limit" | "side" | "holdMs" | "delayMs" | "glowMs" | "liftMs" | "dropSides" | "holdSides"; who?: string; on?: boolean; value?: number | string | null }
   /** Повернуть карту на сукне на месте: новый угол по часовой, градусы. Брать и переносить её для этого не нужно. */
   | { t: "spin"; id: string; angle: number }
   /** Приколоть стопку — любой; открепить — только админ. */
@@ -684,7 +715,7 @@ import type { Body } from "./bodies.js";
  */
 export type Refusal =
   | "busy" | "locked" | "not-held" | "not-top" | "gone" | "bad" | "chair-locked" | "taken" | "full"
-  | "not-yours" | "rejects" | "not-your-turn" | "beats" | "no-right" | "even-hand" | "pinned";
+  | "not-yours" | "rejects" | "not-your-turn" | "beats" | "no-right" | "even-hand" | "pinned" | "mismatch" | "one-side";
 export interface Refused {
   intent: Intent;
   why: Refusal;
@@ -706,6 +737,8 @@ export const REFUSAL_SAYS: Record<Refusal, string> = {
   "no-right": "Нет права на это",
   locked: "Занято",
   "even-hand": "Ровная рука переворачивается целиком",
+  mismatch: "Стороны не совпадают",
+  "one-side": "Одну карту здесь не перевернуть — только вытащить на стол",
   pinned: "Эту карту так нельзя",
   "chair-locked": "Стул закрыт",
   "not-top": "Брать можно только верхнюю",

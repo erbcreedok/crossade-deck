@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { deal } from "./deal.js";
 import { Table } from "./table.js";
-import { MAIN_PILE, type Person } from "./contract.js";
+import { MAIN_PILE, mergeCheck, mergeKnobs, type Person } from "./contract.js";
 
 const person = (key: string): Person => ({ key, name: key, ink: "#fff", door: "guest" });
 const seated = () => { const t = new Table(deal().slice(0, 10), "a"); t.join(person("a")); t.join(person("b")); return t; };
@@ -126,5 +126,53 @@ describe("правила стопки", () => {
     expect(rule(t, "a", { rule: "side", value: "sideways" })).toEqual({ refused: "bad" });
     expect(rule(t, "a", { rule: "holdMs", value: 50 })).toEqual({ refused: "bad" });
     expect(rule(t, "a", { rule: "holdMs", value: 9000 })).toEqual({ refused: "bad" });
+  });
+});
+
+describe("слияние: совместимость, ручки времени и режимы сторон", () => {
+  it("mergeCheck: вид совпадает всегда; сторона — по режиму", () => {
+    const up = { kind: "card", up: true } as const, down = { kind: "card", up: false } as const;
+    expect(mergeCheck(up, up, "refuse")).toBe("ok");
+    expect(mergeCheck(up, down, "refuse")).toBe("no");
+    expect(mergeCheck(up, down, "flip")).toBe("flip");
+    expect(mergeCheck({ kind: "chip", up: true }, up, "flip")).toBe("no");
+  });
+  it("ручки: значения по умолчанию, свои у стопки, стол под ними, null — вернуть наследование", () => {
+    const t = seated();
+    expect(mergeKnobs(t.seenBy("a").pileRules, MAIN_PILE)).toEqual({ drop: "refuse", hold: "refuse", delay: 250, glow: 200, blink: 1500, lift: 350 });
+    for (const [r, v] of [["delayMs", 400], ["glowMs", 100], ["liftMs", 600], ["holdMs", 900], ["holdSides", "flip"]] as const) expect(rule(t, "a", { rule: r, value: v })).toMatchObject({ ops: expect.any(Array) });
+    expect(t.act("a", { t: "pileRule", pile: "*", rule: "dropSides", value: "flip" }, 2)).toMatchObject({ ops: expect.any(Array) });
+    expect(mergeKnobs(t.seenBy("a").pileRules, MAIN_PILE)).toEqual({ drop: "flip", hold: "flip", delay: 400, glow: 100, blink: 900, lift: 600 });
+    rule(t, "a", { rule: "dropSides", value: "refuse" });
+    expect(mergeKnobs(t.seenBy("a").pileRules, MAIN_PILE).drop).toBe("refuse");
+    rule(t, "a", { rule: "dropSides", value: null });
+    expect(mergeKnobs(t.seenBy("a").pileRules, MAIN_PILE).drop).toBe("flip");
+    for (const r of ["delayMs", "glowMs", "liftMs", "holdSides"] as const) rule(t, "a", { rule: r, value: null });
+    rule(t, "a", { rule: "holdMs", value: 1500 });
+    expect(mergeKnobs(t.seenBy("a").pileRules, MAIN_PILE)).toEqual({ drop: "flip", hold: "refuse", delay: 250, glow: 200, blink: 1500, lift: 350 });
+  });
+  it("за пределами — отказ; правила стола ставит только тот, кто может стопкам", () => {
+    const t = seated();
+    expect(rule(t, "a", { rule: "delayMs", value: 99999 })).toEqual({ refused: "bad" });
+    expect(rule(t, "a", { rule: "liftMs", value: -1 })).toEqual({ refused: "bad" });
+    expect(rule(t, "a", { rule: "dropSides", value: "sideways" })).toEqual({ refused: "bad" });
+    expect(t.act("b", { t: "pileRule", pile: "*", rule: "dropSides", value: "flip" }, 3)).toEqual({ refused: "not-yours" });
+  });
+  it("сбор строгий: вся стопка одной стороны — цели, а без цели — первой собираемой", () => {
+    const t = seated();
+    const lay = (x: number, up: boolean) => {
+      const id = t.seenBy("a").piles[0]!.cards.at(-1)!.id;
+      expect(t.act("a", { t: "grab", id }, 3)).toMatchObject({ ops: expect.any(Array) });
+      expect(t.act("a", { t: "drop", id, to: { in: "felt", x, y: 0, up, angle: 0 } }, 4)).toMatchObject({ ops: expect.any(Array) });
+      if (t.seenBy("a").felt.find((f) => f.id === id)!.up !== up) t.act("a", { t: "turn", id }, 4);
+      return id;
+    };
+    const one = lay(1, true), two = lay(2, false);
+    expect(t.act("a", { t: "gather", ids: [one, two], side: "keep", to: { x: 3, y: 3, angle: 0 } }, 5)).toMatchObject({ ops: expect.any(Array) });
+    const p1 = t.seenBy("a").piles.find((p) => p.id === "p1")!;
+    expect(p1.cards.map((c) => c.up === true)).toEqual([true, true]);
+    const three = t.seenBy("a").piles[0]!.cards.at(-1)!.id;
+    expect(t.act("a", { t: "gather", ids: [three], side: "keep", to: { pile: "p1" } }, 6)).toMatchObject({ ops: expect.any(Array) });
+    expect(t.seenBy("a").piles.find((p) => p.id === "p1")!.cards.map((c) => c.up === true)).toEqual([true, true, true]);
   });
 });
