@@ -318,19 +318,21 @@ export function mergeCheck(held: MergeSide, under: MergeSide, mode: SideMode): "
   if (held.up === under.up) return "ok";
   return mode === "flip" ? "flip" : "no";
 }
-/** Режим слияния и времена стопки с учётом стола. */
-export function mergeKnobs(rules: Record<string, PileRules> | undefined, pile: string): { drop: SideMode; hold: SideMode; delay: number; glow: number; blink: number; lift: number } {
+export interface MergeKnobs { drop: SideMode; hold: SideMode; delay: number; glow: number; blink: number; lift: number }
+/** Режим слияния и времена стопки с учётом стола: своё у стопки, иначе у стола (`TABLE_PILE`), иначе по умолчанию. */
+export function mergeKnobs(rules: Record<string, PileRules> | undefined, pile: string): MergeKnobs {
   const own = rules?.[pile], all = rules?.[TABLE_PILE];
   return {
     drop: own?.dropSides ?? all?.dropSides ?? "refuse",
     hold: own?.holdSides ?? all?.holdSides ?? "refuse",
-    delay: own?.delayMs ?? MERGE_MS.delay,
-    glow: own?.glowMs ?? MERGE_MS.glow,
-    blink: own?.holdMs ?? MERGE_MS.blink,
-    lift: own?.liftMs ?? MERGE_MS.lift,
+    delay: own?.delayMs ?? all?.delayMs ?? MERGE_MS.delay,
+    glow: own?.glowMs ?? all?.glowMs ?? MERGE_MS.glow,
+    blink: own?.holdMs ?? all?.holdMs ?? MERGE_MS.blink,
+    lift: own?.liftMs ?? all?.liftMs ?? MERGE_MS.lift,
   };
 }
-/** Сколько мс держать, чтобы стопка поднялась: пределы и значение по умолчанию. */
+
+/** Сколько мс мигает свет перед подъёмом (`holdMs`): пределы и значение по умолчанию. */
 export const HOLD_MS_RANGE = { min: 300, max: 5000, def: 1500 } as const;
 
 /** Колода стола — стопка команд бота. Остальные стопки собирают игроки (`gather`), и они не вечные. */

@@ -57,7 +57,9 @@ describe("Table: переворот карты", () => {
     expect(t.act("a", { t: "turn", id: card }, 5)).toEqual({ refused: "one-side" });
     expect(t.act("a", { t: "turn", id: "c7" }, 5)).toEqual({ refused: "one-side" });
     expect(t.act("a", { t: "turnMany", ids: [card, "c7"] }, 5)).toEqual({ refused: "bad" });
+    // Карту, что держат пальцем (на весу), переворачивают как всегда.
     ops(t.act("a", { t: "grab", id: card }, 6));
+    ops(t.act("a", { t: "turn", id: card }, 6));
     ops(t.act("a", { t: "drop", id: card, to: { in: "felt", x: 0, y: 0, up: true, angle: 0 } }, 7));
     ops(t.act("a", { t: "turn", id: card }, 8));
   });

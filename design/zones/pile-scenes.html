@@ -241,18 +241,44 @@ const paints = [];
   const inp = document.createElement("input"); inp.type = "number"; inp.min = "0"; inp.max = "99"; inp.step = "1"; inp.id = "limit"; inp.style.cssText = "width:70px;background:#2a1d12;color:#f5ead0;border:0;box-shadow:0 0 0 2px #0b0704;padding:6px;font:400 13px 'Tiny5', monospace";
   inp.onchange = () => { const v = Math.max(0, Math.min(99, Math.round(Number(inp.value) || 0))); sendRule({ rule: "limit", value: v }); };
   lc.append(inp); lim.append(ll, lc); body.append(lim);
-  const hm = document.createElement("div"); hm.className = "rrow"; hm.dataset.knob = "holdMs";
-  const hl = document.createElement("div"); hl.className = "rl"; hl.textContent = "Сколько держать, чтобы стопка поднялась под палец, мс (300–5000)";
-  const hc = document.createElement("div"); hc.className = "rc";
-  const hinp = document.createElement("input"); hinp.type = "number"; hinp.min = "300"; hinp.max = "5000"; hinp.step = "100"; hinp.id = "holdms"; hinp.style.cssText = inp.style.cssText;
-  hinp.onchange = () => { const v = Math.max(300, Math.min(5000, Math.round(Number(hinp.value) || 1500))); sendRule({ rule: "holdMs", value: v }); };
-  hc.append(hinp); hm.append(hl, hc); body.append(hm);
+  // ВРЕМЕНА СЛИЯНИЯ ДЕРЖАНИЕМ — ручки: задержка до реакции, ровный свет, мигание, подъём. Пусто — значение по умолчанию.
+  const input = (id, min, max, step) => { const e = document.createElement("input"); e.type = "number"; e.min = String(min); e.max = String(max); e.step = String(step); e.id = id; e.style.cssText = inp.style.cssText; return e; };
+  const numKnob = (knob, label, id, rule, min, max, step, def, get) => {
+    const row = document.createElement("div"); row.className = "rrow"; row.dataset.knob = knob;
+    const l = document.createElement("div"); l.className = "rl"; l.textContent = label;
+    const c = document.createElement("div"); c.className = "rc";
+    const e = input(id, min, max, step);
+    e.onchange = () => sendRule({ rule, value: Math.max(min, Math.min(max, Math.round(Number(e.value) || def))) });
+    c.append(e); row.append(l, c); body.append(row);
+    paints.push(() => { if (document.activeElement !== e) e.value = String(get()); });
+  };
+  numKnob("delayMs", "Задержка до реакции: сколько держать неподвижно, пока верхняя вещь ляжет на нижнюю, мс (0–3000)", "delayms", "delayMs", 0, 3000, 50, 250, () => pileRules().delayMs ?? 250);
+  numKnob("glowMs", "Ровный свет после посадки, мс (0–3000)", "glowms", "glowMs", 0, 3000, 50, 200, () => pileRules().glowMs ?? 200);
+  numKnob("holdMs", "Мигание перед подъёмом, мс (300–5000)", "holdms", "holdMs", 300, 5000, 100, 1500, () => pileRules().holdMs);
+  numKnob("liftMs", "Подъём нижней вещи под палец, мс (0–2000)", "liftms", "liftMs", 0, 2000, 50, 350, () => pileRules().liftMs ?? 350);
+  // СТОРОНЫ ПРИ СЛИЯНИИ: что делать, когда стороны разные. На столе (для всех стопок) и на этой стопке (перекрывает стол).
+  const tableRules = () => me.state.pileRules?.["*"] ?? {};
+  const modeKnob = (knob, label, rule, onTable) => {
+    const row = document.createElement("div"); row.className = "rrow"; row.dataset.knob = knob;
+    const l = document.createElement("div"); l.className = "rl"; l.textContent = label;
+    const c = document.createElement("div"); c.className = "rc"; const bs = {};
+    for (const [v, t] of onTable ? [["refuse", "строго"], ["flip", "переворачивать"]] : [[null, "как на столе"], ["refuse", "строго"], ["flip", "переворачивать"]]) {
+      const b = document.createElement("button"); b.className = "tg"; b.dataset.mode = String(v); b.textContent = t;
+      b.onclick = () => views.blue.send({ t: "pileRule", pile: onTable ? "*" : PILE, rule, value: v }); c.append(b); bs[String(v)] = b;
+    }
+    row.append(l, c); body.append(row);
+    paints.push(() => { const cur = (onTable ? tableRules() : pileRules())[rule] ?? (onTable ? "refuse" : null); for (const k of Object.keys(bs)) bs[k].classList.toggle("on", k === String(cur)); });
+  };
+  modeKnob("tableDropSides", "На столе, при отпускании другой стороной: строго (не принимать) или принять и перевернуть удерживаемое", "dropSides", true);
+  modeKnob("tableHoldSides", "На столе, при удержании другой стороной: строго (не поднимать) или поднять и перевернуть поднимаемое", "holdSides", true);
+  modeKnob("dropSides", "На этой стопке, при отпускании другой стороной", "dropSides", false);
+  modeKnob("holdSides", "На этой стопке, при удержании другой стороной", "holdSides", false);
   const side = document.createElement("div"); side.className = "rrow"; side.dataset.knob = "side";
   const sl = document.createElement("div"); sl.className = "rl"; sl.textContent = "Какой стороной карты ложатся в стопку";
   const sc = document.createElement("div"); sc.className = "rc"; const sides = {};
-  for (const [v, t] of [["keep", "как несли"], ["down", "рубашкой вверх"], ["up", "лицом вверх"]]) { const b = document.createElement("button"); b.className = "tg"; b.dataset.side = v; b.textContent = t; b.onclick = () => sendRule({ rule: "side", value: v }); sc.append(b); sides[v] = b; }
+  for (const [v, t] of [["keep", "как у стопки"], ["down", "рубашкой вверх"], ["up", "лицом вверх"]]) { const b = document.createElement("button"); b.className = "tg"; b.dataset.side = v; b.textContent = t; b.onclick = () => sendRule({ rule: "side", value: v }); sc.append(b); sides[v] = b; }
   side.append(sl, sc); body.append(side);
-  paints.push(() => { if (document.activeElement !== inp) inp.value = String(pileRules().limit); if (document.activeElement !== hinp) hinp.value = String(pileRules().holdMs); for (const v of Object.keys(sides)) sides[v].classList.toggle("on", pileRules().side === v); });
+  paints.push(() => { if (document.activeElement !== inp) inp.value = String(pileRules().limit); for (const v of Object.keys(sides)) sides[v].classList.toggle("on", pileRules().side === v); });
 }
 // ДЕЙСТВИЯ СО СТОПКОЙ: на стенде нет настоящего худа с язычком стопки, поэтому действия — кнопками; делает тот, кого выбрали у сцены. Запрещённое — отказ и «нельзя» (если показ включён).
 {
@@ -294,7 +320,7 @@ for (const which of ["top", "first"]) {
   for (const [which, scene, eye] of [["top", top, "eye-top"], ["first", first, "eye-first"]]) scene.onTab(mountPileTap(scene, proxies[which], {}));
 }
 const scenes = { top, first };
-window.__top = top; window.__first = first; window.__me = me; window.__alia = alia; window.__ready = true;
+window.__views = views; window.__top = top; window.__first = first; window.__me = me; window.__alia = alia; window.__ready = true;
 </script>
 </body>
 </html>

@@ -17,6 +17,13 @@ await p.waitForTimeout(2000);
 const pile = () => f.evaluate(() => { const s = window.__me.state; return { piles: s.piles.map((x) => x.cards.length), felt: s.felt.length, up: s.felt.filter((c) => c.up).length }; });
 const topId = () => f.evaluate(() => window.__me.state.piles[0].cards.at(-1).id);
 const st = await pile();
+// Часы слияния: свои для проверок правил (посадка на цель — после задержки); каждый шаг прибавляет 400 мс — больше задержки (250), меньше мигания (450).
+let clk = 0;
+// Отпущенная над стопкой раньше задержки карта падает рядом (слияния нет): лишние карты с сукна (кроме двух исходных) собираем обратно в стопку.
+const orig = new Set(await f.evaluate(() => window.__me.state.felt.map((c) => c.id)));
+const tidy = async () => { await f.evaluate((keep) => { const ids = window.__me.state.felt.map((c) => c.id).filter((i) => !keep.includes(i)); if (ids.length) window.__me.send({ t: "gather", ids, side: "keep", to: { pile: window.__me.state.piles[0].id } }); }, [...orig]); await p.waitForTimeout(900); };
+const holdTo = (ms) => f.evaluate((v) => { window.__top.test.holdClock(v); window.__first.test.holdClock(v); }, ms);
+const seat = () => holdTo((clk += 400));
 // Долгое удержание поднимает стопку; на медленной машине кадры идут по полсекунды, поэтому для обычных проверок время держим большим, а в проверке удержания ставим своё.
 // Часы долгого удержания стоят (0): машина медленная, и обычные проверки с неподвижным пальцем успели бы поднять стопку сами; в проверках удержания время двигаем вручную.
 await f.evaluate(() => { window.__top.test.holdClock(0); window.__first.test.holdClock(0); });
@@ -41,6 +48,7 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
   await p.mouse.up(); await p.waitForTimeout(600);
   check(`верхнюю карту стопки можно взять в сцене «${which}»`, !!drag, drag);
 }
+await tidy();
 // цвет свечения у соседней сцены — цвет несущего
 {
   const ink = (k) => f.evaluate((kk) => window.__me.state.people.find((x) => x.key === kk).ink.replace("#", "").toLowerCase(), k);
@@ -57,6 +65,7 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
     check(`несёт ${key} сверху: в сцене от первого лица карта светится ${key}`, h && h.on && h.color === (await ink(key)), { h, want: await ink(key) });
   }
 }
+await tidy();
 // пинг и дрожание
 {
   const set = (id, v) => f.evaluate(([i, vv]) => { const e = document.getElementById(i); e.value = String(vv); e.dispatchEvent(new Event("input")); return document.getElementById(i.replace("lag-", "lagv-").replace("jit-", "jitv-")).textContent; }, [id, v]);
@@ -68,10 +77,11 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
 {
   const panels = await f.evaluate(() => ({ rules: document.querySelectorAll("#rules-body .rrow").length, chips: document.querySelectorAll('#rules-body .rrow[data-rule="take"] [data-k]').length, sides: document.querySelectorAll("#knobs-body [data-side]").length, limit: !!document.getElementById("limit"), acts: [...document.querySelectorAll("#acts-body [data-act]")].map((b) => b.dataset.act) }));
   check("панели: девять правил (в том числе «за язычок» и «скрыть язычок») с цветными флажками, предел карт, три стороны укладки, четыре действия кнопками", panels.rules === 9 && panels.chips === 4 && panels.sides === 3 && panels.limit && panels.acts.join() === "shuffle,sort,flip,move", panels);
-  const state = () => f.evaluate(() => { const s = window.__me.state, pl = s.piles[0]; return { n: pl.cards.length, top: pl.cards.at(-1)?.id, order: pl.cards.map((c) => c.id).join(), felt: s.felt.map((c) => c.id), rules: s.pileRules?.[pl.id] ?? null, topUp: pl.cards.at(-1)?.up === true }; });
+  const state = () => f.evaluate(() => { const s = window.__me.state, pl = s.piles[0]; return { n: pl.cards.length, top: pl.cards.at(-1)?.id, order: pl.cards.map((c) => c.id).join(), felt: s.felt.map((c) => c.id), feltUp: s.felt.map((c) => c.up), rules: s.pileRules?.[pl.id] ?? null, topUp: pl.cards.at(-1)?.up === true }; });
   const clickIn = (sel) => f.evaluate((q) => document.querySelector(q).click(), sel);
   const setCtl = (key) => clickIn(`#who-top [data-k="${key}"]`);
-  const drag = async (from, to, steps = 10) => { await p.mouse.move(from.x, from.y); await p.mouse.down(); await p.mouse.move(from.x + 10, from.y - 6, { steps: 3 }); await p.mouse.move(to.x, to.y, { steps }); await p.waitForTimeout(250); await p.mouse.up(); await p.waitForTimeout(900); };
+  // `seated`: подержать над целью дольше задержки (иначе вещь падает на сукно — слияния при падении нет)
+  const drag = async (from, to, steps = 10, seated = false) => { await p.mouse.move(from.x, from.y); await p.mouse.down(); await p.mouse.move(from.x + 10, from.y - 6, { steps: 3 }); await p.mouse.move(to.x, to.y, { steps }); await p.waitForTimeout(250); if (seated) { await seat(); await p.waitForTimeout(350); } await p.mouse.up(); await p.waitForTimeout(900); };
   const screen = (id) => f.evaluate((i) => window.__top.test.screenOf(i), id);
   // позиция на экране ВЕРХНЕЙ сцены, когда она перестала меняться (карты после переноса ещё возвращаются на место)
   const stableTop = async (id) => { let prev = null; for (let k = 0; k < 40; k++) { const cur = await screen(id); if (prev && Math.hypot(cur.x - prev.x, cur.y - prev.y) < 0.3) return cur; prev = cur; await p.waitForTimeout(150); } return prev; };
@@ -96,7 +106,7 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
   await clickIn('#rules-body .rrow[data-rule="put"] [data-k="green"]'); await p.waitForTimeout(300);
   st = await state();
   { const cardId = st.felt[0], from = await screen(cardId), to = await screen(st.top);
-    await drag(from, to);
+    await drag(from, to, 10, true);
     const after = await state();
     check("put: зелёный карту в стопку не кладёт — она остаётся на сукне, в стопке столько же", after.n === st.n && after.felt.includes(cardId), { n0: st.n, n1: after.n }); }
   await clickIn('#rules-body .rrow[data-rule="put"] [data-k="green"]'); await p.waitForTimeout(300);
@@ -104,14 +114,16 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
   st = await state();
   await f.evaluate((n) => { const e = document.getElementById("limit"); e.value = String(n); e.dispatchEvent(new Event("change")); }, st.n);
   await p.waitForTimeout(300);
-  { const cardId = st.felt[0], from = await screen(cardId), to = await screen(st.top);
-    await drag(from, to);
+  // карта той же стороны, что стопка, — сторона не мешает проверкам предела
+  const sameSide = (s) => s.felt[s.feltUp.findIndex((u) => u === s.topUp)] ?? s.felt[0];
+  { const cardId = sameSide(st), from = await screen(cardId), to = await screen(st.top);
+    await drag(from, to, 10, true);
     const after = await state();
     check("предел: в полную стопку карту не положить", after.n === st.n && after.felt.includes(cardId), { limit: st.n, n1: after.n });
     await f.evaluate((n) => { const e = document.getElementById("limit"); e.value = String(n + 1); e.dispatchEvent(new Event("change")); }, st.n);
     await p.waitForTimeout(300);
     const from2 = await screen(cardId), to2 = await screen((await state()).top);
-    await drag(from2, to2);
+    await drag(from2, to2, 10, true);
     const after2 = await state();
     check("предел на единицу больше — карта ложится", after2.n === st.n + 1, { n: after2.n }); }
   await f.evaluate(() => { const e = document.getElementById("limit"); e.value = "0"; e.dispatchEvent(new Event("change")); }); await p.waitForTimeout(300);
@@ -119,10 +131,17 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
   await clickIn('#knobs-body [data-side="up"]'); await p.waitForTimeout(300);
   st = await state();
   { const cardId = st.felt[0], from = await screen(cardId), to = await screen(st.top);
-    await drag(from, to);
+    await drag(from, to, 10, true);
     const after = await state();
     check("сторона «лицом вверх»: положенная карта лежит лицом вверх", after.n === st.n + 1 && after.topUp === true, { n: after.n, up: after.topUp }); }
   await clickIn('#knobs-body [data-side="keep"]'); await p.waitForTimeout(300);
+  // верх стопки теперь лежит лицом вверх (так укладывает заданная сторона): снимаем эту карту на сукно, переворачиваем и собираем обратно — стопка снова вся рубашкой, как требует инвариант
+  await f.evaluate(() => { const id = window.__me.state.piles[0].cards.at(-1).id; window.__me.send({ t: "grab", id }); window.__me.send({ t: "drop", id, to: { in: "felt", x: 3, y: 1, up: true, angle: 0 } }); });
+  await p.waitForTimeout(800);
+  await f.evaluate(() => { const c = window.__me.state.felt.at(-1); if (c.up) window.__me.send({ t: "turn", id: c.id }); });
+  await p.waitForTimeout(500);
+  await f.evaluate(() => { const c = window.__me.state.felt.at(-1); window.__me.send({ t: "gather", ids: [c.id], side: "keep", to: { pile: window.__me.state.piles[0].id } }); });
+  await p.waitForTimeout(800);
   // ЯЗЫЧОК: виден с обеих сторон — тот, что ближе к камере (ниже стопки на экране), в любой из двух сцен
   {
     const tabBelow = (which) => f.evaluate((w) => { const sc = window[w], pl = window.__me.state.piles[0], top = sc.test.screenOf(pl.cards.at(-1).id), tab = sc.test.tabs().find((t) => t.pile === pl.id); return tab ? { tab: tab.y, pile: top.y, count: sc.test.tabs().length } : null; }, which);
@@ -226,6 +245,7 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
   check("grip: зелёному нельзя брать стопку за язычок (отказ сервера), синему можно", await f.evaluate(() => { const pl = window.__me.state.piles[0].id; const refused = []; window.__alia.onRefused?.((i, why) => refused.push(why)); return true; }) && (await f.evaluate(() => { const pl = window.__me.state.piles[0].id; return window.__me.state.pileRules?.[pl]?.grip.join() === "green"; })));
   await clickIn('#rules-body .rrow[data-rule="grip"] [data-k="green"]'); await p.waitForTimeout(300);
   await setCtl("blue");
+  await tidy();
   // ДОЛГОЕ УДЕРЖАНИЕ: карту (в том числе взятую из этой же стопки) или стопку держат над стопкой — мигает подсветка, через holdMs стопка поднимается под палец.
   // Часы удержания стоят и двигаются вручную: на медленной машине настоящие секунды набегают сами, пока палец ещё едет.
   {
@@ -276,7 +296,7 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
       await f.evaluate(() => { const e = document.getElementById("lag-top"); e.value = "700"; e.dispatchEvent(new Event("input")); });
       await clock(0);
       await p.mouse.move(from.x, from.y); await p.mouse.down(); await p.mouse.move(from.x - 10, from.y - 6, { steps: 3 }); await p.mouse.move(to.x, to.y, { steps: 10 });
-      await clock(400);
+      await clock(700);
       const blink = await waitFor(async () => { const i = await info(); return i.blinking && i.pile === small.id ? i : null; });
       await clock(5000);
       // в первый миг, когда стопка несётся под пальцем, карта, что держали, уже лежит в ней (а не догоняет по столу)
@@ -301,7 +321,7 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
       const target = await stable(big.top);
       await clock(0);
       await p.mouse.move(tab.x, tab.y); await p.mouse.down(); await p.mouse.move(tab.x + 12, tab.y, { steps: 3 }); await p.mouse.move(target.x, target.y, { steps: 10 });
-      await clock(400);
+      await clock(700);
       await waitFor(async () => { const i = await info(); return i.blinking ? i : null; });
       await clock(5000);
       const merged = await waitFor(async () => { const q = await pilesOf(); return q.length === 1 && q[0].locked !== null ? q[0] : null; });
@@ -323,7 +343,7 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
       const from = await stable(mainTop.top), to = await stable(topLoose.id);
       await clock(0);
       await p.mouse.move(from.x, from.y); await p.mouse.down(); await p.mouse.move(from.x - 10, from.y - 6, { steps: 3 }); await p.mouse.move(to.x, to.y, { steps: 10 });
-      await clock(400);
+      await clock(700);
       const blink = await waitFor(async () => { const i = await info(); return i.blinking && String(i.pile).startsWith("heap:") ? i : null; });
       check("куча: над кучей мигает подсветка", !!blink, blink);
       await clock(5000);
@@ -346,6 +366,97 @@ for (const [which, scene] of [["top", "__top"], ["first", "__first"]]) {
       // собрать всё обратно в основную стопку, как было
       await f.evaluate(() => { const other = window.__me.state.piles.find((x) => x.id !== "deck"); if (other) window.__me.send({ t: "pileDrop", pile: other.id, to: { in: "deck", pile: "deck" } }); });
       await p.waitForTimeout(800);
+      await home();
+    }
+    // Д. ТАЙМЛАЙН СЛИЯНИЯ: свободна до 0,25 с; потом ложится на цель и горит ровно; с 0,45 с мигает; сдвиг пальца отменяет; отпустил до задержки — падает на сукно; ручки времени и режим сторон.
+    {
+      const sendAdmin = (intent) => f.evaluate((i) => window.__me.send(i), intent);
+      const feltOf = () => f.evaluate(() => window.__me.state.felt.map((c) => ({ id: c.id, up: c.up })));
+      const deckN = async () => (await pilesOf())[0].n;
+      // карту с верха стопки — на сукно: лицом вверх (`up`) или рубашкой
+      const lay = async (up) => {
+        await f.evaluate(([u, k]) => { const id = window.__me.state.piles[0].cards.at(-1).id; window.__me.send({ t: "grab", id }); window.__me.send({ t: "drop", id, to: { in: "felt", x: -2.6 + k * 0.5, y: 2.4, up: false, angle: 0 } }); }, [up, (await feltOf()).length]);
+        await p.waitForTimeout(700);
+        const id = (await feltOf()).at(-1).id;
+        if (up) { await sendAdmin({ t: "turn", id }); await p.waitForTimeout(500); }
+        return id;
+      };
+      // взять карту с сукна и подвести к верху стопки; часы стоят на 0
+      const bring = async (id) => {
+        // камеры в исходное: прошлый перенос у края кадра мог их сдвинуть, а положения на экране меряются после этого
+        await f.evaluate(() => { window.__top.home(); window.__first.home(); }); await p.waitForTimeout(300);
+        // карта — в чистое место слева (прошлое падение могло лечь под язычок стопки), потом камеры в исходное
+        await f.evaluate((i) => { window.__me.send({ t: "grab", id: i }); window.__me.send({ t: "drop", id: i, to: { in: "felt", x: -1.6, y: 2.4, up: false, angle: 0 } }); }, id); await p.waitForTimeout(1400);
+        await clock(0);
+        const a = await stable(id), pt = await stable((await pilesOf())[0].top);
+        await p.mouse.move(a.x, a.y); await p.mouse.down(); await p.mouse.move(a.x + 12, a.y - 6, { steps: 3 }); await p.mouse.move(pt.x, pt.y, { steps: 10 });
+        await p.waitForTimeout(300);
+        return pt;
+      };
+      const letGo = async () => { await p.mouse.up(); await p.waitForTimeout(1000); await clock(0); };
+      // ручки — через панель страницы, как у владельца
+      const setKnob = (id, v) => f.evaluate(([i, vv]) => { const e = document.getElementById(i); e.value = String(vv); e.dispatchEvent(new Event("change")); }, [id, v]);
+      const clickMode = (knob, mode) => f.evaluate(([k, m]) => document.querySelector(`#knobs-body [data-knob="${k}"] [data-mode="${m}"]`).click(), [knob, mode]);
+      const onFelt = async (id) => (await feltOf()).some((c) => c.id === id);
+      await home();
+      const same = await lay(false);
+      // 1. таймлайн: 150 мс — свободна; 300 — легла и горит ровно; 700 — мигает
+      const n00 = await deckN();
+      const pt = await bring(same);
+      await clock(150); await p.waitForTimeout(350);
+      const i1 = await info();
+      await clock(300); await p.waitForTimeout(350);
+      const i2 = await info();
+      await clock(700); await p.waitForTimeout(350);
+      const i3 = await info();
+      check("таймлайн: до 0,25 с вещь свободна (не легла, света нет); с 0,25 с легла и горит ровно; с 0,45 с мигает", !i1.seated && !i1.steady && !i1.blinking && i2.seated && i2.steady && !i2.blinking && i3.seated && i3.blinking, { i1, i2, i3 });
+      // 2. сдвиг пальца до подъёма отменяет всё: свет погас, вещь снова свободна
+      await p.mouse.move(pt.x + 40, pt.y + 6, { steps: 4 }); await p.waitForTimeout(350);
+      const i4 = await info();
+      check("сдвиг пальца до подъёма отменяет слияние: свет погас, вещь свободна", !i4.seated && !i4.steady && !i4.blinking, i4);
+      await letGo();
+      check("после отмены карта не слилась: стопка та же, карта лежит на сукне", (await onFelt(same)) && (await deckN()) === n00, { n: await deckN(), n00 });
+      // 3. отпустил до задержки — слияния при падении нет
+      const n0 = await deckN();
+      await bring(same);
+      await clock(100); await p.waitForTimeout(350);
+      await letGo();
+      check("отпустил до 0,25 с: слияния при падении нет — карта на сукне, в стопке столько же", (await onFelt(same)) && (await deckN()) === n0, { n: await deckN(), n0 });
+      // 4. отпустил после посадки — отпускание сливает
+      await bring(same);
+      await clock(300); await p.waitForTimeout(350);
+      await letGo();
+      check("отпустил после посадки (0,25 с и позже): карта слилась со стопкой", !(await onFelt(same)) && (await deckN()) === n0 + 1, { n: await deckN(), n0 });
+      // 5. ручка «задержка»: 600 мс — на 300 ещё свободна, на 700 уже легла
+      await setKnob("delayms", 600); await p.waitForTimeout(400);
+      const slow = await lay(false);
+      await bring(slow);
+      await clock(300); await p.waitForTimeout(350);
+      const s1 = await info();
+      await clock(700); await p.waitForTimeout(350);
+      const s2 = await info();
+      check("ручка «задержка» 600 мс: на 300 мс карта ещё свободна, на 700 мс легла", !s1.seated && s2.seated, { s1, s2 });
+      await letGo();
+      await setKnob("delayms", 250); await p.waitForTimeout(400);
+      // 6. стороны: лицом вверх над рубашкой — строго не ложится; в режиме «переворачивать» ложится, горит ровно (поднимать нельзя), отпускание сливает и переворачивает
+      const face = await lay(true);
+      await bring(face);
+      await clock(300); await p.waitForTimeout(350);
+      const m1 = await info();
+      check("стороны строго: открытая карта над закрытой стопкой не ложится и не горит", !m1.seated && !m1.steady, m1);
+      await letGo();
+      await clickMode("tableDropSides", "flip"); await p.waitForTimeout(400);
+      const nb = await deckN();
+      await bring(face);
+      await clock(300); await p.waitForTimeout(350);
+      const m2 = await info();
+      await clock(700); await p.waitForTimeout(350);
+      const m3 = await info();
+      check("режим «принять и перевернуть»: открытая карта легла и горит ровно (не мигает — поднимать нельзя)", m2.seated && m2.steady && m3.steady && !m3.blinking, { m2, m3 });
+      await letGo();
+      const topSide = await f.evaluate(() => window.__me.state.piles[0].cards.at(-1)?.up === true);
+      check("отпускание в режиме «перевернуть»: карта в стопке и лежит рубашкой, как вся стопка", (await deckN()) === nb + 1 && topSide === false, { n: await deckN(), nb, topSide });
+      await clickMode("tableDropSides", "refuse"); await p.waitForTimeout(400);
       await home();
     }
   }
