@@ -1,0 +1,22 @@
+server/src/table/table.ts
+  s_73107c3d804131::t_23bc805f47f254 74-75,1286-1287,1294-1300,1302,1304-1310
+  s_73107c3d804131::t_1b43fca1f92e44 1301,1303,1327,1397
+server/src/table/pileGap.test.ts
+  s_73107c3d804131::t_1b43fca1f92e44 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e1c7cc5befe6dab6e9c429bec32008bb7ae5936a",
+  "prompts": {},
+  "sessions": {
+    "s_73107c3d804131": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e85b33e2-d0a6-4a90-b535-037e1d4326e5",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
