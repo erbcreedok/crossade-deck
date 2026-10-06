@@ -1,0 +1,21 @@
+design/zones/pile-check.mjs
+  s_73107c3d804131::t_459d9f93a19737 524-529,531-543,546,548-553,555-558
+  s_73107c3d804131::t_693500ebdc2499 545,547,554
+  s_73107c3d804131::t_a82e0d5e5707fc 530,544
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d032cf8e7dda4a0d5ca186ae60b0ff5737d425b0",
+  "prompts": {},
+  "sessions": {
+    "s_73107c3d804131": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e85b33e2-d0a6-4a90-b535-037e1d4326e5",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
