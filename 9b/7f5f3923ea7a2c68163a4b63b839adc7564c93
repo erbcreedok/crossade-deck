@@ -1,0 +1,37 @@
+server/src/table/contract.ts
+  s_73107c3d804131::t_c2c804718523b2 845-846,850-851
+design/zones/pile-check.mjs
+  s_73107c3d804131::t_5e28f11f538826 436-444
+  s_73107c3d804131::t_86d47ab005e58f 414-415
+  s_73107c3d804131::t_4c16077079d606 413,416,421-422
+table3d/stack-check.mjs
+  s_73107c3d804131::t_260ae4635d6067 67
+server/src/table/table.ts
+  s_73107c3d804131::t_c2c804718523b2 61,177,741-742,771-772,803,871-876
+design/zones/standNet.js
+  s_73107c3d804131::t_81d8ae22e209e1 34
+  s_73107c3d804131::t_ddac27077a53ac 35
+table3d/flip-check.mjs
+  s_73107c3d804131::t_5a4231067dd92d 19-21,23-24
+table3d/src/scene.ts
+  s_73107c3d804131::t_ddac27077a53ac 4072-4073
+  s_73107c3d804131::t_6255b6176d7c28 2205,2368-2398,2400-2405
+  s_73107c3d804131::t_81d8ae22e209e1 2399,3159,3556,3669-3670,3720-3721,3749
+  s_73107c3d804131::t_ec59857cc24c8f 2406,3324-3326
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9b7f5f3923ea7a2c68163a4b63b839adc7564c93",
+  "prompts": {},
+  "sessions": {
+    "s_73107c3d804131": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e85b33e2-d0a6-4a90-b535-037e1d4326e5",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
