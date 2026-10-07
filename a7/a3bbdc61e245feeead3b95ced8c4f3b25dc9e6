@@ -1,0 +1,31 @@
+design/zones/pile-check.mjs
+  s_73107c3d804131::t_ec78777533c848 37-44
+design/zones/piles-scenes.html
+  s_73107c3d804131::t_0b595400451c8a 149-151,154-156
+  s_73107c3d804131::t_ec78777533c848 152-153
+design/zones/pile-scenes.html
+  s_73107c3d804131::t_0b595400451c8a 322-324,327-329
+  s_73107c3d804131::t_ec78777533c848 325-326
+design/zones/card-scenes.html
+  s_73107c3d804131::t_ec78777533c848 250-251
+  s_73107c3d804131::t_0b595400451c8a 247-249,252-254
+table3d/src/scene.ts
+  s_73107c3d804131::t_0b595400451c8a 102,1199,1203,4116-4117
+  s_73107c3d804131::t_8c49aab8ebe38d 103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a7a3bbdc61e245feeead3b95ced8c4f3b25dc9e6",
+  "prompts": {},
+  "sessions": {
+    "s_73107c3d804131": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e85b33e2-d0a6-4a90-b535-037e1d4326e5",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
