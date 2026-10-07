@@ -2151,7 +2151,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       // Над окном HUD несомую рисует сам HUD — поверх окна; здесь её нет.
       g.visible = !(drag?.moved && drag.id === id && drag.spot) && !(reseat && (fromOf.get(id)?.in === "hand" || t.onCamera));
       // Своя рука — не отбрасывает тени: она у глаза, её тень легла бы на полстола.
-      o.front.castShadow = o.back.castShadow = !t.onCamera && !t.over && !flight.has(id);
+      o.front.castShadow = o.back.castShadow = !t.onCamera && !t.over && !flight.has(id) && !inCarriedStack(id);
       if (!g.userData.placed) { g.position.copy(t.pos); g.quaternion.copy(t.quat); g.scale.setScalar(t.scale); g.userData.placed = true; g.userData.v = new THREE.Vector3(); g.userData.sv = 0; continue; }
       // ПРУЖИНА: ускорение к месту, затухание скоростью; поворот догоняет плавно.
       // Мелкими шагами: жёсткая пружина на целом кадре разлетается.
@@ -2329,6 +2329,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   })();
   const DROP_SHADOW = { opacity: 0.42, margin: 0.3, lift: 0.005 };
   /** Тень каждой несомой (и ещё падающей) карты: четыре угла карты проектируются вертикально вниз на сукно. */
+  /** Карта несомой стопки (моей или чужой в воздухе): своей солнечной тени у неё нет — стопка в воздухе отбрасывает тень, как одна карта (`flight`). */
+  const inCarriedStack = (id: string): boolean => {
+    if (drag?.moved && drag.pile && drag.members.includes(id)) return true;
+    for (const c of store.stacks) if (c.card.id === id || (c.with ?? []).some((w) => w.card.id === id)) return true;
+    return false;
+  };
   function placeDrops(): boolean {
     let moving = false;
     if (drag?.moved) flight.add(drag.id);
@@ -4105,6 +4111,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     /** Для проверок: идёт ли долгое удержание над стопкой, как далеко (0…1) и мигает ли подсветка. */
     /** Чужое слияние, которое я вижу: сколько держат и сколько свечений под целями горит в этот миг. */
     othersGlow: () => ({ merges: otherMerge.size, visible: otherGlows.filter((m) => m.visible).length, lit: otherGlows.filter((m) => m.visible && (m.material as THREE.MeshBasicMaterial).opacity > 0).length }),
+    /** Отбрасывает ли карта солнечную тень. */
+    castsShadow: (id: string) => cards.get(id)?.front.castShadow === true,
     holdInfo: () => ({ pile: merge?.key ?? null, seated: merge?.seated ?? false, steady: glowFor?.mode === "steady", blinking: glowFor?.mode === "blink", lit: glowFor?.lit ?? false, progress: glowFor?.blink ?? 0 }),
     tabHitAt: (x: number, y: number) => hitTab({ clientX: x, clientY: y } as PointerEvent),
     /** Для проверок: подменить часы долгого удержания (мс); `null` — вернуть реальные. */

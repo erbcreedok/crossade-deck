@@ -2,14 +2,15 @@ import { describe, expect, it } from "vitest";
 import { BLINK, blinkOn, mergePhase } from "./merge.js";
 import { MERGE_MS } from "./contract.js";
 
-const t = { delay: MERGE_MS.delay, glow: MERGE_MS.glow, blink: MERGE_MS.blink };
+const t = { delay: MERGE_MS.delay, glow: MERGE_MS.glow, blink: MERGE_MS.blink }, d = t.delay, g = t.glow, b = t.blink;
 
 describe("слияние держанием: фазы по времени", () => {
   it("0–0,25 с свободна; до 0,45 с ровный свет; до 1,95 с мигает; дальше подъём", () => {
-    expect([0, 100, 249].map((ms) => mergePhase(ms, t))).toEqual(["free", "free", "free"]);
-    expect([250, 300, 449].map((ms) => mergePhase(ms, t))).toEqual(["steady", "steady", "steady"]);
-    expect([450, 1000, 1949].map((ms) => mergePhase(ms, t))).toEqual(["blink", "blink", "blink"]);
-    expect([1950, 5000].map((ms) => mergePhase(ms, t))).toEqual(["lift", "lift"]);
+    expect([0, 100, d - 1].map((ms) => mergePhase(ms, t))).toEqual(["free", "free", "free"]);
+    expect([d, d + 50, d + g - 1].map((ms) => mergePhase(ms, t))).toEqual(["steady", "steady", "steady"]);
+    expect([d + g, d + g + 100, d + g + b - 1].map((ms) => mergePhase(ms, t))).toEqual(["blink", "blink", "blink"]);
+    expect([d + g + b, 5000].map((ms) => mergePhase(ms, t))).toEqual(["lift", "lift"]);
+    expect(t).toEqual({ delay: 400, glow: 300, blink: 400 });
   });
   it("все три времени — ручки: фазы сдвигаются вместе с ними", () => {
     const k = { delay: 100, glow: 500, blink: 300 };

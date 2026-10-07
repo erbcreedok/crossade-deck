@@ -296,7 +296,7 @@ export const NO_CARD_RULES: CardRules = { lift: [], move: [], turn: [], rotate: 
 export const PILE_RULES = ["take", "put", "move", "grip", "tab", "hold", "flip", "shuffle", "sort"] as const;
 export type PileRule = (typeof PILE_RULES)[number];
 export interface PileRules { take: string[]; put: string[]; move: string[]; grip: string[]; tab: string[]; hold: string[]; flip: string[]; shuffle: string[]; sort: string[]; notice: Record<PileRule, boolean>; limit: number; side: GatherSide; holdMs: number; delayMs?: number; glowMs?: number; liftMs?: number; dropSides?: SideMode; holdSides?: SideMode }
-export const NO_PILE_RULES: PileRules = { take: [], put: [], move: [], grip: [], tab: [], hold: [], flip: [], shuffle: [], sort: [], notice: { take: false, put: false, move: false, grip: false, tab: false, hold: false, flip: false, shuffle: false, sort: false }, limit: 0, side: "keep", holdMs: 1500 };
+export const NO_PILE_RULES: PileRules = { take: [], put: [], move: [], grip: [], tab: [], hold: [], flip: [], shuffle: [], sort: [], notice: { take: false, put: false, move: false, grip: false, tab: false, hold: false, flip: false, shuffle: false, sort: false }, limit: 0, side: "keep", holdMs: 400 };
 /** Предел карт в стопке, который можно задать. */
 export const PILE_LIMIT_MAX = 99;
 /**
@@ -307,7 +307,7 @@ export const SIDE_MODES = ["refuse", "flip"] as const;
 export type SideMode = (typeof SIDE_MODES)[number];
 export const TABLE_PILE = "*";
 /** Времена слияния, мс: сколько ждать до посадки, ровный свет, мигание (это `holdMs`), подъём; их пределы. */
-export const MERGE_MS = { delay: 250, glow: 200, blink: 1500, lift: 350 } as const;
+export const MERGE_MS = { delay: 400, glow: 300, blink: 400, lift: 100 } as const;
 export const MERGE_MS_RANGE = { delay: { min: 0, max: 3000 }, glow: { min: 0, max: 3000 }, lift: { min: 0, max: 2000 } } as const;
 /** Вид вещи: сливаются только вещи одного вида. Пока все вещи стола — карты. */
 export type ThingKind = "card" | "piece" | "chip";
@@ -333,7 +333,7 @@ export function mergeKnobs(rules: Record<string, PileRules> | undefined, pile: s
 }
 
 /** Сколько мс мигает свет перед подъёмом (`holdMs`): пределы и значение по умолчанию. */
-export const HOLD_MS_RANGE = { min: 300, max: 5000, def: 1500 } as const;
+export const HOLD_MS_RANGE = { min: 300, max: 5000, def: 400 } as const;
 
 /** Колода стола — стопка команд бота. Остальные стопки собирают игроки (`gather`), и они не вечные. */
 export const MAIN_PILE = "deck";

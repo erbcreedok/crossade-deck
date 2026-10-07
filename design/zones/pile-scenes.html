@@ -207,7 +207,7 @@ for (const f of document.querySelectorAll(".frame")) f.classList.add("ready");
 // ПРАВИЛА СТОПКИ: для каждого запрета — «все» и цветные флажки игроков (отмечены — им нельзя); справа — показывать ли отказ. Ставит админ (синий).
 const PILE = me.state.piles[0].id;
 const sendRule = (intent) => views.blue.send({ t: "pileRule", pile: PILE, ...intent });
-const NO_RULES = { take: [], put: [], move: [], grip: [], tab: [], hold: [], flip: [], shuffle: [], sort: [], notice: { take: false, put: false, move: false, grip: false, tab: false, hold: false, flip: false, shuffle: false, sort: false }, limit: 0, side: "keep", holdMs: 1500 };
+const NO_RULES = { take: [], put: [], move: [], grip: [], tab: [], hold: [], flip: [], shuffle: [], sort: [], notice: { take: false, put: false, move: false, grip: false, tab: false, hold: false, flip: false, shuffle: false, sort: false }, limit: 0, side: "keep", holdMs: 400 };
 const pileRules = () => me.state.pileRules?.[PILE] ?? NO_RULES;
 const paints = [];
 {
@@ -252,10 +252,10 @@ const paints = [];
     c.append(e); row.append(l, c); body.append(row);
     paints.push(() => { if (document.activeElement !== e) e.value = String(get()); });
   };
-  numKnob("delayMs", "Задержка до реакции: сколько держать неподвижно, пока верхняя вещь ляжет на нижнюю, мс (0–3000)", "delayms", "delayMs", 0, 3000, 50, 250, () => pileRules().delayMs ?? 250);
-  numKnob("glowMs", "Ровный свет после посадки, мс (0–3000)", "glowms", "glowMs", 0, 3000, 50, 200, () => pileRules().glowMs ?? 200);
-  numKnob("holdMs", "Мигание перед подъёмом, мс (300–5000)", "holdms", "holdMs", 300, 5000, 100, 1500, () => pileRules().holdMs);
-  numKnob("liftMs", "Подъём нижней вещи под палец, мс (0–2000)", "liftms", "liftMs", 0, 2000, 50, 350, () => pileRules().liftMs ?? 350);
+  numKnob("delayMs", "Задержка до реакции: сколько держать неподвижно, пока верхняя вещь ляжет на нижнюю, мс (0–3000)", "delayms", "delayMs", 0, 3000, 50, 400, () => pileRules().delayMs ?? 400);
+  numKnob("glowMs", "Ровный свет после посадки, мс (0–3000)", "glowms", "glowMs", 0, 3000, 50, 300, () => pileRules().glowMs ?? 300);
+  numKnob("holdMs", "Мигание перед подъёмом, мс (300–5000)", "holdms", "holdMs", 300, 5000, 100, 400, () => pileRules().holdMs);
+  numKnob("liftMs", "Подъём нижней вещи под палец, мс (0–2000)", "liftms", "liftMs", 0, 2000, 50, 100, () => pileRules().liftMs ?? 100);
   // СТОРОНЫ ПРИ СЛИЯНИИ: что делать, когда стороны разные. На столе (для всех стопок) и на этой стопке (перекрывает стол).
   const tableRules = () => me.state.pileRules?.["*"] ?? {};
   const modeKnob = (knob, label, rule, onTable) => {

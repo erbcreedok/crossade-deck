@@ -18,6 +18,13 @@ const pile = () => f.evaluate(() => { const s = window.__me.state; return { pile
 const topId = () => f.evaluate(() => window.__me.state.piles[0].cards.at(-1).id);
 const st = await pile();
 // Часы слияния: свои для проверок правил (посадка на цель — после задержки); каждый шаг прибавляет 400 мс — больше задержки (250), меньше мигания (450).
+// Значения по умолчанию на странице — те, что владелец выставил руками; проверки таймлайна ниже идут на фиксированных 250/200/1500/350, чтобы не зависеть от настроек.
+{
+  const defs = await f.evaluate(() => ["delayms", "glowms", "holdms", "liftms"].map((i) => document.getElementById(i).value).join());
+  check("ручки времени по умолчанию: задержка 400, свет 300, мигание 400, подъём 100 мс", defs === "400,300,400,100", defs);
+  await f.evaluate(() => { for (const [i, v] of [["delayms", 250], ["glowms", 200], ["holdms", 1500], ["liftms", 350]]) { const e = document.getElementById(i); e.value = String(v); e.dispatchEvent(new Event("change")); } });
+  await p.waitForTimeout(500);
+}
 let clk = 0;
 // Отпущенная над стопкой раньше задержки карта падает рядом (слияния нет): лишние карты с сукна (кроме двух исходных) собираем обратно в стопку.
 const orig = new Set(await f.evaluate(() => window.__me.state.felt.map((c) => c.id)));
@@ -536,7 +543,7 @@ await tidy();
       const A = await stable(a), B = await stable(b);
       await p.mouse.move(A.x, A.y); await p.mouse.down(); await p.mouse.move(A.x - 12, A.y - 6, { steps: 3 }); await p.mouse.move(B.x, B.y, { steps: 10 });
       await p.waitForTimeout(300);
-      await clock(300); await p.waitForTimeout(400);
+      await clock(450); await p.waitForTimeout(400);
       const hi = await info();
       check("карта над лежащей картой: через 0,25 с легла на неё и горит ровно", hi.seated && hi.steady && String(hi.pile).startsWith("heap:"), hi);
       await p.mouse.up(); await p.waitForTimeout(1200); await clock(0);
@@ -549,7 +556,7 @@ await tidy();
       const tab = (await f.evaluate((id) => window.__top.test.tabs().find((t) => t.pile === id), small.id)) ?? { x: 20, y: 20 }, C = await stable(c3);
       await clock(0);
       await p.mouse.move(tab.x, tab.y); await p.mouse.down(); await p.mouse.move(tab.x + 12, tab.y, { steps: 3 }); await p.mouse.move(C.x, C.y, { steps: 10 });
-      await p.waitForTimeout(300); await clock(300); await p.waitForTimeout(400);
+      await p.waitForTimeout(300); await clock(450); await p.waitForTimeout(400);
       const hs = await info();
       await p.mouse.up(); await p.waitForTimeout(1200); await clock(0);
       const afterB = await piles2();
@@ -572,6 +579,8 @@ await tidy();
       const held = await waitFor(async () => { const s2 = await snap(); return s2.piles[0]?.locked ? s2 : null; }, 12000);
       await p.waitForTimeout(600);
       const held2 = await snap();
+      const sun = await f.evaluate(([x, y]) => [window.__top.test.castsShadow(x), window.__top.test.castsShadow(y), window.__first.test.castsShadow(x), window.__first.test.castsShadow(y)], [a, b]);
+      check("несомая стопка не отбрасывает солнечную тень ни у меня, ни у соседа (только тень-указатель)", sun.every((v) => v === false), sun);
       check("карта над картой поднята удержанием: одна стопка из двух в руке, на язычке два", !!held && held2.piles.length === 1 && held2.piles[0].n === 2 && held2.piles[0].tab === 2 && held2.felt === 0, held2);
       // ведут вместе: на ходу обе карты рядом, а не одна тянет другую за собой
       let worst = 0;

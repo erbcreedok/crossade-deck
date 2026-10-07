@@ -116,7 +116,7 @@ describe("правила стопки", () => {
     rule(t, "a", { rule: "notice", who: "put", on: false });
     rule(t, "a", { rule: "limit", value: 0 });
     rule(t, "a", { rule: "side", value: "keep" });
-    rule(t, "a", { rule: "holdMs", value: 1500 });
+    rule(t, "a", { rule: "holdMs", value: 400 });
     expect(t.seenBy("b").pileRules?.[MAIN_PILE]).toBeUndefined();
   });
   it("ставит только админ, лишнее и неверное — отказ", () => {
@@ -139,7 +139,7 @@ describe("слияние: совместимость, ручки времени 
   });
   it("ручки: значения по умолчанию, свои у стопки, стол под ними, null — вернуть наследование", () => {
     const t = seated();
-    expect(mergeKnobs(t.seenBy("a").pileRules, MAIN_PILE)).toEqual({ drop: "refuse", hold: "refuse", delay: 250, glow: 200, blink: 1500, lift: 350 });
+    expect(mergeKnobs(t.seenBy("a").pileRules, MAIN_PILE)).toEqual({ drop: "refuse", hold: "refuse", delay: 400, glow: 300, blink: 400, lift: 100 });
     for (const [r, v] of [["delayMs", 400], ["glowMs", 100], ["liftMs", 600], ["holdMs", 900], ["holdSides", "flip"]] as const) expect(rule(t, "a", { rule: r, value: v })).toMatchObject({ ops: expect.any(Array) });
     expect(t.act("a", { t: "pileRule", pile: "*", rule: "dropSides", value: "flip" }, 2)).toMatchObject({ ops: expect.any(Array) });
     expect(mergeKnobs(t.seenBy("a").pileRules, MAIN_PILE)).toEqual({ drop: "flip", hold: "flip", delay: 400, glow: 100, blink: 900, lift: 600 });
@@ -148,8 +148,8 @@ describe("слияние: совместимость, ручки времени 
     rule(t, "a", { rule: "dropSides", value: null });
     expect(mergeKnobs(t.seenBy("a").pileRules, MAIN_PILE).drop).toBe("flip");
     for (const r of ["delayMs", "glowMs", "liftMs", "holdSides"] as const) rule(t, "a", { rule: r, value: null });
-    rule(t, "a", { rule: "holdMs", value: 1500 });
-    expect(mergeKnobs(t.seenBy("a").pileRules, MAIN_PILE)).toEqual({ drop: "flip", hold: "refuse", delay: 250, glow: 200, blink: 1500, lift: 350 });
+    rule(t, "a", { rule: "holdMs", value: 400 });
+    expect(mergeKnobs(t.seenBy("a").pileRules, MAIN_PILE)).toEqual({ drop: "flip", hold: "refuse", delay: 400, glow: 300, blink: 400, lift: 100 });
   });
   it("за пределами — отказ; правила стола ставит только тот, кто может стопкам", () => {
     const t = seated();
