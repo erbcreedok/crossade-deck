@@ -180,7 +180,7 @@ describe("слияние: совместимость, ручки времени 
 describe("тряска: ручки и отпадание присоединённого из пальца", () => {
   it("ручки тряски — на столе, значения по умолчанию, свои, null возвращает умолчание, за пределами отказ", () => {
     const t = seated();
-    expect(shakeKnobs(t.seenBy("a").pileRules)).toEqual({ amp: 60, turns: 6, ms: 700, nextTurns: 2, nextMs: 900, g: 15 });
+    expect(shakeKnobs(t.seenBy("a").pileRules)).toEqual({ amp: 60, turns: 6, ms: 700, nextTurns: 4, nextMs: 900, g: 15 });
     for (const [r, v] of [["shakeAmp", 60], ["shakeTurns", 6], ["shakeMs", 1000], ["nextTurns", 3], ["nextMs", 1500], ["shakeG", 20]] as const) expect(t.act("a", { t: "pileRule", pile: "*", rule: r, value: v }, 2)).toMatchObject({ ops: expect.any(Array) });
     expect(shakeKnobs(t.seenBy("a").pileRules)).toEqual({ amp: 60, turns: 6, ms: 1000, nextTurns: 3, nextMs: 1500, g: 20 });
     for (const r of ["shakeAmp", "shakeTurns", "shakeMs", "nextTurns", "nextMs", "shakeG"] as const) t.act("a", { t: "pileRule", pile: "*", rule: r, value: null }, 3);

@@ -327,7 +327,7 @@ export const SHAKE_KNOBS = {
   shakeAmp: { min: 10, max: 300, def: 60 },
   shakeTurns: { min: 0, max: 12, def: 6 },
   shakeMs: { min: 200, max: 3000, def: 700 },
-  nextTurns: { min: 1, max: 8, def: 2 },
+  nextTurns: { min: 1, max: 8, def: 4 },
   nextMs: { min: 200, max: 5000, def: 900 },
   shakeG: { min: 3, max: 60, def: 15 },
 } as const;

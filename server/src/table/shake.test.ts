@@ -39,6 +39,20 @@ describe("тряска пальцем", () => {
     const slow = wave(t, 600 + k.nextMs + 5000, 8, 80, 60);
     expect(slow).toBeGreaterThan(second);
   });
+  it("после первой тряски следующая — тоже тряска, а не дуновение: два-три взмаха не роняют, нужно меньше, чем в первый раз, но не мало", () => {
+    expect(k.nextTurns).toBeGreaterThanOrEqual(3);
+    expect(k.nextTurns).toBeLessThan(k.turns);
+    const t = new ShakeTracker();
+    expect(wave(t, 0, 10, 80, 60)).toBeGreaterThan(0);
+    // сразу за ней — лёгкое движение в пределах окна «быстрой»: ничего
+    let fired = false;
+    let x = 100;
+    t.feed(x, 50, 900, k);
+    for (let i = 1; i <= 2; i++) { x += i % 2 ? 80 : -80; fired ||= t.feed(x, 50, 900 + i * 60, k); }
+    expect(fired).toBe(false);
+    // а настоящая тряска — роняет
+    expect(wave(t, 1200, 10, 80, 60)).toBeGreaterThan(0);
+  });
   it("turns = 0 — тряска выключена", () => {
     const off = { ...k, turns: 0 };
     const t = new ShakeTracker();
