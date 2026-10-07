@@ -99,6 +99,8 @@ function canvasTexture(w: number, h: number, draw: (g: CanvasRenderingContext2D)
 }
 
 /** Лицо скрытой карты, повёрнутой ко мне: рука с пальцем, оттенков несколько — по id карты (`finger.ts`). */
+/** Рисовать ли «палец» на скрытом лице (`test.setFingers`); выключено — там рубашка. Стенды колод выключают. */
+let fingersOn = true;
 const fingerTextures: THREE.CanvasTexture[] = [];
 function fingerTexture(id: string): THREE.CanvasTexture {
   const kind = fingerKind(id);
@@ -1194,11 +1196,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   /** Лицо и рубашка по снимку: лица не видно — с обеих сторон рубашка. */
   function dress(o: CardObj, c: SeenCard, s: Snapshot): void {
     // Лицо от меня закрыто, а карта лицом ко мне (моя рука, вывернутая наружу) — не рубашка, а «палец» (`finger.ts`).
-    const backUrl = artUrl(s.rules, undefined, look), faceUrl = c.face ? artUrl(s.rules, c.face, look) : `finger:${fingerKind(c.id)}`;
+    const backUrl = artUrl(s.rules, undefined, look), faceUrl = c.face ? artUrl(s.rules, c.face, look) : fingersOn ? `finger:${fingerKind(c.id)}` : backUrl;
     const by = s.picks[c.id];
     o.ring.visible = !!by;
     if (by) (o.ring.material as THREE.LineBasicMaterial).color.set(s.people.find((p) => p.key === by)?.ink ?? "#f2c14e");
-    if (o.faceUrl !== faceUrl) { o.faceUrl = faceUrl; (o.front.material as THREE.MeshBasicMaterial).map = c.face ? texture(faceUrl, draw) : fingerTexture(c.id); (o.front.material as THREE.MeshBasicMaterial).needsUpdate = true; }
+    if (o.faceUrl !== faceUrl) { o.faceUrl = faceUrl; (o.front.material as THREE.MeshBasicMaterial).map = c.face || !fingersOn ? texture(faceUrl, draw) : fingerTexture(c.id); (o.front.material as THREE.MeshBasicMaterial).needsUpdate = true; }
     if (o.backUrl !== backUrl) { o.backUrl = backUrl; (o.back.material as THREE.MeshBasicMaterial).map = texture(backUrl, draw); (o.back.material as THREE.MeshBasicMaterial).needsUpdate = true; }
   }
   /** Стопку, что несу, держат как несомую карту: к глазу и чуть крупнее; сверху — плашмя. Лежащая на месте (посадка) остаётся как есть. */
@@ -4111,6 +4113,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     /** Для проверок: идёт ли долгое удержание над стопкой, как далеко (0…1) и мигает ли подсветка. */
     /** Чужое слияние, которое я вижу: сколько держат и сколько свечений под целями горит в этот миг. */
     othersGlow: () => ({ merges: otherMerge.size, visible: otherGlows.filter((m) => m.visible).length, lit: otherGlows.filter((m) => m.visible && (m.material as THREE.MeshBasicMaterial).opacity > 0).length }),
+    /** Палец на скрытом лице карты: включить или заменить рубашкой. */
+    setFingers: (on: boolean) => { fingersOn = on; layout(store.state); },
     /** Отбрасывает ли карта солнечную тень. */
     castsShadow: (id: string) => cards.get(id)?.front.castShadow === true,
     holdInfo: () => ({ pile: merge?.key ?? null, seated: merge?.seated ?? false, steady: glowFor?.mode === "steady", blinking: glowFor?.mode === "blink", lit: glowFor?.lit ?? false, progress: glowFor?.blink ?? 0 }),

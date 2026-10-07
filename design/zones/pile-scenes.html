@@ -319,6 +319,14 @@ for (const which of ["top", "first"]) {
   for (const [which, scene, eye] of [["top", top, "eye-top"], ["first", first, "eye-first"]]) scene.onTab(mountPileTap(scene, proxies[which], {}));
 }
 const scenes = { top, first };
+{ // «Факи»: палец на скрытом лице карты — включается тоглом; по умолчанию там рубашка.
+  let on = false;
+  for (const sc of [top, first]) sc.test.setFingers(false);
+  const b = document.createElement("button"); b.className = "tg"; b.id = "fingers"; b.style.cssText = "margin-left:8px;font:400 11px Tiny5,monospace;padding:5px 8px;background:#4a3a28;color:#f5ead0;border:0;box-shadow:0 0 0 2px #0b0704";
+  const paintF = () => { b.textContent = on ? "палец на скрытых: ДА" : "палец на скрытых: НЕТ"; b.style.background = on ? "#8a6a2c" : "#4a3a28"; };
+  b.onclick = () => { on = !on; for (const sc of [top, first]) sc.test.setFingers(on); paintF(); };
+  paintF(); document.querySelector(".plate .head").append(b);
+}
 window.__views = views; window.__top = top; window.__first = first; window.__me = me; window.__alia = alia; window.__ready = true;
 </script>
 </body>

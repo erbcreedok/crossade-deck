@@ -34,6 +34,14 @@ const seat = () => holdTo((clk += 400));
 // Долгое удержание поднимает стопку; на медленной машине кадры идут по полсекунды, поэтому для обычных проверок время держим большим, а в проверке удержания ставим своё.
 // Часы долгого удержания стоят (0): машина медленная, и обычные проверки с неподвижным пальцем успели бы поднять стопку сами; в проверках удержания время двигаем вручную.
 await f.evaluate(() => { window.__top.test.holdClock(0); window.__first.test.holdClock(0); });
+{
+  const cnt = () => f.evaluate(() => [window.__top, window.__first].map((sc) => sc.test.arts().filter((x) => String(x.face).startsWith("finger")).length));
+  const off = await cnt();
+  await f.evaluate(() => document.getElementById("fingers").click()); await p.waitForTimeout(600);
+  const on = await cnt();
+  await f.evaluate(() => document.getElementById("fingers").click()); await p.waitForTimeout(600);
+  check("палец на скрытых лицах: по умолчанию выключен (рубашка), тогл включает и выключает в обеих сценах", off.every((n) => n === 0) && on.every((n) => n > 40) && (await cnt()).every((n) => n === 0), { off, on });
+}
 check("колода из 52 карт: в стопке 50, на сукне две — одна лицом вверх, другая рубашкой вверх", st.piles.length === 1 && st.piles[0] === 50 && st.felt === 2 && st.up === 1, st);
 check("за столом сидят только два наблюдателя-камеры; у четырёх цветов нет ни стула, ни места", await f.evaluate(() => { const s = window.__me.state, colours = ["blue", "red", "green", "yellow"]; return s.chairs.length === 2 && s.chairs.every((c) => c.owner?.startsWith("eye-")) && colours.every((k) => { const pl = s.people.find((x) => x.key === k); return !!pl && !pl.seat; }); }));
 check("обе сцены нарисованы (два холста), у каждой кнопка «на весь экран»", await f.evaluate(() => document.querySelectorAll(".stage canvas").length === 2 && !!window.__full?.top && !!window.__full?.first));
