@@ -55,6 +55,8 @@ import {
   NO_PILE_RULES,
   HOLD_MS_RANGE,
   MERGE_MS_RANGE,
+  SHAKE_KNOBS,
+  type ShakeKnob,
   SIDE_MODES,
   TABLE_PILE,
   mergeKnobs,
@@ -898,6 +900,11 @@ export class Table {
       if (value === null) delete next[rule];
       else if (typeof value !== "number" || !Number.isInteger(value) || value < range.min || value > range.max) return { refused: "bad" };
       else next[rule] = value;
+    } else if (typeof rule === "string" && rule in SHAKE_KNOBS) {
+      const range = SHAKE_KNOBS[rule as ShakeKnob];
+      if (value === null) delete next[rule as ShakeKnob];
+      else if (typeof value !== "number" || !Number.isInteger(value) || value < range.min || value > range.max) return { refused: "bad" };
+      else next[rule as ShakeKnob] = value;
     } else if (rule === "dropSides" || rule === "holdSides") {
       if (value === null) delete next[rule];
       else if (!(SIDE_MODES as readonly unknown[]).includes(value)) return { refused: "bad" };
@@ -908,7 +915,7 @@ export class Table {
       const list = next[rule].filter((key) => key !== who);
       next[rule] = on ? [...list, who] : list;
     } else return { refused: "bad" };
-    const clear = PILE_RULES.every((one) => !next[one].length && !next.notice[one]) && next.limit === 0 && next.side === "keep" && next.holdMs === HOLD_MS_RANGE.def && next.delayMs === undefined && next.glowMs === undefined && next.liftMs === undefined && next.dropSides === undefined && next.holdSides === undefined;
+    const clear = PILE_RULES.every((one) => !next[one].length && !next.notice[one]) && next.limit === 0 && next.side === "keep" && next.holdMs === HOLD_MS_RANGE.def && next.delayMs === undefined && next.glowMs === undefined && next.liftMs === undefined && next.dropSides === undefined && next.holdSides === undefined && !(Object.keys(SHAKE_KNOBS) as ShakeKnob[]).some((k) => next[k] !== undefined);
     if (clear) this.pileRules.delete(pile); else this.pileRules.set(pile, next);
     return { ops: this.commit([{ t: "pileRules", pile, rules: clear ? null : next }]) };
   }

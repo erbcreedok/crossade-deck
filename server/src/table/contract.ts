@@ -295,7 +295,7 @@ export const NO_CARD_RULES: CardRules = { lift: [], move: [], turn: [], rotate: 
  */
 export const PILE_RULES = ["take", "put", "move", "grip", "tab", "hold", "flip", "shuffle", "sort"] as const;
 export type PileRule = (typeof PILE_RULES)[number];
-export interface PileRules { take: string[]; put: string[]; move: string[]; grip: string[]; tab: string[]; hold: string[]; flip: string[]; shuffle: string[]; sort: string[]; notice: Record<PileRule, boolean>; limit: number; side: GatherSide; holdMs: number; delayMs?: number; glowMs?: number; liftMs?: number; dropSides?: SideMode; holdSides?: SideMode }
+export interface PileRules { take: string[]; put: string[]; move: string[]; grip: string[]; tab: string[]; hold: string[]; flip: string[]; shuffle: string[]; sort: string[]; notice: Record<PileRule, boolean>; limit: number; side: GatherSide; holdMs: number; delayMs?: number; glowMs?: number; liftMs?: number; dropSides?: SideMode; holdSides?: SideMode; shakeAmp?: number; shakeTurns?: number; shakeMs?: number; nextTurns?: number; nextMs?: number; shakeG?: number }
 export const NO_PILE_RULES: PileRules = { take: [], put: [], move: [], grip: [], tab: [], hold: [], flip: [], shuffle: [], sort: [], notice: { take: false, put: false, move: false, grip: false, tab: false, hold: false, flip: false, shuffle: false, sort: false }, limit: 0, side: "keep", holdMs: 400 };
 /** Предел карт в стопке, который можно задать. */
 export const PILE_LIMIT_MAX = 99;
@@ -317,6 +317,25 @@ export function mergeCheck(held: MergeSide, under: MergeSide, mode: SideMode): "
   if (held.kind !== under.kind) return "no";
   if (held.up === under.up) return "ok";
   return mode === "flip" ? "flip" : "no";
+}
+/**
+ * ТРЯСКА ОТМЕНЯЕТ СЛИЯНИЕ: держишь вещь и по ошибке присоединил нижнюю — трясёшь удерживаемое, и присоединённое отпадает рядом. Ручки калибровки (на столе, стопка `TABLE_PILE`):
+ * `shakeAmp` — на сколько пикселей надо дёрнуть палец в одну сторону, чтобы это считалось взмахом; `shakeTurns` — сколько взмахов (смен направления) за `shakeMs` мс — первая тряска (0 — выключено);
+ * `nextTurns` — сколько взмахов хватает для следующей, быстрой, если она в пределах `nextMs` мс после прошлой; `shakeG` — порог встряхивания телефона, м/с².
+ */
+export const SHAKE_KNOBS = {
+  shakeAmp: { min: 10, max: 300, def: 60 },
+  shakeTurns: { min: 0, max: 12, def: 6 },
+  shakeMs: { min: 200, max: 3000, def: 700 },
+  nextTurns: { min: 1, max: 8, def: 2 },
+  nextMs: { min: 200, max: 5000, def: 900 },
+  shakeG: { min: 3, max: 60, def: 15 },
+} as const;
+export type ShakeKnob = keyof typeof SHAKE_KNOBS;
+export interface ShakeKnobs { amp: number; turns: number; ms: number; nextTurns: number; nextMs: number; g: number }
+export function shakeKnobs(rules: Record<string, PileRules> | undefined): ShakeKnobs {
+  const all = rules?.[TABLE_PILE];
+  return { amp: all?.shakeAmp ?? SHAKE_KNOBS.shakeAmp.def, turns: all?.shakeTurns ?? SHAKE_KNOBS.shakeTurns.def, ms: all?.shakeMs ?? SHAKE_KNOBS.shakeMs.def, nextTurns: all?.nextTurns ?? SHAKE_KNOBS.nextTurns.def, nextMs: all?.nextMs ?? SHAKE_KNOBS.nextMs.def, g: all?.shakeG ?? SHAKE_KNOBS.shakeG.def };
 }
 export interface MergeKnobs { drop: SideMode; hold: SideMode; delay: number; glow: number; blink: number; lift: number }
 /** Режим слияния и времена стопки с учётом стола: своё у стопки, иначе у стола (`TABLE_PILE`), иначе по умолчанию. */
@@ -583,7 +602,7 @@ export type Intent =
   /** Правило карты: `rule` — `lift`/`move`/`turn` для человека `who`, или `notice` — показывать ли отказ по запрету `who` (`lift`/`move`/`turn`), для всех. Ставит админ. */
   | { t: "cardRule"; id: string; rule: CardRule | "notice"; who?: string; on: boolean }
   /** Правило стопки: `rule` — одно из `PileRule` для человека `who`, или `notice` (показывать отказ) по правилу `who`, или `limit` / `side` со значением `value`. Ставит админ. */
-  | { t: "pileRule"; pile: string; rule: PileRule | "notice" | "limit" | "side" | "holdMs" | "delayMs" | "glowMs" | "liftMs" | "dropSides" | "holdSides"; who?: string; on?: boolean; value?: number | string | null }
+  | { t: "pileRule"; pile: string; rule: PileRule | "notice" | "limit" | "side" | "holdMs" | "delayMs" | "glowMs" | "liftMs" | "dropSides" | "holdSides" | ShakeKnob; who?: string; on?: boolean; value?: number | string | null }
   /** Повернуть карту на сукне на месте: новый угол по часовой, градусы. Брать и переносить её для этого не нужно. */
   | { t: "spin"; id: string; angle: number }
   /** Приколоть стопку — любой; открепить — только админ. */

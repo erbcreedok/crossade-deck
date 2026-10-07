@@ -17,8 +17,9 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { CSS3DObject, CSS3DRenderer } from "three/addons/renderers/CSS3DRenderer.js";
 import type { PanelWorld, WorldPlace } from "./panel.js";
 import type { CardRule, Carry, PileRule, Chair, Pile, SeenCard, Snapshot, Where } from "../../server/src/table/contract.js";
-import { CARRY_EVERY_MS, FELT_REACH, mergeKnobs, TABLE_PILE } from "../../server/src/table/contract.js";
+import { CARRY_EVERY_MS, FELT_REACH, mergeKnobs, shakeKnobs, TABLE_PILE } from "../../server/src/table/contract.js";
 import { blinkOn, MERGE_STILL, mergePhase } from "../../server/src/table/merge.js";
+import { ShakeTracker } from "../../server/src/table/shake.js";
 import { SEAT_PULL, AWAY_DEG, awayOf, BODY_EVERY_MS, gazeOf, HEAD, headOf, leftHandOf, NECK, NECK_LEN, restHead, SHOULDER_H, sideOf, shoulders3, type Body, type Point3 } from "../../server/src/table/bodies.js";
 import { HAND_CEIL, STRAIN, BACK, PEEK, peekShift, peekTight, CAM, headAt, neckNew, neckStep, pitchToCentre, TOP, topHeight, wrap, type CamMode } from "./camera.js";
 import { createGyro } from "./gyro.js";
@@ -3112,9 +3113,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     e.stopImmediatePropagation();
     startDrag(id, e);
   }, { capture: true });
-  function startDrag(id: string, e: PointerEvent): void {
+  function startDrag(id: string, e: PointerEvent, keep = false): void {
     // Карту взяли снова, пока она «садилась» после броска: посадка кончена, держит палец, а не прежнее место.
     if (landing?.id === id) landing = null;
+    if (!keep) { session = { batches: [], cur: null, falls: 0, removed: new Set() }; shaker.reset(); askMotion(); }
     const fromHand = fromOf.get(id);
     const latch0 = liftedId, fingerHand = !!fromHand && fromHand.in === "hand" && fromHand.mine && camMode === "head" && levelOn;
     liftedId = fromHand && fromHand.in === "hand" && fromHand.mine && camMode === "head" ? id : null;
@@ -3142,6 +3144,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!p || !top || !cards.has(top.id) || drag) return;
     orbit.enabled = false;
     dragTab = tab;
+    if (!lifted) { session = { batches: [], cur: null, falls: 0, removed: new Set() }; shaker.reset(); askMotion(); }
     try { renderer.domElement.setPointerCapture(e.pointerId); } catch { /* нет такого указателя */ }
     drag = { id: top.id, x: e.clientX, y: e.clientY, moved: false, hold: 0, up: !!top.up, angle: carryAngle(e.clientX, e.clientY), rot: 0, gap: null, place: null, where: null, spot: null, zone: null, fingerHand: false, latch0: null, scrubbed: false, pile, members: p.cards.map((c) => c.id) };
     trail = []; lastThrow = 0; ptrX = e.clientX; lastRotTick = 0;
@@ -3306,6 +3309,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       return;
     }
     lastFinger = { x: e.clientX, y: e.clientY };
+    // Тряску считаем по каждой точке, что пришла с кадром (на медленном экране события склеиваются), а не по одной последней.
+    if (drag.moved && drag.pile) { const pts = e.getCoalescedEvents?.() ?? []; for (const ce of pts.length ? pts : [e]) shakeFeed(ce.clientX, ce.clientY, ce.timeStamp); }
     advanceDrag(e.clientX, e.clientY, false, e.timeStamp);
   });
   /** Отпустили стопку: в руку или в другую стопку — `pileDrop` (они сливаются), на сукно — `deckMove` туда, где держали, с тем же поворотом, что был в руке. Правила приёмки — те же, что у карты. */
@@ -3341,7 +3346,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     }
     // Не легла (отпустили раньше задержки) или сторона не принимается — слияния при падении нет: вещь падает на сукно рядом.
     const seatedOn = !forcedTo && drag.moved && merge?.seated && merge.drop && !merge.key.startsWith("heap:") ? merge.key : null;
-    if (!forcedTo) dropMerge();
+    if (!forcedTo) { dropMerge(); session = null; }
     const d = drag;
     drag = null;
     // Первый палец отпустил: щёлкнуло — переворот остался (`d.up` уже сменён), не щёлкнуло — обрыв, как дроп без переворота.
@@ -3591,6 +3596,89 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const now = performance.now();
     landings.set(id, { fn, armed: now + wait, until: now + ms });
   }
+  // ——— ТРЯСКА ОТМЕНЯЕТ СЛИЯНИЕ ———
+  // За один заход удержания (пока палец не поднят) каждое слияние — «партия»: что присоединили снизу. Трясёшь удерживаемое — последняя партия отпадает рядом, под пальцем остаётся то, что было до неё;
+  // быстрая следующая тряска роняет следующую партию — вплоть до самой первой вещи. Отпустил и поднял заново — журнал пуст, стопка сшита. Порог и скорость — ручки (`shakeKnobs`).
+  type Batch = { ids: string[]; side: "up" | "down" };
+  let session: { batches: Batch[]; cur: Batch | null; falls: number; removed: Set<string> } | null = null;
+  const shaker = new ShakeTracker();
+  let motionPrev = 0, motionAsked = false;
+  /** Куда падает партия: рядом с пальцем, ниже и в стороны (каждая следующая — со своего места), и не на стопки, что лежат на столе. */
+  function fallSpot(k: number): { x: number; y: number; angle: number } {
+    const hit = onFelt({ clientX: lastFinger.x, clientY: lastFinger.y });
+    let x = (hit?.x ?? 0) + (k % 2 === 0 ? -1 : 1) * (0.75 + 0.45 * Math.floor(k / 2)), y = (hit?.z ?? 0) + 1.1;
+    const GAP = 1.5;
+    for (let pass = 0; pass < 3; pass++) for (const q of store.state.piles) {
+      if (q.id === drag?.pile || q.pose === "ring" || q.zone) continue;
+      const d = Math.hypot(x - q.x, y - q.y);
+      if (d < GAP) { const ux = d > 0.01 ? (x - q.x) / d : 1, uy = d > 0.01 ? (y - q.y) / d : 0; x = q.x + ux * GAP; y = q.y + uy * GAP; }
+    }
+    const far = Math.hypot(x, y);
+    if (far > FELT_REACH) { x = (x / far) * FELT_REACH; y = (y / far) * FELT_REACH; }
+    return { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100, angle: (k % 2 === 0 ? -6 : 6) };
+  }
+  /** Уронить последнюю партию. Нечего ронять — `false`. */
+  function undoBatch(): boolean {
+    const se = session, d = drag;
+    if (!se || !d?.moved || !d.pile) return false;
+    const pl = store.state.piles.find((x) => x.id === d.pile);
+    if (!pl) return false;
+    while (se.batches.length) {
+      const b = se.batches.pop()!;
+      const ids = pl.cards.map((c) => c.id).filter((id) => b.ids.includes(id) && id !== d.id);
+      if (!ids.length || ids.length >= pl.cards.length) continue;
+      heapRun = null;
+      se.cur = null;
+      for (const id of ids) se.removed.add(id);
+      store.send({ t: "gather", ids, side: b.side, to: fallSpot(se.falls++) });
+      feel("lay", d.id, 0.5);
+      return true;
+    }
+    return false;
+  }
+  /** Тряска состоялась — уронить последнюю партию (нечего ронять — ничего). */
+  function shaken(): void { if (session?.batches.length && drag?.moved && drag.pile) undoBatch(); else shaker.clear(); }
+  /** Палец двигается: считаем взмахи (`shake.ts`). */
+  function shakeFeed(x: number, y: number, now: number): void {
+    if (!session?.batches.length || !drag?.pile) return;
+    if (shaker.feed(x, y, now, shakeKnobs(store.state.pileRules))) shaken();
+  }
+  addEventListener("devicemotion", (e) => {
+    if (!session?.batches.length || !drag?.moved || !drag.pile) return;
+    const a = e.accelerationIncludingGravity;
+    if (!a) return;
+    const m = Math.hypot(a.x ?? 0, a.y ?? 0, a.z ?? 0), jolt = Math.abs(m - motionPrev);
+    motionPrev = m;
+    const k = shakeKnobs(store.state.pileRules);
+    if (jolt >= k.g && shaker.jolt(performance.now(), k)) shaken();
+  });
+  /** Телефон трясут не отпуская палец: датчик на iOS просит разрешения — один раз, по касанию. */
+  function askMotion(): void {
+    if (motionAsked) return;
+    motionAsked = true;
+    const dm = (globalThis as { DeviceMotionEvent?: { requestPermission?: () => Promise<string> } }).DeviceMotionEvent;
+    try { void dm?.requestPermission?.(); } catch { /* нет датчика или отказ */ }
+  }
+  addEventListener("keydown", (e) => {
+    if (e.code !== "KeyZ" || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || !drag?.moved || !session?.batches.length) return;
+    e.preventDefault();
+    undoBatch();
+  });
+  /** Стопка в пальце потеряла партию: следим, чтобы под пальцем остался тот, кто остался (стопка могла рассыпаться до одной карты). */
+  function placeSession(): void {
+    const d = drag;
+    if (!session || !d?.moved || !d.pile) return;
+    const pl = store.state.piles.find((x) => x.id === d.pile);
+    if (pl) { d.members = pl.cards.map((c) => c.id); return; }
+    // Стопки больше нет: осталась одна карта — берём её, как карту (журнал тот же).
+    const left = d.members.find((id) => !session!.removed.has(id) && store.state.felt.some((f) => f.id === id));
+    if (!left || !lastPtrEv) return;
+    clearInterval(d.hold);
+    pileHeldFn?.(null); pileOver = null; pileOverIds.clear();
+    drag = null; dragPid = null; flipTouch = null; flipDeg = 0;
+    startDrag(left, lastPtrEv, true);
+    advanceDrag(lastFinger.x, lastFinger.y, true);
+  }
   // ——— СЛИЯНИЕ ДЕРЖАНИЕМ: любую вещь (карту, стопку) наводят на другую (карту, стопку, кучу) и держат неподвижно. Вся последовательность — `merge.ts`: ———
   // нет реакции → верхняя ложится на нижнюю, ровный свет → мигание → нижняя поднимается под палец. Сдвиг пальца до подъёма всё отменяет. Времена и режимы сторон — ручки (`mergeKnobs`).
   // Отпустить, пока верхняя ещё не легла (до задержки), — слияния при падении нет: вещь ляжет на сукно рядом.
@@ -3655,7 +3743,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     return { top: { id: under.id, x: under.x, y: under.y, angle: under.angle, up: under.up }, ids, finger: lastFinger, verdict };
   }
   /** Куча поднимается по очереди: первая карта и несомая слепились в стопку под пальцем, остальные присоединяются через `HEAP.step` мс — те, что успели, идут за пальцем. */
-  let heapRun: { ids: string[]; held: string; pile: string | null; next: number; nextAt: number; side: "up" | "down" } | null = null;
+  let heapRun: { ids: string[]; held: string; need: string[]; pile: string | null; next: number; nextAt: number; side: "up" | "down" } | null = null;
   /**
    * ПОДЪЁМ ЖДЁТ, ПОКА ТО, ЧТО ДЕРЖАЛИ, ЛЯЖЕТ В СТОПКУ: иначе стопка поднималась без неё, а она догоняла по столу. Когда карта уже в стопке (ответ стола пришёл), стопка поднимается вся разом.
    */
@@ -3682,7 +3770,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const run = heapRun;
     if (!run) return false;
     if (!run.pile) {
-      const p = store.state.piles.find((x) => x.cards.some((c) => c.id === run.held));
+      const p = store.state.piles.find((x) => run.need.every((id) => x.cards.some((c) => c.id === id)));
       if (!p) return true;
       run.pile = p.id; run.nextAt = now + HEAP.step;
       if (lastPtrEv) startPileDrag(p.id, lastPtrEv, true);
@@ -3691,7 +3779,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!(drag?.pile === run.pile)) { heapRun = null; return false; }
     while (now >= run.nextAt && run.next < run.ids.length) {
       const id = run.ids[run.next++]!;
-      if (store.state.felt.some((f) => f.id === id)) store.send({ t: "gather", ids: [id], side: run.side, to: { pile: run.pile } });
+      if (store.state.felt.some((f) => f.id === id)) { store.send({ t: "gather", ids: [id], side: run.side, to: { pile: run.pile } }); session?.cur?.ids.push(id); }
       run.nextAt += HEAP.step;
     }
     if (run.next >= run.ids.length) { heapRun = null; return false; }
@@ -3724,6 +3812,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (ht) {
       // Куча: несомое ложится на самую верхнюю, всё слепляется в стопку, стопка под палец; остальные поднимутся следом по очереди.
       const held = d.id, side: "up" | "down" = (release ? ht.top.up : d.up) ? "up" : "down";
+      if (!release && session) { const b: Batch = { ids: [ht.top.id], side: ht.top.up ? "up" : "down" }; session.batches.push(b); session.cur = b; }
       if (d.pile) {
         const members = [...d.members];
         pileHeldFn?.(null); pileOver = null; pileOverIds.clear();
@@ -3737,13 +3826,14 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         store.send({ t: "gather", ids: [ht.top.id, held], side, to: { x: ht.top.x, y: ht.top.y, angle: ht.top.angle } });
       }
       // Отпустили — слепились и легли; держат — стопка поднимается под палец, остальные карты кучи идут следом.
-      if (!release) heapRun = { ids: ht.ids.filter((id) => id !== ht.top.id), held, pile: null, next: 0, nextAt: 0, side };
+      if (!release) heapRun = { ids: ht.ids.filter((id) => id !== ht.top.id), held, need: [ht.top.id, held], pile: null, next: 0, nextAt: 0, side };
       rise = null;
       return true;
     }
     if (!pt) return false;
     // Сторона нижней другая, а режим «поднять и перевернуть поднимаемое»: сперва переворачиваем стопку-цель, потом кладём.
-    const under = store.state.piles.find((p) => p.id === pt.pile)?.cards.at(-1)?.up === true;
+    const tp = store.state.piles.find((p) => p.id === pt.pile), under = tp?.cards.at(-1)?.up === true;
+    if (session && tp) { const own = new Set(d.pile ? d.members : [d.id]), lower = tp.cards.map((c) => c.id).filter((id) => !own.has(id)); if (lower.length) session.batches.push({ ids: lower, side: under ? "up" : "down" }); }
     if (under !== d.up) store.send({ t: "deckDo", pile: pt.pile, how: "flip" });
     const card = d.id;
     forcedTo = { in: "deck", pile: pt.pile };
@@ -3753,6 +3843,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   }
   function placeHold(real: number): boolean {
     const now = holdVirtual ?? real;
+    placeSession();
     if (placeLift()) { merge = null; return true; }
     if (placeHeapRun(now)) { merge = null; return true; }
     const pt = holdTargetPile(), ht = pt ? null : holdTargetHeap();
@@ -4117,6 +4208,9 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     setFingers: (on: boolean) => { fingersOn = on; layout(store.state); },
     /** Отбрасывает ли карта солнечную тень. */
     castsShadow: (id: string) => cards.get(id)?.front.castShadow === true,
+    /** Журнал слияний этого захода: сколько партий можно уронить тряской. */
+    undoInfo: () => ({ batches: session?.batches.length ?? 0, ids: session?.batches.map((b) => b.ids.length) ?? [] }),
+    undoNow: () => undoBatch(),
     holdInfo: () => ({ pile: merge?.key ?? null, seated: merge?.seated ?? false, steady: glowFor?.mode === "steady", blinking: glowFor?.mode === "blink", lit: glowFor?.lit ?? false, progress: glowFor?.blink ?? 0 }),
     tabHitAt: (x: number, y: number) => hitTab({ clientX: x, clientY: y } as PointerEvent),
     /** Для проверок: подменить часы долгого удержания (мс); `null` — вернуть реальные. */

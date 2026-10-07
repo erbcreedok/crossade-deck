@@ -598,6 +598,43 @@ await tidy();
       await f.evaluate(() => { const other = window.__me.state.piles.find((x) => x.id !== "deck"); if (other) window.__me.send({ t: "pileDrop", pile: other.id, to: { in: "deck", pile: "deck" } }); }); await p.waitForTimeout(900);
       await home();
     }
+    // И. ТРЯСКА ОТМЕНЯЕТ СЛИЯНИЕ: за один заход удержания присоединил две вещи; тряска роняет последнюю, быстрая следующая — предпоследнюю, под пальцем остаётся первая.
+    {
+      const place = (x, y) => f.evaluate(([xx, yy]) => { const id = window.__me.state.piles[0].cards.at(-1).id; window.__me.send({ t: "grab", id }); window.__me.send({ t: "drop", id, to: { in: "felt", x: xx, y: yy, up: false, angle: 0 } }); }, [x, y]);
+      const snapI = () => f.evaluate(() => ({ piles: window.__me.state.piles.filter((q) => q.id !== "deck").map((q) => q.cards.length), felt: window.__me.state.felt.map((c) => [c.id, +c.x.toFixed(2), +c.y.toFixed(2)]), undo: window.__top.test.undoInfo(), dragging: window.__top.test.draggingId(), carrying: window.__top.test.pileCarrying() }));
+      const zig = async (cx, cy, n, amp = 70) => { for (let k = 0; k < n; k++) { await p.mouse.move(cx + (k % 2 === 0 ? amp : -amp), cy); await p.waitForTimeout(380); } await p.mouse.move(cx, cy); };
+      const setKnob = (id, v) => f.evaluate(([i, vv]) => { const e = document.getElementById(i); e.value = String(vv); e.dispatchEvent(new Event("change")); }, [id, v]);
+      await home(); await place(2.4, 0.9); await p.waitForTimeout(700); await place(-2.4, 0.9); await p.waitForTimeout(700); await place(-2.6, -1.0); await p.waitForTimeout(900);
+      const [a, b, c3] = await f.evaluate(() => window.__me.state.felt.map((c) => c.id));
+      await f.evaluate(() => { window.__top.home(); window.__first.home(); }); await p.waitForTimeout(1500);
+      await clock(0);
+      const A = await stable(a), B = await stable(b), C = await stable(c3);
+      await p.mouse.move(A.x, A.y); await p.mouse.down(); await p.mouse.move(A.x - 12, A.y - 6, { steps: 3 }); await p.mouse.move(B.x, B.y, { steps: 10 });
+      await p.waitForTimeout(400); await clock(20000);
+      await waitFor(async () => (await snapI()).carrying, 12000);
+      await p.waitForTimeout(500);
+      // второе слияние в том же заходе: с лежащей картой C
+      await p.mouse.move(C.x, C.y, { steps: 12 }); await p.waitForTimeout(500); await clock(60000);
+      await waitFor(async () => { const s2 = await snapI(); return s2.undo.batches === 2 && s2.carrying ? s2 : null; }, 15000);
+      await p.waitForTimeout(1500);
+      const merged = await snapI();
+      check("за один заход удержания слились две вещи: одна стопка из трёх в руке, в журнале две партии", merged.piles.join() === "3" && merged.undo.batches === 2 && !!merged.carrying, merged);
+      // Ctrl+Z (комп): последняя партия — карта C — отпадает на сукно, под пальцем стопка из двух (сам счёт взмахов проверен таблицей в shake.test.ts)
+      await p.keyboard.press("Control+KeyZ");
+      const one = await waitFor(async () => { const s2 = await snapI(); return s2.undo.batches === 1 && s2.felt.some((x) => x[0] === c3) ? s2 : null; }, 10000);
+      check("отмена слияния: последняя присоединённая вещь отпала на сукно, под пальцем стопка из двух", !!one && one.piles.join() === "2" && !!one.carrying, one);
+      // следующая: под пальцем снова первая карта как одиночная, остальные лежат на сукне
+      await p.keyboard.press("Control+KeyZ");
+      const base = await waitFor(async () => { const s2 = await snapI(); return s2.undo.batches === 0 && s2.piles.length === 0 && s2.dragging === a ? s2 : null; }, 10000);
+      check("следующая отмена роняет следующую партию: под пальцем снова первая карта, остальные лежат на сукне", !!base && base.felt.length === 3, base);
+      const lands = base ? base.felt.filter((x) => x[0] !== a) : [];
+      check("упавшие не лежат друг на друге: каждая на своём месте рядом", lands.length === 2 && Math.hypot(lands[0][1] - lands[1][1], lands[0][2] - lands[1][2]) > 0.5, lands);
+      await clock(0); await p.mouse.up(); await p.waitForTimeout(1200);
+      const after = await snapI();
+      check("отпустил: журнал слияний пуст — трясти уже нечего", after.undo.batches === 0, after.undo);
+      await f.evaluate(() => { const ids = window.__me.state.felt.map((c) => c.id); window.__me.send({ t: "gather", ids, side: "keep", to: { pile: "deck" } }); }); await p.waitForTimeout(900);
+      await home();
+    }
   }
   // действия кнопками: перемешать
   await setCtl("blue");

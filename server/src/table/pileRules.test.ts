@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { deal } from "./deal.js";
 import { Table } from "./table.js";
-import { MAIN_PILE, mergeCheck, mergeKnobs, type Person } from "./contract.js";
+import { MAIN_PILE, mergeCheck, mergeKnobs, shakeKnobs, type Person } from "./contract.js";
 
 const person = (key: string): Person => ({ key, name: key, ink: "#fff", door: "guest" });
 const seated = () => { const t = new Table(deal().slice(0, 10), "a"); t.join(person("a")); t.join(person("b")); return t; };
@@ -174,5 +174,32 @@ describe("слияние: совместимость, ручки времени 
     const three = t.seenBy("a").piles[0]!.cards.at(-1)!.id;
     expect(t.act("a", { t: "gather", ids: [three], side: "keep", to: { pile: "p1" } }, 6)).toMatchObject({ ops: expect.any(Array) });
     expect(t.seenBy("a").piles.find((p) => p.id === "p1")!.cards.map((c) => c.up === true)).toEqual([true, true, true]);
+  });
+});
+
+describe("тряска: ручки и отпадание присоединённого из пальца", () => {
+  it("ручки тряски — на столе, значения по умолчанию, свои, null возвращает умолчание, за пределами отказ", () => {
+    const t = seated();
+    expect(shakeKnobs(t.seenBy("a").pileRules)).toEqual({ amp: 60, turns: 6, ms: 700, nextTurns: 2, nextMs: 900, g: 15 });
+    for (const [r, v] of [["shakeAmp", 60], ["shakeTurns", 6], ["shakeMs", 1000], ["nextTurns", 3], ["nextMs", 1500], ["shakeG", 20]] as const) expect(t.act("a", { t: "pileRule", pile: "*", rule: r, value: v }, 2)).toMatchObject({ ops: expect.any(Array) });
+    expect(shakeKnobs(t.seenBy("a").pileRules)).toEqual({ amp: 60, turns: 6, ms: 1000, nextTurns: 3, nextMs: 1500, g: 20 });
+    for (const r of ["shakeAmp", "shakeTurns", "shakeMs", "nextTurns", "nextMs", "shakeG"] as const) t.act("a", { t: "pileRule", pile: "*", rule: r, value: null }, 3);
+    expect(t.seenBy("a").pileRules?.["*"]).toBeUndefined();
+    expect(t.act("a", { t: "pileRule", pile: "*", rule: "shakeAmp", value: 5 }, 4)).toEqual({ refused: "bad" });
+    expect(t.act("a", { t: "pileRule", pile: "*", rule: "shakeTurns", value: 99 }, 4)).toEqual({ refused: "bad" });
+  });
+  it("присоединённые карты можно вынуть из стопки в пальце: они ложатся новой стопкой или картой, в пальце остаётся остальное", () => {
+    const t = seated();
+    const deck = t.seenBy("a").piles[0]!.cards;
+    const ids = [deck[0]!.id, deck[1]!.id, deck[2]!.id];
+    expect(t.act("a", { t: "gather", ids, side: "keep", to: { x: 3, y: 3, angle: 0 } }, 5)).toMatchObject({ ops: expect.any(Array) });
+    const p1 = t.seenBy("a").piles.find((p) => p.id === "p1")!;
+    expect(t.act("a", { t: "grip", pile: "p1" }, 6)).toMatchObject({ ops: expect.any(Array) });
+    expect(t.act("a", { t: "gather", ids: [p1.cards[0]!.id, p1.cards[1]!.id], side: "keep", to: { x: -3, y: 2, angle: 0 } }, 7)).toMatchObject({ ops: expect.any(Array) });
+    const piles = t.seenBy("a").piles;
+    // В пальце осталась одна карта — это уже не стопка: она лежит на сукне, а отпавшие две — новой стопкой.
+    expect(piles.find((p) => p.id === "p1")).toBeUndefined();
+    expect(t.seenBy("a").felt.map((c) => c.id)).toContain(p1.cards[2]!.id);
+    expect(piles.find((p) => p.id === "p2")!.cards.map((c) => c.id)).toEqual([p1.cards[0]!.id, p1.cards[1]!.id]);
   });
 });
