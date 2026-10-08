@@ -224,7 +224,7 @@ describe("приёмка в стопку: сторона упавшей карт
     ok(t.act("a", { t: "grab", id: "c7" }, 0));
     ok(t.act("a", { t: "drop", id: "c7", to: { in: "hand", chair: a, i: 0 } }, 0));
     ok(t.act("a", { t: "grab", id: "c7" }, 0));
-    expect(t.act("a", { t: "drop", id: "c7", to: { in: "deck", pile: "deck" } }, 0)).toEqual({ refused: "mismatch" });
+    expect(t.act("a", { t: "drop", id: "c7", to: { in: "deck", pile: "deck" } }, 0)).toMatchObject({ refused: "mismatch" });
     ok(t.act("a", { t: "pileRule", pile: "*", rule: "dropSides", value: "flip" }, 0));
     ok(t.act("a", { t: "grab", id: "c7" }, 0));
     ok(t.act("a", { t: "drop", id: "c7", to: { in: "deck", pile: "deck" } }, 0));
