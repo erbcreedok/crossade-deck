@@ -4020,6 +4020,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       return { in: "hand", chair: chair.id, i: xs.filter((q) => q < e.clientX).length };
     }
     const at = onFelt(e) ?? new THREE.Vector3();
+    // СЛОЖЕННАЯ РУКА (лежит стопкой на столе у моего места) — как стопка: карту над ней кладут в руку, чаша «В руку» не нужна (она может быть за краем стола).
+    if (chair && !chair.reject && chair.pose.tuck && chair.hand.length > 0) {
+      const spot = stackSpot(chair), topH = 0.03 + chair.hand.length * PILE_STEP, c = project(new THREE.Vector3(spot.x, topH, spot.y)), edge = project(new THREE.Vector3(spot.x + CARD_H / 2, topH, spot.y));
+      if (Math.hypot(x - c.x, y - c.y) < Math.max(40, Math.hypot(edge.x - c.x, edge.y - c.y) * 2) || Math.hypot(spot.x - at.x, spot.y - at.z) < 1.1) return { in: "hand", chair: chair.id, i: chair.hand.length };
+    }
     // В зону бесхозного стула — в его руку (в конец стопки); занятый стул зону не принимает.
     for (const c of store.state.chairs) {
       if (c.id === chair?.id || !handTakes(c)) continue;
