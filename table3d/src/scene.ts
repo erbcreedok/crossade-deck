@@ -2421,10 +2421,11 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     let used = 0;
     for (const [id, m] of otherMerge) {
       if (!store.carries.some((c) => c.id === id)) { otherMerge.delete(id); continue; }
-      const heap = m.at.startsWith("heap:"), k = mergeKnobs(store.state.pileRules, heap ? TABLE_PILE : m.at), el = now - m.since, phase = mergePhase(el, k);
+      const heap = m.at.startsWith("heap:"), chairKey = m.at.startsWith("chair:"), k = mergeKnobs(store.state.pileRules, heap || chairKey ? TABLE_PILE : m.at), el = now - m.since, phase = mergePhase(el, k);
       if (phase === "free") continue;
       let pos: THREE.Vector3 | null = null, angle = 0;
-      if (heap) { const f = store.state.felt.find((x) => x.id === m.at.slice(5)); if (f) { pos = new THREE.Vector3(f.x, 0.004, f.y); angle = f.angle; } }
+      if (chairKey) { const ch = store.state.chairs.find((x) => x.id === m.at.slice(6)); if (ch) { const sp = stackSpot(ch); pos = new THREE.Vector3(sp.x, 0.004, sp.y); angle = ((-ch.angle % 360) + 360) % 360; } }
+      else if (heap) { const f = store.state.felt.find((x) => x.id === m.at.slice(5)); if (f) { pos = new THREE.Vector3(f.x, 0.004, f.y); angle = f.angle; } }
       else {
         const p = store.state.piles.find((x) => x.id === m.at), base = p ? cards.get(p.cards[0]?.id ?? "") : undefined;
         if (p && base?.group.visible) { base.group.updateMatrixWorld(true); const at = base.group.getWorldPosition(new THREE.Vector3()); pos = new THREE.Vector3(at.x, 0.004, at.z); angle = pileAngle(p); }
@@ -3189,6 +3190,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (d.gap !== null || d.spot) return null;
     if (merge?.seated && pileSnap) {
       if (pile && pile.pose !== "ring" && merge.key === pile.id) return lying(pile.x, pile.y, 0.25 + pile.cards.length * PILE_STEP, pileAngle(pile), d.up);
+      const chair = merge.key.startsWith("chair:") ? store.state.chairs.find((c) => c.id === merge!.key.slice(6)) : undefined;
+      if (chair) { const sp = stackSpot(chair); return lying(sp.x, sp.y, 0.25 + chair.hand.length * PILE_STEP, ((-chair.angle % 360) + 360) % 360, d.up); }
       const top = merge.key.startsWith("heap:") ? store.state.felt.find((f) => f.id === merge!.key.slice(5)) : undefined;
       if (top) return lying(top.x, top.y, 0.05 + (store.state.felt.findIndex((f) => f.id === top.id) + 1) * FELT_STEP + 0.02, top.angle, d.up);
     }
@@ -3721,6 +3724,15 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     const forced = (store.state.pileRules?.[pile.id]?.side ?? "keep") !== "keep";
     return { pile: pile.id, finger, verdict: forced ? { seat: true, lift: true, drop: true } : verdictOf(drag!.up, pile.cards.at(-1)?.up === true, mergeKnobs(store.state.pileRules, pile.id)) };
   }
+  /** Над чьей-то рукой, что лежит стопкой на столе (хозяина нет, замка нет): её принимающая зона под пальцем — как стопка. */
+  function holdTargetChair(): { chair: Chair; finger: { x: number; y: number }; verdict: Verdict } | null {
+    if (store.replay?.on || !drag?.moved) return null;
+    const w = drag.where;
+    if (!w || w.in !== "hand" || w.chair === myChair()?.id) return null;
+    const ch = store.state.chairs.find((c) => c.id === w.chair);
+    if (!ch || ch.owner || ch.croupier || ch.hand.length === 0 || !handTakes(ch)) return null;
+    return { chair: ch, finger: lastFinger, verdict: verdictOf(drag.up, ch.hand.at(-1)?.up === true, mergeKnobs(store.state.pileRules, TABLE_PILE)) };
+  }
   /**
    * КУЧА НА СУКНЕ: несомую вещь держат над картами, что лежат на столе (не стопкой): под пальцем самая верхняя из них, а «куча» — все, кто лежит на ней и на тех, что ей касаются.
    * Сверху вниз, как их поднимать: сначала самая верхняя. Поднимаются только те, что совместимы по стороне (при режиме «не поднимать»); остальные лежат и не мигают.
@@ -3752,10 +3764,26 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
    * ПОДЪЁМ ЖДЁТ, ПОКА ТО, ЧТО ДЕРЖАЛИ, ЛЯЖЕТ В СТОПКУ: иначе стопка поднималась без неё, а она догоняла по столу. Когда карта уже в стопке (ответ стола пришёл), стопка поднимается вся разом.
    */
   let liftWait: { pile: string; card: string; ev: PointerEvent; until: number; ms: number } | null = null;
+  /** Рука-стопка приняла карту — как только она там, поднимаем всю стопку под палец (тот же жест, что тяга за язычок). */
+  let chairWait: { chair: string; count: number; ev: PointerEvent; until: number } | null = null;
   /** Стопка только что поднята: пока идёт подъём (`liftMs`), её карты едут под палец с этим временем, а не с обычной пружиной. */
   let rise: { pile: string; until: number; k: number } | null = null;
   const riseOf = (pile: string, ms: number): void => { rise = ms > 0 ? { pile, until: performance.now() + ms, k: (4750 / ms) ** 2 } : null; };
   function placeLift(): boolean {
+    const cw = chairWait;
+    if (cw) {
+      const ch = store.state.chairs.find((c) => c.id === cw.chair);
+      if (ch && ch.hand.length >= cw.count) {
+        chairWait = null;
+        const ev = lastPtrEv ?? cw.ev;
+        chairStackDown(cw.chair, ev);
+        // Палец уже стоит: сдвигаем «начало» тяги, чтобы стопка пошла за ним сразу, а не после восьми пикселей.
+        if (chairStack) { chairStack.x = ev.clientX - 20; window.dispatchEvent(new PointerEvent("pointermove", { pointerId: ev.pointerId, clientX: ev.clientX, clientY: ev.clientY, bubbles: true })); }
+        return true;
+      }
+      if (performance.now() > cw.until) chairWait = null;
+      return true;
+    }
     const w = liftWait;
     if (!w) return false;
     const p = store.state.piles.find((x) => x.id === w.pile);
@@ -3809,10 +3837,18 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (merge && Math.hypot(x - merge.at.x, y - merge.at.y) > MERGE_STILL) dropMerge();
   }
   /** Слияние состоялось: нижняя вещь поднимается под палец, верхняя уже на ней. Режим сторон, если они разные, решает «поднять и перевернуть поднимаемое». */
-  function mergeNow(pt: NonNullable<ReturnType<typeof holdTargetPile>> | null, ht: NonNullable<ReturnType<typeof holdTargetHeap>> | null, ms: number, release = false): boolean {
+  function mergeNow(pt: NonNullable<ReturnType<typeof holdTargetPile>> | null, ht: NonNullable<ReturnType<typeof holdTargetHeap>> | null, ms: number, release = false, ct: NonNullable<ReturnType<typeof holdTargetChair>> | null = null): boolean {
     const ev = lastPtrEv, d = drag;
     dropMerge();
     if (!ev || !d) return false;
+    if (ct) {
+      // Чужая рука-стопка: вещь ложится в неё (в конец), потом вся стопка поднимается под палец.
+      const n = ct.chair.hand.length, moving = d.pile ? d.members.length : 1;
+      forcedTo = { in: "hand", chair: ct.chair.id, i: n };
+      try { end(ev); } finally { forcedTo = null; }
+      chairWait = { chair: ct.chair.id, count: n + moving, ev, until: performance.now() + 3000 };
+      return true;
+    }
     if (ht) {
       // Куча: несомое ложится на самую верхнюю, всё слепляется в стопку, стопка под палец; остальные поднимутся следом по очереди.
       const held = d.id, side: "up" | "down" = (release ? ht.top.up : d.up) ? "up" : "down";
@@ -3850,21 +3886,22 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     placeSession();
     if (placeLift()) { merge = null; return true; }
     if (placeHeapRun(now)) { merge = null; return true; }
-    const pt = holdTargetPile(), ht = pt ? null : holdTargetHeap();
-    const key = pt ? pt.pile : ht ? `heap:${ht.top.id}` : null, verdict = pt?.verdict ?? ht?.verdict ?? null;
+    const pt = holdTargetPile(), ct = pt ? null : holdTargetChair(), ht = pt || ct ? null : holdTargetHeap();
+    const key = pt ? pt.pile : ct ? `chair:${ct.chair.id}` : ht ? `heap:${ht.top.id}` : null, verdict = pt?.verdict ?? ct?.verdict ?? ht?.verdict ?? null;
     if (!key || !verdict || !verdict.seat) { dropMerge(); return false; }
-    const finger = pt?.finger ?? ht!.finger, k = mergeKnobs(store.state.pileRules, pt ? pt.pile : TABLE_PILE);
+    const finger = pt?.finger ?? ct?.finger ?? ht!.finger, k = mergeKnobs(store.state.pileRules, pt ? pt.pile : TABLE_PILE);
     if (!merge || merge.key !== key) { dropMerge(); merge = { key, since: now, at: { ...finger }, seated: false, drop: verdict.drop, lift: verdict.lift }; carriedAt = 0; pushCarry(); }
     merge.drop = verdict.drop; merge.lift = verdict.lift;
     const el = now - merge.since, phase = mergePhase(el, k), seated = phase !== "free";
     if (seated !== merge.seated) { merge.seated = seated; refreshHeld(); }
     if (!seated) { if (glowFor?.mode !== undefined) glowFor = null; return true; }
-    const spot = ht ? { x: ht.top.x, y: ht.top.y, angle: ht.top.angle } : undefined, lit = blinkOn(el - k.delay - k.glow, k.blink);
+    const cspot = ct ? stackSpot(ct.chair) : null;
+    const spot = ht ? { x: ht.top.x, y: ht.top.y, angle: ht.top.angle } : cspot ? { x: cspot.x, y: cspot.y, angle: ((-ct!.chair.angle % 360) + 360) % 360 } : undefined, lit = blinkOn(el - k.delay - k.glow, k.blink);
     // Мигает только то, что поднимется: если поднимать нельзя (режим сторон), горит ровно до отпускания.
     const blinking = phase !== "steady" && verdict.lift;
     glowFor = { pile: pt ? pt.pile : "", level: "hot", mode: blinking ? "blink" : "steady", lit, ...(blinking ? { blink: Math.min(1, (el - k.delay - k.glow) / Math.max(1, k.blink)) } : {}), ...(spot ? { spot } : {}) };
     if (phase !== "lift" || !verdict.lift) return true;
-    return mergeNow(pt, ht, k.lift);
+    return mergeNow(pt, ht, k.lift, false, ct);
   }
   function placeLandings(now: number): boolean {
     for (const [id, w] of [...landings]) {
