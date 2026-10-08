@@ -1162,8 +1162,7 @@ export class Table {
     const packSide = pack.length > 0 && pack.every((up) => up === pack[0]) ? pack[0] : undefined;
     const pileSide = into && !auto && target.in === "deck" ? this.pileRules.get(target.pile)?.side : undefined;
     // СЛИЯНИЕ СТОРОНАМИ: в стопку, что вся одной стороной, карта другой стороны не ложится (строго) — или ложится перевёрнутой, как скажет настройка.
-    // Карта из руки лежит лицом к хозяину — это взгляд, а не сторона на столе: в стопку она ложится стороной стопки и не отказывается.
-    if (into && !auto && target.in === "deck" && packSide !== undefined && from.in !== "hand" && !(from.in === "deck" && from.pile === target.pile) && pileSide !== "up" && pileSide !== "down") {
+    if (into && !auto && target.in === "deck" && packSide !== undefined && !(from.in === "deck" && from.pile === target.pile) && pileSide !== "up" && pileSide !== "down") {
       const held = this.sideOf(by, id, from);
       if (held !== packSide && mergeKnobs(this.pileRulesObj(), target.pile).drop === "refuse") return { refused: "mismatch" };
     }
