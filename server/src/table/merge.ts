@@ -22,14 +22,14 @@ export function mergePhase(el: number, t: Pick<MergeKnobs, "delay" | "glow" | "b
 }
 
 /**
- * Горит ли свет в мигании, `at` мс после его начала из `blink` мс. Начинается с паузы; частота растёт от `BLINK.hz0` до `BLINK.hz1`, доля «горит» — от `BLINK.duty0` до `BLINK.duty1`:
- * сначала горит реже, чем не горит, потом чаще.
+ * Горит ли свет в мигании, `at` мс после его начала из `blink` мс. Начинается с паузы; вспышки учащаются, и доля «горит» растёт от `BLINK.duty0` до `BLINK.duty1`:
+ * сначала горит реже, чем не горит, потом чаще. Вспышек не меньше `BLINK.min` даже в коротком мигании (400 мс), иначе его не видно; в длинном — по одной на `BLINK.perMs` мс.
  */
-export const BLINK = { hz0: 2, hz1: 8, duty0: 0.25, duty1: 0.85 } as const;
+export const BLINK = { min: 3, perMs: 180, duty0: 0.3, duty1: 0.85 } as const;
 export function blinkOn(at: number, blink: number): boolean {
   if (blink <= 0) return false;
-  const t = Math.max(0, Math.min(at, blink)) / 1000, total = blink / 1000, k = t / total;
-  const phase = BLINK.hz0 * t + ((BLINK.hz1 - BLINK.hz0) * t * t) / (2 * total);
+  const k = Math.max(0, Math.min(at, blink)) / blink, cycles = Math.max(BLINK.min, Math.round(blink / BLINK.perMs));
+  const phase = cycles * k * (0.55 + 0.45 * k);
   const duty = BLINK.duty0 + (BLINK.duty1 - BLINK.duty0) * k;
   return phase - Math.floor(phase) >= 1 - duty;
 }

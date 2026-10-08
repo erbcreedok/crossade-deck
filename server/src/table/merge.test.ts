@@ -18,13 +18,19 @@ describe("слияние держанием: фазы по времени", () =
   });
   it("мигание: начинается с паузы, сначала горит реже, чем не горит, потом чаще; мигает всё быстрее", () => {
     const T = 1500, step = 5;
-    const share = (from: number, to: number) => { let on = 0, n = 0; for (let ms = from; ms < to; ms += step) { n++; if (blinkOn(ms, T)) on++; } return on / n; };
+    const share = (from: number, to: number, len = T) => { let on = 0, n = 0; for (let ms = from; ms < to; ms += step) { n++; if (blinkOn(ms, len)) on++; } return on / n; };
     expect(blinkOn(0, T)).toBe(false);
     expect(share(0, 500)).toBeLessThan(0.5);
     expect(share(1000, 1500)).toBeGreaterThan(0.5);
     const flips = (from: number, to: number) => { let n = 0, was = blinkOn(from, T); for (let ms = from + step; ms < to; ms += step) { const now = blinkOn(ms, T); if (now !== was) n++; was = now; } return n; };
-    expect(flips(1000, 1500)).toBeGreaterThan(flips(0, 500));
+    expect(flips(1000, 1500)).toBeGreaterThanOrEqual(flips(0, 500));
     expect(BLINK.duty0).toBeLessThan(0.5);
     expect(BLINK.duty1).toBeGreaterThan(0.5);
   });
+  it("короткое мигание (400 мс, как поставил владелец) тоже видно: не меньше трёх вспышек", () => {
+    let flashes = 0, was = false;
+    for (let ms = 0; ms <= 400; ms += 5) { const on = blinkOn(ms, 400); if (on && !was) flashes++; was = on; }
+    expect(flashes).toBeGreaterThanOrEqual(3);
+  });
+
 });

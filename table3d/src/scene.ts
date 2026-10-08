@@ -192,15 +192,19 @@ function pileBodyGeom(n: number): THREE.BufferGeometry {
 interface CardObj { group: THREE.Group; front: THREE.Mesh; back: THREE.Mesh; shades: THREE.Mesh[]; ring: THREE.LineLoop; halo: THREE.Mesh; target: Place; faceUrl: string; backUrl: string }
 /** Белое свечение вокруг карты (середина вырезана): красится материалом — подсветка стопки при приёмке и карты в чужих руках. */
 const cardGlowTexture = (() => {
-  let tex: THREE.CanvasTexture | null = null;
-  return (): THREE.CanvasTexture => {
-    if (tex) return tex;
+  const cache = new Map<number, THREE.CanvasTexture>();
+  /** `pad` — на сколько карта с каждой стороны шире карты (в её размерах: плоскость `CARD_W + pad`), `blur` — размытие, `passes` — насыщенность. */
+  return (pad = 1, blur = 34, passes = 3): THREE.CanvasTexture => {
+    const key = pad * 1000 + blur * 10 + passes;
+    const hit = cache.get(key);
+    if (hit) return hit;
     const cv = document.createElement("canvas"); cv.width = 256; cv.height = 360;
-    const c = cv.getContext("2d")!, iw = (CARD_W / (CARD_W + 1)) * 256, ih = (CARD_H / (CARD_H + 1)) * 360, x = (256 - iw) / 2, y = (360 - ih) / 2;
-    c.shadowColor = "#fff"; c.shadowBlur = 34; c.fillStyle = "#fff";
-    for (let i = 0; i < 3; i++) { c.beginPath(); c.roundRect(x, y, iw, ih, 14); c.fill(); }
+    const c = cv.getContext("2d")!, iw = (CARD_W / (CARD_W + pad)) * 256, ih = (CARD_H / (CARD_H + pad)) * 360, x = (256 - iw) / 2, y = (360 - ih) / 2;
+    c.shadowColor = "#fff"; c.shadowBlur = blur; c.fillStyle = "#fff";
+    for (let i = 0; i < passes; i++) { c.beginPath(); c.roundRect(x, y, iw, ih, 14); c.fill(); }
     c.shadowBlur = 0; c.globalCompositeOperation = "destination-out"; c.beginPath(); c.roundRect(x, y, iw, ih, 14); c.fill();
-    tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    cache.set(key, tex);
     return tex;
   };
 })();
@@ -2371,8 +2375,10 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     return moving;
   }
   // ——— подсветка стопки при приёмке: свечение на сукне ПОД колодой, в её позе и в перспективе (`probe.setPileGlow`) ———
-  const glowMat = new THREE.MeshBasicMaterial({ map: cardGlowTexture(), color: 0x7fd1b9, transparent: true, depthWrite: false });
-  const glowMesh = new THREE.Mesh(new THREE.PlaneGeometry(CARD_W + 1, CARD_H + 1), glowMat);
+  // Свет под целью слияния крупный и яркий: стол в игре мелкий, колода на нём — небольшая, узкая кромка терялась на тёмном сукне.
+  const GLOW_PAD = 2.4;
+  const glowMat = new THREE.MeshBasicMaterial({ map: cardGlowTexture(GLOW_PAD, 90, 5), color: 0x7fd1b9, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+  const glowMesh = new THREE.Mesh(new THREE.PlaneGeometry(CARD_W + GLOW_PAD, CARD_H + GLOW_PAD), glowMat);
   glowMesh.visible = false; glowMesh.renderOrder = 1; scene.add(glowMesh);
   /** `mode`: ровный свет слияния или его мигание (`lit` — горит ли в этот миг); без него — приёмка (мятный). `blink` — как далеко мигание (0…1). */
   let glowFor: { pile: string; level: "hint" | "hot"; mode?: "steady" | "blink"; lit?: boolean; blink?: number; spot?: { x: number; y: number; angle: number } } | null = null;
@@ -4211,6 +4217,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     /** Журнал слияний этого захода: сколько партий можно уронить тряской. */
     undoInfo: () => ({ batches: session?.batches.length ?? 0, ids: session?.batches.map((b) => b.ids.length) ?? [] }),
     undoNow: () => undoBatch(),
+    /** Свечение под целью слияния: видно ли, насколько и где. */
+    glowShown: () => ({ visible: glowMesh.visible, opacity: glowMat.opacity, color: glowMat.color.getHexString(), at: glowMesh.position.toArray(), mode: glowFor?.mode ?? null }),
     holdInfo: () => ({ pile: merge?.key ?? null, seated: merge?.seated ?? false, steady: glowFor?.mode === "steady", blinking: glowFor?.mode === "blink", lit: glowFor?.lit ?? false, progress: glowFor?.blink ?? 0 }),
     tabHitAt: (x: number, y: number) => hitTab({ clientX: x, clientY: y } as PointerEvent),
     /** Для проверок: подменить часы долгого удержания (мс); `null` — вернуть реальные. */
