@@ -75,6 +75,12 @@ export interface SettingsWorld {
   cardSize?: { min: number; max: number; get(): number; set(pct: number): void };
   /** DEV, только локально: размер людей за столом в 3D, проценты. */
   dollSize?: { min: number; max: number; get(): number; set(pct: number): void };
+  /** СЛИЯНИЕ СТОПОК (настройки стола, ставит тот, кто может стопкам): времена удержания, режимы сторон, ручки тряски. Нет или `may()` ложно — раздела нет. */
+  merge?: {
+    may(): boolean;
+    knobs: { key: string; label: string; min: number; max: number; step: number; get(): number; set(value: number): void }[];
+    modes: { key: string; label: string; options: [string, string][]; get(): string; set(value: string): void }[];
+  };
   /** Запись моего экрана — камера, нажатия, звук (`SCREEN_PRIVATE`); по умолчанию выключена. */
   record: { on(): boolean; toggle(): void };
 }
@@ -196,6 +202,13 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       + `<span data-view-value style="flex:none;width:40px;text-align:right;font:400 13px Tiny5,monospace;color:${INK.ink}">${Math.round(v.get())}°</span></div>`;
   }
 
+  function mergeHtml(m: NonNullable<SettingsWorld["merge"]>): string {
+    const row = (label: string, body: string) => `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:40px;padding:2px 0"><span style="flex:1;min-width:0;font:400 12px Tiny5,monospace;color:${INK.ink}">${label}</span>${body}</div>`;
+    const field = `width:70px;background:${INK.black};color:${INK.ink};border:0;box-shadow:inset 0 0 0 2px ${INK.rim};padding:6px;font:400 13px Tiny5,monospace`;
+    return m.modes.map((o) => row(o.label, `<span style="display:flex;gap:4px">` + o.options.map(([v, t]) => `<button data-merge-mode="${o.key}:${v}" style="border:0;cursor:pointer;padding:6px 8px;font:400 11px Tiny5,monospace;color:${INK.ink};${o.get() === v ? `background:linear-gradient(${INK.goldHi},${INK.goldLo});color:${INK.black}` : `background:${INK.plateLo}`}">${t}</button>`).join("") + `</span>`)).join("")
+      + m.knobs.map((k) => row(k.label, `<input data-merge-knob="${k.key}" type="number" min="${k.min}" max="${k.max}" step="${k.step}" value="${k.get()}" style="${field}">`)).join("");
+  }
+
   function render(): void {
     const { sound, haptic, motion, look } = world;
     // ОКНО ПРОКРУЧИВАЕТСЯ ПАЛЬЦЕМ. У страницы стола `touch-action:none` — палец там тянет карту, а не страницу;
@@ -229,6 +242,7 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
       + (world.avatar ? section("Аватар")
         + toggle("avatar-seat", "Стул", world.avatar.model() === "seat")
         + toggle("avatar-king", "Король треф", world.avatar.model() === "king") : "")
+      + (world.merge?.may() ? section("Слияние стопок") + mergeHtml(world.merge) : "")
       + section("Вид стола")
       + toggle("view3d", "3D-вид (вместо обычного)", in3d())
       + section("Колода")
@@ -242,6 +256,12 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
   layer.addEventListener("click", (e) => {
     const target = e.target as Element;
     if (target === layer || target.closest("[data-settings-close]")) return settings.hide();
+    const mode = target.closest<HTMLElement>("[data-merge-mode]");
+    if (mode && world.merge) {
+      const [key, value] = mode.dataset.mergeMode!.split(":");
+      world.merge.modes.find((o) => o.key === key)?.set(value!);
+      return render();
+    }
     const speed = target.closest<HTMLElement>("[data-speed]");
     if (speed) {
       world.motion.setSpeed(Number(speed.dataset.speed) as Speed);
@@ -323,6 +343,12 @@ export function mountSettings(host: HTMLElement, world: SettingsWorld): Settings
     render();
   });
   // Ползунок — без пересборки: палец остаётся на нём, меняются только столбики и число.
+  layer.addEventListener("change", (e) => {
+    const input = e.target as HTMLInputElement;
+    if (!input.matches("[data-merge-knob]") || !world.merge) return;
+    const k = world.merge.knobs.find((x) => x.key === input.dataset.mergeKnob);
+    if (k) k.set(Math.max(k.min, Math.min(k.max, Math.round(Number(input.value) || k.get()))));
+  });
   layer.addEventListener("input", (e) => {
     const input = e.target as HTMLInputElement;
     if (input.matches("[data-card-size]") && world.cardSize) {

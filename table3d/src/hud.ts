@@ -13,7 +13,7 @@
 //   на столе индикатор стопки (сколько карт; тап — перемешать / по масти / перевернуть, тянуть — перенести стопку);
 //            тап по голове — окно стула: флаги, «не читать», у крупье — его дела.
 
-import { DEAL_PRESETS, type Chair, type ChairFlag, type DealDir, type DealRule, type Face, type GatherSide, type PileGuard, type SeenCard, type Snapshot } from "../../server/src/table/contract.js";
+import { DEAL_PRESETS, HOLD_MS_RANGE, MERGE_MS, SHAKE_KNOBS, TABLE_PILE, type Chair, type ChairFlag, type DealDir, type DealRule, type Face, type GatherSide, type PileGuard, type SeenCard, type Snapshot } from "../../server/src/table/contract.js";
 import { fingerHtml } from "./finger.js";
 import { allowed, may as mayDo } from "../../server/src/table/access.js";
 import { SUITS } from "../../server/table-client/felt.js";
@@ -133,6 +133,16 @@ export function mountHud(root: HTMLElement, stage: HTMLElement, store: TableStor
     cardSize: { min: 50, max: 200, get: () => Math.round(scene.handSize() * 100), set: (pct) => { scene.setHandSize(pct / 100); try { localStorage.setItem("t3d.handSize", String(scene.handSize())); } catch { /* без памяти — размер на эту сессию */ } } },
     neckViz: Object.fromEntries((["vignette", "gauge"] as const).map((k) => [k, { on: () => scene.neckViz(k), toggle: () => { scene.setNeckViz(k, !scene.neckViz(k)); try { localStorage.setItem(`t3d.${k}`, scene.neckViz(k) ? "1" : "0"); } catch { /* без памяти — на эту сессию */ } } }])) as never,
     figures: { on: () => figuresOn, toggle: () => { figuresOn = !figuresOn; scene.setFigures(figuresOn); } },
+    merge: {
+      may: () => store.state.rights.includes("pile.guard"),
+      knobs: ([
+        ["delayMs", "Задержка до реакции, мс", 0, 3000, 50, MERGE_MS.delay], ["glowMs", "Ровный свет, мс", 0, 3000, 50, MERGE_MS.glow], ["holdMs", "Мигание, мс", HOLD_MS_RANGE.min, HOLD_MS_RANGE.max, 50, MERGE_MS.blink], ["liftMs", "Подъём нижней вещи, мс", 0, 2000, 50, MERGE_MS.lift],
+        ["shakeAmp", "Тряска: размах, px", SHAKE_KNOBS.shakeAmp.min, SHAKE_KNOBS.shakeAmp.max, 5, SHAKE_KNOBS.shakeAmp.def], ["shakeTurns", "Тряска: взмахов (0 — выкл.)", SHAKE_KNOBS.shakeTurns.min, SHAKE_KNOBS.shakeTurns.max, 1, SHAKE_KNOBS.shakeTurns.def],
+        ["shakeMs", "Тряска: окно, мс", SHAKE_KNOBS.shakeMs.min, SHAKE_KNOBS.shakeMs.max, 50, SHAKE_KNOBS.shakeMs.def], ["nextTurns", "Следующая тряска: взмахов", SHAKE_KNOBS.nextTurns.min, SHAKE_KNOBS.nextTurns.max, 1, SHAKE_KNOBS.nextTurns.def],
+        ["nextMs", "Следующая тряска: окно, мс", SHAKE_KNOBS.nextMs.min, SHAKE_KNOBS.nextMs.max, 100, SHAKE_KNOBS.nextMs.def], ["shakeG", "Телефон: порог встряхивания", SHAKE_KNOBS.shakeG.min, SHAKE_KNOBS.shakeG.max, 1, SHAKE_KNOBS.shakeG.def],
+      ] as const).map(([key, label, min, max, step, def]) => ({ key, label, min, max, step, get: () => (store.state.pileRules?.[TABLE_PILE] as unknown as Record<string, number | undefined> | undefined)?.[key] ?? def, set: (value: number) => store.send({ t: "pileRule", pile: TABLE_PILE, rule: key, value }) })),
+      modes: (["dropSides", "holdSides"] as const).map((key) => ({ key, label: key === "dropSides" ? "Другая сторона при отпускании" : "Другая сторона при удержании", options: [["refuse", "строго"], ["flip", "переворачивать"]] as [string, string][], get: () => store.state.pileRules?.[TABLE_PILE]?.[key] ?? "refuse", set: (value: string) => store.send({ t: "pileRule", pile: TABLE_PILE, rule: key, value }) })),
+    },
     footer: () => `build ${TABLE_BUILD} · песочница 3D · three.js${scene.gyro.on() ? ` · ${scene.gyro.info()}` : ""}`,
     changed: () => draw(),
   });

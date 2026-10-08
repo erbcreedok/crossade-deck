@@ -1,0 +1,30 @@
+// НАСТРОЙКИ СЛИЯНИЯ СТОПОК В ИГРЕ (3D-песочница): раздел «Слияние стопок» в настройках — времена, режимы сторон, ручки тряски; значения уходят столу как правила стола.
+//   node merge-settings-check.mjs [base]
+import { createRequire } from "module";
+const require = createRequire(new URL("../server/scripts/x.mjs", import.meta.url));
+const { chromium } = require("playwright");
+const base = process.argv[2] ?? "http://localhost:9590";
+const browser = await chromium.launch();
+const errors = [], checks = [];
+const check = (name, ok, got) => checks.push({ name, ok, got });
+const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
+p.on("pageerror", (e) => errors.push(e.message));
+await p.goto(`${base}/?stand&cam=top`);
+await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+await p.waitForTimeout(1500);
+await p.evaluate(() => document.querySelector("[data-settings]").click());
+await p.waitForTimeout(500);
+const knobs = await p.evaluate(() => [...document.querySelectorAll("[data-merge-knob]")].map((e) => [e.dataset.mergeKnob, e.value]));
+check("в настройках игры есть раздел «Слияние стопок» с десятью ручками и значениями по умолчанию", knobs.length === 10 && knobs.find((k) => k[0] === "delayMs")?.[1] === "400" && knobs.find((k) => k[0] === "shakeTurns")?.[1] === "6", knobs);
+await p.evaluate(() => { const e = document.querySelector('[data-merge-knob="delayMs"]'); e.value = "700"; e.dispatchEvent(new Event("change", { bubbles: true })); });
+await p.waitForTimeout(500);
+const rules = await p.evaluate(() => window.__t3d.state().pileRules?.["*"] ?? null);
+check("ручка уходит столу: задержка 700 мс стала правилом стола", rules?.delayMs === 700, rules);
+await p.evaluate(() => document.querySelector('[data-merge-mode="dropSides:flip"]').click());
+await p.waitForTimeout(500);
+const rules2 = await p.evaluate(() => window.__t3d.state().pileRules?.["*"] ?? null);
+check("режим сторон при отпускании «переворачивать» — правило стола", rules2?.dropSides === "flip" && rules2?.delayMs === 700, rules2);
+await browser.close();
+check("без ошибок страницы", errors.length === 0, errors);
+for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));
+process.exit(checks.every((c) => c.ok) ? 0 : 1);
