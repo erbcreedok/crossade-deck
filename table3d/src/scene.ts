@@ -2375,10 +2375,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     return moving;
   }
   // ——— подсветка стопки при приёмке: свечение на сукне ПОД колодой, в её позе и в перспективе (`probe.setPileGlow`) ———
-  // Свет под целью слияния крупный и яркий: стол в игре мелкий, колода на нём — небольшая, узкая кромка терялась на тёмном сукне.
-  const GLOW_PAD = 2.4;
-  const glowMat = new THREE.MeshBasicMaterial({ map: cardGlowTexture(GLOW_PAD, 90, 5), color: 0x7fd1b9, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
-  const glowMesh = new THREE.Mesh(new THREE.PlaneGeometry(CARD_W + GLOW_PAD, CARD_H + GLOW_PAD), glowMat);
+  const glowMat = new THREE.MeshBasicMaterial({ map: cardGlowTexture(), color: 0x7fd1b9, transparent: true, depthWrite: false });
+  const glowMesh = new THREE.Mesh(new THREE.PlaneGeometry(CARD_W + 1, CARD_H + 1), glowMat);
   glowMesh.visible = false; glowMesh.renderOrder = 1; scene.add(glowMesh);
   /** `mode`: ровный свет слияния или его мигание (`lit` — горит ли в этот миг); без него — приёмка (мятный). `blink` — как далеко мигание (0…1). */
   let glowFor: { pile: string; level: "hint" | "hot"; mode?: "steady" | "blink"; lit?: boolean; blink?: number; spot?: { x: number; y: number; angle: number } } | null = null;
