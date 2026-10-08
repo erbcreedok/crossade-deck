@@ -218,6 +218,16 @@ describe("приёмка в стопку: сторона упавшей карт
     expect(backToDeck(t, "a", false).up).toBe(true);
   });
 
+  it("карта из руки не отказывается по стороне: ложится стороной стопки (рука показывает лицо хозяину)", () => {
+    const t = seated("a");
+    const a = seatOf(t, "a");
+    ok(t.act("a", { t: "grab", id: "c7" }, 0));
+    ok(t.act("a", { t: "drop", id: "c7", to: { in: "hand", chair: a, i: 0 } }, 0));
+    ok(t.act("a", { t: "grab", id: "c7" }, 0));
+    ok(t.act("a", { t: "drop", id: "c7", to: { in: "deck", pile: "deck" } }, 0));
+    expect(t.seenBy("a").piles[0]!.cards.at(-1)).toEqual({ id: "c7" });
+  });
+
   it("карта той же стороны ложится как есть; настройка стопки перекрывает настройку стола", () => {
     const t = seated("a");
     expect(backToDeck(t, "a", false).up).toBeUndefined();

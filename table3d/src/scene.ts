@@ -3692,7 +3692,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   renderer.domElement.addEventListener("pointercancel", () => { liftWait = null; }, true);
   /** Что можно с этими двумя сторонами при таких режимах: сесть сверху (отпустить сольёт или поднять), поднять удержанием, слить отпусканием. */
   function verdictOf(held: boolean, under: boolean, k: { drop: string; hold: string }): Verdict {
-    const same = held === under;
+    // Карта из руки лежит лицом к хозяину — это взгляд, а не сторона на столе: она ложится стороной цели.
+    const same = held === under || (!!drag && !drag.pile && fromOf.get(drag.id)?.in === "hand");
     return { seat: same || k.drop === "flip" || k.hold === "flip", lift: same || k.hold === "flip", drop: same || k.drop === "flip" };
   }
   /** Над какой стопкой сейчас палец и пускает ли она то, что несут. */
@@ -3811,7 +3812,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     if (!ev || !d) return false;
     if (ht) {
       // Куча: несомое ложится на самую верхнюю, всё слепляется в стопку, стопка под палец; остальные поднимутся следом по очереди.
-      const held = d.id, side: "up" | "down" = (release ? ht.top.up : d.up) ? "up" : "down";
+      const held = d.id, fromHand = !d.pile && fromOf.get(d.id)?.in === "hand", side: "up" | "down" = (release || fromHand ? ht.top.up : d.up) ? "up" : "down";
       if (!release && session) { const b: Batch = { ids: [ht.top.id], side: ht.top.up ? "up" : "down" }; session.batches.push(b); session.cur = b; }
       if (d.pile) {
         const members = [...d.members];
