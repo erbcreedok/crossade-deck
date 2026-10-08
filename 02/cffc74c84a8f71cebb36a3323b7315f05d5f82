@@ -1,0 +1,21 @@
+table3d/src/scene.ts
+  s_73107c3d804131::t_b2d678eb7a81bb 4023-4027
+table3d/dbgh.mjs
+  s_73107c3d804131::t_6f7cc31b4e9c89 1-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "02cffc74c84a8f71cebb36a3323b7315f05d5f82",
+  "prompts": {},
+  "sessions": {
+    "s_73107c3d804131": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e85b33e2-d0a6-4a90-b535-037e1d4326e5",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
