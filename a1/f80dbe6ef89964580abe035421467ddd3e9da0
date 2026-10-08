@@ -1,0 +1,21 @@
+table3d/merge-chair-check.mjs
+  s_73107c3d804131::t_e2bb1c0984982d 1-37
+table3d/src/scene.ts
+  s_73107c3d804131::t_9d37bdd538d9a9 2424,2427-2428,3193-3194,3727-3735,3767-3768,3773-3786,3840,3844-3851,3889-3890,3892,3898-3899,3904
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a1f80dbe6ef89964580abe035421467ddd3e9da0",
+  "prompts": {},
+  "sessions": {
+    "s_73107c3d804131": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e85b33e2-d0a6-4a90-b535-037e1d4326e5",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
