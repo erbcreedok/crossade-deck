@@ -107,21 +107,6 @@ try {
     note.hidden = true;
     apply();
     for (const one of screens) (one.scene.test as { setNeckFree(on: boolean): void }).setNeckFree(true);
-    // Приёмка стопки (свечение / апрув / «нельзя») — тот же модуль, что на дизайн-страницах; на стенде правило стопки переключается тремя кнопками.
-    const { mountPileAccept } = await import("./pileAccept.js");
-    const accept = mountPileAccept({ table: table.view("me"), views: screens.map((one) => ({ scene: one.scene, host: one.stage, frame: one.stage })) });
-    const rules = document.createElement("div");
-    rules.style.cssText = "position:fixed;z-index:50;left:6px;bottom:calc(var(--safe-bottom,0px) + 6px);display:flex;gap:4px;font:400 11px 'Tiny5',monospace";
-    for (const [k, t] of [["accept", "принимает"], ["refuse", "не принимает"], ["ask", "нужен апрув"]] as const) {
-      const b = document.createElement("button");
-      b.textContent = t;
-      b.style.cssText = "font:inherit;padding:4px 7px;border:0;background:#3a2a1d;color:#f5ead0;box-shadow:0 0 0 2px #0b0704";
-      const paint = (): void => { b.style.background = accept.policy() === k ? "#f2c14e" : "#3a2a1d"; b.style.color = accept.policy() === k ? "#0b0704" : "#f5ead0"; };
-      b.onclick = () => { accept.setPolicy(k); for (const x of rules.children) (x as HTMLElement).dispatchEvent(new Event("paint")); };
-      b.addEventListener("paint", paint); paint();
-      rules.append(b);
-    }
-    document.body.append(rules);
     addEventListener("keydown", (e) => {
       if (e.key !== "Tab" || e.repeat) return;
       if ((e.target as HTMLElement | null)?.closest?.("input, textarea, [contenteditable]")) return;
