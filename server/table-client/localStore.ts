@@ -4,10 +4,11 @@
 // самые, что у живой комнаты, — жест, настроенный на стенде, ведёт себя в игре так же.
 
 import type { Body } from "../src/table/bodies.js";
-import { DEAL_PRESETS, type DealRule, type Face, type Intent, type Op, type Person, type Refusal, type Suit } from "../src/table/contract.js";
+import { DEAL_PRESETS, type Carry, type CarryOut, type DealRule, type Face, type Intent, type Op, type Person, type Refusal, type Suit } from "../src/table/contract.js";
 import { applyPatch } from "../src/table/patch.js";
 import { Table } from "../src/table/table.js";
 import type { TableStore } from "./store.js";
+import { carryOf } from "./tape.js";
 
 function deal(full = false): { id: string; face: Face }[] {
   const ranks = full ? ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"] : ["6", "7", "8", "9", "10", "J", "Q", "K", "A"];
@@ -89,6 +90,22 @@ export function localTable(opts: LocalOpts = {}): { view(key: string): TableStor
     opsHeard: Array<(ops: readonly Op[]) => void>;
   }
   const views = new Map<string, View>();
+  /** Что несёт каждый палец прямо сейчас (последнее слово «несу»): остальные экраны видят это, пока палец не отпустил — как в сети. */
+  const carrying = new Map<string, CarryOut>();
+  const tellOthers = (key: string): void => { for (const [other, v] of views) if (other !== key) for (const listener of v.changed) listener(); };
+  /** Что вижу в воздухе у чужих пальцев: одну карту — в `carries`, стопку целиком — в `stacks` (тот же разбор, что у стенда зон и реплея). */
+  const inAir = (key: string, state: View["state"], whole: boolean): Carry[] => {
+    const out: Carry[] = [];
+    for (const [by, c] of carrying) {
+      if (by === key) continue;
+      const one = carryOf(state, c.id, by, c.over);
+      if (!one || (one.whole === true) !== whole || (whole && !state.locks[c.id])) continue;
+      out.push({ ...one, ...(c.flip ? { flip: c.flip } : {}), ...(c.tilt ? { tilt: c.tilt } : {}), ...(c.spin ? { spin: c.spin } : {}), ...(c.fx ? { fx: c.fx } : {}), ...(c.merge ? { merge: c.merge } : {}) });
+    }
+    return out;
+  };
+  /** Слова, после которых палец уже не несёт: отпустил, положил, перенёс. */
+  const LETS_GO = new Set(["drop", "release", "pileDrop", "deckMove", "moveMany", "unpick", "gather"]);
   const person = (key: string): Person => [me, ...bots, ...roster].find((one) => one.key === key)!;
 
   /** Операции — всем глазам; режутся под каждого ровно как в сети: стенд не должен показывать больше живого стола. */
@@ -126,6 +143,7 @@ export function localTable(opts: LocalOpts = {}): { view(key: string): TableStor
           return mine.state;
         },
         send(intent) {
+          if (LETS_GO.has(intent.t) && carrying.delete(key)) tellOthers(key);
           const result = table.act(key, intent, Date.now());
           if ("refused" in result) {
             for (const listener of mine.refused) listener(intent, result.refused);
@@ -134,8 +152,12 @@ export function localTable(opts: LocalOpts = {}): { view(key: string): TableStor
           }
           spread(result.ops);
         },
-        carries: [],
-        stacks: [],
+        get carries() {
+          return inAir(key, mine.state, false);
+        },
+        get stacks() {
+          return inAir(key, mine.state, true);
+        },
         eyes: [],
         watch: () => {},
         get bodies() {
@@ -155,7 +177,10 @@ export function localTable(opts: LocalOpts = {}): { view(key: string): TableStor
         onRtc: () => {},
         mic: () => {},
         onMic: () => {},
-        carry: () => {},
+        carry(out) {
+          carrying.set(key, out);
+          tellOthers(key);
+        },
         say: () => {},
         onSay: () => {},
         askStickers: () => {},
