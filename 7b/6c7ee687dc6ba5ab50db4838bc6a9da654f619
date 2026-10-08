@@ -1,0 +1,24 @@
+table3d/merge-settings-check.mjs
+  s_73107c3d804131::t_daa6719ec8fadf 1-30
+server/table-client/settings.ts
+  s_73107c3d804131::t_ccdc0f0a7b1c66 78-83,205-211,245,259-264,346-351
+table3d/src/hud.ts
+  s_73107c3d804131::t_aba4aa1fbc7272 16
+  s_73107c3d804131::t_ccdc0f0a7b1c66 136-145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7b6c7ee687dc6ba5ab50db4838bc6a9da654f619",
+  "prompts": {},
+  "sessions": {
+    "s_73107c3d804131": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e85b33e2-d0a6-4a90-b535-037e1d4326e5",
+        "model": "unknown"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
