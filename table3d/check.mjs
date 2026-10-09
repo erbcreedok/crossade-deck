@@ -107,7 +107,7 @@ try {
   const trace = await p.evaluate((id) => new Promise((r) => { const out = []; const f = () => { out.push(window.__t3d.world(id)); out.length < 50 ? requestAnimationFrame(f) : r(out); }; f(); }), feltNow);
   const settled = trace.at(-1);
   check("отпустил — карта опускается пружиной (не мгновенно) и ложится на сукно, не проваливаясь", trace[1].h > 0.1 && settled.h < 0.05 && trace.every((q) => q.h >= 0.0) , trace.filter((_, i) => i % 10 === 0).map((q) => q.h.toFixed(2)));
-  check("тени: включены, солнце отбрасывает, сукно принимает", Object.values(await t(() => window.__t3d.shadows())).every(Boolean), null);
+  check("тени от солнца выключены (остаётся тень-указатель под несомой вещью)", await t(() => { const s = window.__t3d.shadows(); return !s.on && !s.sun; }), null);
 
   // Облёт.
   const v0 = await t(() => window.__t3d.view());

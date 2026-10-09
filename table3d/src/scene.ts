@@ -56,6 +56,8 @@ const HOLD_PICK_MS = 350;
  */
 /** Несомая в свободном месте карта смотрит на глаз несущего: `face` — доля пути от «лежит плашмя» до «лицом к глазу» (остальное — наклон туда, куда ляжет). */
 const CARRY_TILT = { face: 0.65, floor: 0.12 };
+/** Солнечные тени (карты, тела, стол): выключены, остаётся одна тень-указатель под летящей вещью. */
+const SUN_SHADOWS = false;
 const SPRING = { k: 170, damp: 0.62 }, SPRING_HELD = { k: 900, damp: 0.9 }, SPRING_SLAM = { k: 12000, damp: 1 };
 /** Над своей рукой несомая карта — выше соседей на эту долю своей высоты, ближе к глазу и чуть крупнее. */
 /** Размер своих карт в руке относительно обычного: предел ползунка в настройках. */
@@ -380,7 +382,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   lockTouch(host.ownerDocument);
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   // ТЕНИ — от солнца над столом: карты в воздухе, тела и руки ложатся тенью на сукно.
-  renderer.shadowMap.enabled = true;
+  // Теней от солнца нет совсем: на столе показываем только тень-указатель прямо под несомой вещью — куда она упадёт (`placeDrops`), как в Tabletop Simulator.
+  renderer.shadowMap.enabled = SUN_SHADOWS;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   renderer.setClearColor(0x0a1511);
@@ -926,7 +929,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
   // Свет — так, чтобы освещённое сукно было того же цвета, что и без света: рассеянный плюс солнце ≈ 1.
   const sun = new THREE.DirectionalLight(0xfff6e8, 0.75);
   sun.position.set(5, 22, 7);
-  sun.castShadow = true;
+  sun.castShadow = SUN_SHADOWS;
   sun.shadow.mapSize.set(2048, 2048);
   Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 60 });
   sun.shadow.bias = -0.0005;
@@ -2342,16 +2345,31 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     for (const c of store.stacks) if (c.card.id === id || (c.with ?? []).some((w) => w.card.id === id)) return true;
     return false;
   };
+  /** Выше этого над сукном (в долях стола) вещь отбрасывает тень-указатель, даже если она висит неподвижно. */
+  const ELEVATED = 0.12;
+  /** Нижние карты несомой стопки: тень у стопки одна — под верхней картой. */
+  const stackBody = (id: string): boolean => {
+    if (drag?.moved && drag.pile && id !== drag.id && drag.members.includes(id)) return true;
+    for (const c of store.stacks) if ((c.with ?? []).some((w) => w.card.id === id)) return true;
+    return false;
+  };
   function placeDrops(): boolean {
     let moving = false;
     if (drag?.moved) flight.add(drag.id);
     for (const id of carriedForeign.keys()) flight.add(id);
+    // Тень-указатель — у каждой вещи на столе, что приподнята над сукном (чужая рука, вещь в воздухе); лежащие на сукне и карты стопок её не дают (под собой не видна).
+    for (const [id, o] of cards) {
+      if (flight.has(id) || fromOf.get(id)?.in === "pile") continue;
+      if (o.group.visible && !o.target.onCamera && !o.target.over && o.group.position.y > ELEVATED) flight.add(id);
+    }
     for (const id of [...flight]) {
+      if (stackBody(id)) { flight.delete(id); const d0 = dropShadows.get(id); if (d0) d0.mesh.visible = false; continue; }
       const o = cards.get(id);
       if (!o) { flight.delete(id); const d = dropShadows.get(id); if (d) { scene.remove(d.mesh); dropShadows.delete(id); } continue; }
       const t = o.target, g = o.group, carried = (drag?.moved && drag.id === id) || carriedForeign.has(id);
       const hidden = t.onCamera || t.over || !g.visible;
-      if (!carried && (hidden || (Math.abs(g.position.y - t.pos.y) < 0.03 && g.quaternion.angleTo(t.quat) < 0.02))) flight.delete(id);
+      const hanging = !hidden && g.position.y > ELEVATED && fromOf.get(id)?.in !== "pile";
+      if (!carried && !hanging && (hidden || (Math.abs(g.position.y - t.pos.y) < 0.03 && g.quaternion.angleTo(t.quat) < 0.02))) flight.delete(id);
       let d = dropShadows.get(id);
       if (!flight.has(id) || hidden) { if (d) d.mesh.visible = false; continue; }
       if (!d) {
@@ -4259,6 +4277,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     undoNow: () => undoBatch(),
     /** Свечение под целью слияния: видно ли, насколько и где. */
     glowShown: () => ({ visible: glowMesh.visible, opacity: glowMat.opacity, color: glowMat.color.getHexString(), at: glowMesh.position.toArray(), mode: glowFor?.mode ?? null }),
+    /** Сколько теней-указателей (прямо под несомой вещью) видно сейчас. */
+    dropShadows: () => [...dropShadows.values()].filter((d) => d.mesh.visible).length,
     holdInfo: () => ({ pile: merge?.key ?? null, seated: merge?.seated ?? false, steady: glowFor?.mode === "steady", blinking: glowFor?.mode === "blink", lit: glowFor?.lit ?? false, progress: glowFor?.blink ?? 0 }),
     tabHitAt: (x: number, y: number) => hitTab({ clientX: x, clientY: y } as PointerEvent),
     /** Для проверок: подменить часы долгого удержания (мс); `null` — вернуть реальные. */

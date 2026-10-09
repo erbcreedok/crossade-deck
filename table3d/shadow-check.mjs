@@ -1,0 +1,30 @@
+// ТЕНИ: солнечных теней на столе нет; есть одна — тень-указатель прямо под несомой вещью (куда упадёт), как в Tabletop Simulator.
+//   node shadow-check.mjs [base]
+import { createRequire } from "module";
+const require = createRequire(new URL("../server/scripts/x.mjs", import.meta.url));
+const { chromium } = require("playwright");
+const base = process.argv[2] ?? "http://localhost:9590";
+const browser = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader"] });
+const errors = [], checks = [];
+const check = (name, ok, got) => checks.push({ name, ok, got });
+const p = await browser.newPage({ viewport: { width: 390, height: 844 } });
+p.on("pageerror", (e) => errors.push(e.message));
+await p.goto(`${base}/?stand&cam=top`);
+await p.waitForFunction(() => window.__t3d && document.querySelector("#stage canvas"));
+await p.waitForTimeout(1500);
+const sh = await p.evaluate(() => window.__t3d.shadows());
+check("солнечные тени выключены (ни карты, ни тела не отбрасывают)", sh.on === false && sh.sun === false, sh);
+const idle = await p.evaluate(() => window.__t3d.dropShadows());
+const hung = await p.evaluate(() => { const T = window.__t3d, s = T.state(); return s.chairs.filter((c) => c.owner !== "me").flatMap((c) => c.hand).map((c) => T.world?.(c.id)).filter(Boolean).filter((w) => w.h > 0.12).length; });
+check("тень-указатель есть у каждой вещи, висящей над сукном (чужая рука), без жеста", hung === 0 || idle >= 1, { idle, hung });
+const top = await p.evaluate(() => window.__t3d.state().piles[0].cards.at(-1).id);
+const A = await p.evaluate((i) => window.__t3d.screenOf(i), top);
+await p.mouse.move(A.x, A.y); await p.mouse.down(); await p.mouse.move(A.x + 20, A.y + 30, { steps: 4 }); await p.mouse.move(A.x + 60, A.y + 40, { steps: 6 });
+await p.waitForTimeout(600);
+const n = await p.evaluate(() => window.__t3d.dropShadows());
+check("несут карту — к теням добавляется ещё одна, под ней", n === idle + 1, { idle, n });
+await p.mouse.up();
+await browser.close();
+check("без ошибок страницы", errors.length === 0, errors);
+for (const c of checks) console.log(c.ok ? "ok  " : "FAIL", c.name, c.ok ? "" : JSON.stringify(c.got));
+process.exit(checks.every((c) => c.ok) ? 0 : 1);
