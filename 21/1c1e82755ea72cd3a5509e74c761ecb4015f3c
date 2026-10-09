@@ -1,0 +1,27 @@
+scripts/node-notify.mjs
+  s_73107c3d804131::t_249397f7adb51d 1-26
+deploy/failover/supervisor.mjs
+  s_73107c3d804131::t_249397f7adb51d 105-113
+deploy/voyager/README.md
+  s_73107c3d804131::t_a800d46de69be1 15-21
+deploy/voyager/dropins/notify-bot.conf
+  s_73107c3d804131::t_0a570c28f23972 1-4
+deploy/voyager/dropins/notify-table.conf
+  s_73107c3d804131::t_6fedb6280da6c8 1-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "211c1e82755ea72cd3a5509e74c761ecb4015f3c",
+  "prompts": {},
+  "sessions": {
+    "s_73107c3d804131": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e85b33e2-d0a6-4a90-b535-037e1d4326e5",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Yerbol Syzdyk <yerbol_syzdyk@epam.com>"
+    }
+  }
+}
