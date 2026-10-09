@@ -12,3 +12,10 @@
 
 Выкатка: `scripts/deploy-voyager.sh prod` (вручную) и `crossade-pull-dev.timer` (дев сам, раз в минуту).
 Юниты ставит `deploy/voyager/install.sh`.
+
+## Оповещения узла о себе
+
+Каждый узел сам пишет хозяину в Telegram, когда включился и когда выключился (`scripts/node-notify.mjs`); о чужих узлах молчит.
+Voyager: drop-in'ы `deploy/voyager/dropins/notify-table.conf` и `notify-bot.conf` кладутся в
+`~/.config/systemd/user/crossade-table.service.d/notify.conf` и `crossade-bot.service.d/notify.conf` (`systemctl --user daemon-reload`).
+Мак: то же делает надзиратель (`deploy/failover/supervisor.mjs`) — «Мак включён» при запуске, «Мак выключается» при остановке.

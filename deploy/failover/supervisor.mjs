@@ -102,6 +102,15 @@ state.table.on = await loaded(LABELS.table);
 state.bot.on = await loaded(LABELS.bot);
 log(`надзиратель запущен: стол на маке ${state.table.on ? "включён" : "выключен"}, бот на маке ${state.bot.on ? "включён" : "выключен"}`);
 
+// Каждый узел сам говорит о себе — когда включился и когда выключается, — а о Voyager молчит, пока тот отвечает (про Voyager пишет сам Voyager).
+await execFile("node", [join(ROOT, "scripts", "node-notify.mjs"), "Мак", "включён (запасной узел; стол и бот на маке " + (state.table.on || state.bot.on ? "работают" : "выключены, Voyager основной") + ")"]).catch(() => {});
+let goingDown = false;
+for (const sig of ["SIGTERM", "SIGINT", "SIGHUP"]) process.on(sig, () => {
+  if (goingDown) return;
+  goingDown = true;
+  execFile("node", [join(ROOT, "scripts", "node-notify.mjs"), "Мак", "выключается"], { timeout: 8000 }).finally(() => process.exit(0));
+});
+
 let lastReplica = 0;
 let lastReport = 0;
 const STARTED = Date.now();
