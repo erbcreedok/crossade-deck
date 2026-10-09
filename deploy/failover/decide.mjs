@@ -72,3 +72,13 @@ export function readRegistry(nodes, selfId) {
     liveBot: { other: nodes.some((n) => n.role === "bot" && n.up && n.polling && n.id !== selfId) },
   };
 }
+
+/**
+ * ЗАПУЩЕНО ЛИ ЗАДАНИЕ — по тому, что печатает `launchctl print`. Зарегистрированное в launchd задание (оно регистрируется при каждом входе в систему)
+ * ещё не запущенное: у него нет `pid` и состояния `running`. Принимать «зарегистрировано» за «запущено» нельзя — надзиратель после перезагрузки
+ * «останавливал» стол, которого не было, и писал хозяину «Voyager вернулся».
+ * @param {string} printed
+ */
+export function isRunning(printed) {
+  return /\bstate = running\b/.test(printed) || /^\s*pid = \d+/m.test(printed);
+}

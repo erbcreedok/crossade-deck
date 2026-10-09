@@ -15,7 +15,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync }
 import { homedir, hostname } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { decide, fresh } from "./decide.mjs";
+import { decide, fresh, isRunning } from "./decide.mjs";
 import { sendReport, standbyNote, standbyReport } from "./report.mjs";
 import { statSync } from "node:fs";
 
@@ -54,7 +54,8 @@ async function probe() {
 }
 
 const launchctl = (...args) => execFile("launchctl", args).then((r) => r.stdout, (e) => { throw new Error(e.stderr || e.message); });
-const loaded = (label) => launchctl("print", `gui/${UID}/${label}`).then(() => true, () => false);
+/** Запущено ли задание прямо сейчас (а не просто зарегистрировано в launchd — так бывает после каждого входа в систему). */
+const loaded = (label) => launchctl("print", `gui/${UID}/${label}`).then(isRunning, () => false);
 
 async function start(label) {
   const plist = join(homedir(), "Library", "LaunchAgents", `${label}.plist`);

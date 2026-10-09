@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { decide, fresh, readRegistry, FAIL_AFTER, RECOVER_AFTER } from "./decide.mjs";
+import { decide, fresh, readRegistry, isRunning, FAIL_AFTER, RECOVER_AFTER } from "./decide.mjs";
 
 const alive = { voyagerTable: true, relayUp: true, liveBot: { other: true } };
 const dead = { voyagerTable: false, relayUp: false, liveBot: { other: false } };
@@ -88,4 +88,12 @@ test("реестр: свои записи и погасшие чужие не с
   ];
   assert.deepEqual(readRegistry(nodes, "fly"), { otherTable: false, liveBot: { other: false } });
   assert.deepEqual(readRegistry(null, "fly"), { otherTable: false, liveBot: null });
+});
+
+test("зарегистрированное, но не запущенное задание — не «включено»: после перезагрузки мак не объявляет, что Voyager «вернулся»", () => {
+  const idle = "gui/501/com.crossade.failover-table = {\n\tactive count = 0\n\tpath = /x.plist\n\tstate = not running\n\trunatload = 0\n}";
+  const live = "gui/501/com.crossade.failover-table = {\n\tactive count = 1\n\tstate = running\n\tpid = 4242\n}";
+  assert.equal(isRunning(idle), false);
+  assert.equal(isRunning(live), true);
+  assert.equal(isRunning("state = waiting\n"), false);
 });
