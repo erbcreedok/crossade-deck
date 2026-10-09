@@ -1035,7 +1035,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     bodiesCam = ""; myBodySig = "";
     layout(store.state); draw();
   }
-  /** Во сколько раз толще шея, рука и кисть от дальности до камеры: издалека тонкая рука пропадает — дальше камера, шире линия. */
+  /** (Только МОЯ рука и шея: чужие аватары одни и те же с любого ракурса, без поправки на дальность.) Во сколько раз толще шея, рука и кисть от дальности до камеры: издалека тонкая рука пропадает — дальше камера, шире линия. */
   const farK = (p: THREE.Vector3): number => Math.max(1, Math.min(DOLL.max, camera.position.distanceTo(p) / DOLL.ref));
   const poses = new Map<string, Pose>();
   let bodiesCam = "";
@@ -1056,7 +1056,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       const shL = S.clone().addScaledVector(rightDir, -DOLL.bar), shR = S.clone().addScaledVector(rightDir, DOLL.bar);
       body.add(stick(base, S, DOLL.spine, mat), stick(shL, shR, DOLL.spine, mat), ball(shL, DOLL.spine, mat), ball(shR, DOLL.spine, mat));
       // Левая рука с картами — всегда: и с головой у тела, и когда голова ушла на ту сторону стола (рука с ней).
-      body.add(...armParts(shL, L, -1, rightDir, DOLL.arm * farK(L), mat), ball(L, DOLL.hand * farK(L), mat));
+      body.add(...armParts(shL, L, -1, rightDir, DOLL.arm, mat), ball(L, DOLL.hand, mat));
       body.userData.left = L;
       if (pose.away) {
         // Ушёл головой на ту сторону стола — к голове ниточка его цвета, руки ушли с головой.
@@ -1064,12 +1064,12 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
         tether.computeLineDistances();
         body.add(tether);
       } else {
-        for (const part of neckParts(S, H, DOLL.spine * farK(H), pose.stretch, mat)) body.add(part);
+        for (const part of neckParts(S, H, DOLL.spine, pose.stretch, mat)) body.add(part);
         // Правая рука в покое лежит на столе перед плечом (`restRightOf`); ведёт карту — идёт к ней.
         const rightAt = pose.right ?? restRightOf(pose.s);
         if (Math.hypot(rightAt.x - (pose.s.x + rightDir.x * DOLL.bar), rightAt.y - (pose.s.y + rightDir.z * DOLL.bar)) <= DOLL.reach) {
           const Rh = V(pose.right ? pose.right : { x: rightAt.x, y: rightAt.y, h: restH(rightAt, ch.id) });
-          body.add(...armParts(shR, Rh, 1, rightDir, DOLL.arm * farK(Rh), mat), ball(Rh, DOLL.hand * farK(Rh), mat));
+          body.add(...armParts(shR, Rh, 1, rightDir, DOLL.arm, mat), ball(Rh, DOLL.hand, mat));
           body.userData.right = Rh;
         }
       }
@@ -1079,7 +1079,7 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
       head.center.set(0.5, 1 - 128 / 320);
       head.position.copy(H);
       head.userData.head = pose.by;
-      head.userData.base = H.clone(); head.userData.shoulder = S.clone(); head.userData.shift = DOLL.spine * farK(H) * 1.6 + 0.2;
+      head.userData.base = H.clone(); head.userData.shoulder = S.clone(); head.userData.shift = DOLL.spine * 1.6 + 0.2;
       body.add(head);
       heads.add(body);
     }
@@ -4279,6 +4279,8 @@ export function mountScene(host: HTMLElement, store: TableStore): SceneApi {
     glowShown: () => ({ visible: glowMesh.visible, opacity: glowMat.opacity, color: glowMat.color.getHexString(), at: glowMesh.position.toArray(), mode: glowFor?.mode ?? null }),
     /** Сколько теней-указателей (прямо под несомой вещью) видно сейчас. */
     dropShadows: () => [...dropShadows.values()].filter((d) => d.mesh.visible).length,
+    /** Толщина чужого тела (самый крупный шар — кисть — и самая толстая палка) — не должна зависеть от камеры. */
+    otherBodySize: () => { const b = heads.children.find((c) => c.userData.by && c.userData.by !== store.me.key); if (!b) return null; let ball = 0, stickR = 0; b.traverse((n) => { const m = n as THREE.Mesh; if (!m.isMesh) return; if (m.geometry === unitBall) ball = Math.max(ball, m.scale.x); if (m.geometry === unitStick) stickR = Math.max(stickR, m.scale.x); }); return { ball: +ball.toFixed(3), stick: +stickR.toFixed(3) }; },
     holdInfo: () => ({ pile: merge?.key ?? null, seated: merge?.seated ?? false, steady: glowFor?.mode === "steady", blinking: glowFor?.mode === "blink", lit: glowFor?.lit ?? false, progress: glowFor?.blink ?? 0 }),
     tabHitAt: (x: number, y: number) => hitTab({ clientX: x, clientY: y } as PointerEvent),
     /** Для проверок: подменить часы долгого удержания (мс); `null` — вернуть реальные. */
